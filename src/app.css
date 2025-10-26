@@ -1,0 +1,218 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+@plugin 'daisyui';
+
+@plugin "daisyui/theme" {
+  name: "sfh";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(95% 0 0);
+  --color-base-300: oklch(90% 0 0);
+  --color-base-content: oklch(20% 0 0);
+  --color-primary: #339933;
+  --color-primary-content: oklch(98% 0.003 247.858);
+  --color-secondary: #DA4680;
+  --color-secondary-content: oklch(98% 0.003 247.858);
+  --color-accent: #FDD05E;
+  --color-accent-content: oklch(18.845% 0.037 105.306);
+  --color-neutral: oklch(21.778% 0 0);
+  --color-neutral-content: oklch(84.355% 0 0);
+  --color-info: #54749E;
+  --color-info-content: oklch(98% 0.003 247.858);
+  --color-success: #339933;
+  --color-success-content: oklch(98% 0.003 247.858);
+  --color-warning: oklch(71.236% 0.159 52.023);
+  --color-warning-content: oklch(14.247% 0.031 52.023);
+  --color-error: oklch(62.013% 0.208 28.717);
+  --color-error-content: oklch(98% 0.003 247.858);
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 1;
+}
+
+/* ============================================
+   Global UX/UI Enhancements
+   ============================================ */
+
+/* Smooth scrolling for better UX */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better focus indicators for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+/* Remove focus outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Smooth transitions for all interactive elements */
+a, button, input, select, textarea, .card, .btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced button hover states */
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Smooth link hover states */
+a:hover {
+  opacity: 0.8;
+}
+
+/* Better touch targets for mobile (minimum 44x44px) */
+@media (max-width: 768px) {
+  .btn, button, a[role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Loading states with pulse animation */
+.loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-base-200) 25%,
+    var(--color-base-300) 50%,
+    var(--color-base-200) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Fade in animation for new content */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Slide in from right for modals */
+.slide-in-right {
+  animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Scale up for dialogs */
+.scale-in {
+  animation: scaleIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-base-200);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-base-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Improved table hover states */
+.table tbody tr:hover {
+  background-color: var(--color-base-200);
+  transition: background-color 0.2s ease;
+}
+
+/* Better form input states */
+input:focus, textarea:focus, select:focus {
+  border-color: var(--color-primary);
+  ring-color: var(--color-primary);
+  ring-opacity: 0.2;
+}
+
+/* Disabled state styling */
+:disabled, [disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Selection styling */
+::selection {
+  background-color: var(--color-primary);
+  color: var(--color-primary-content);
+}
+
+/* Smooth modal backdrop */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.5);
+  transition: all 0.3s ease;
+}
+
+/* Better badge styling */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+/* Improved shadow depth system */
+.shadow-depth-1 {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+
+.shadow-depth-2 {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+}
+
+.shadow-depth-3 {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
+}
+
+/* Responsive text sizing */
+@media (max-width: 640px) {
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+}
+
+/* Print styles */
+@media print {
+  .no-print, .btn, nav, .drawer, .bottom-nav {
+    display: none !important;
+  }
+}

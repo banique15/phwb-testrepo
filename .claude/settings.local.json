@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Applications/Claude.app/Contents/MacOS/**)",
+      "Bash(code:*)",
+      "Bash(sudo ln:*)",
+      "Bash(echo:*)",
+      "Bash(claude --version)",
+      "Read(//Applications/Visual Studio Code.app/Contents/Resources/app/bin/**)",
+      "Bash(brew install:*)",
+      "Bash(bun run check:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 30 bun run check:*)",
+      "Bash(gtimeout 60 bun run check:*)",
+      "Read(//private/tmp/**)",
+      "Bash(cat:*)",
+      "Bash(pkill:*)",
+      "Bash(NODE_ENV=production vite build:*)",
+      "Bash(tee:*)",
+      "Bash(vite build:*)",
+      "Bash(bun run build:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(curl:*)",
+      "Bash(psql:*)",
+      "Bash(bun dev)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "playwright-mcp"
+  ]
+}

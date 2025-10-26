@@ -1,0 +1,915 @@
+1
+00:00:00,000 --> 00:00:03,977
+It is,
+
+2
+00:00:03,978 --> 00:00:08,220
+uh, July 16.
+
+3
+00:00:14,161 --> 00:00:18,920
+And, uh, this is a review of the current state
+
+4
+00:00:18,921 --> 00:00:24,075
+of the Sing for Hope and Wellbeing app.
+
+5
+00:00:24,076 --> 00:00:28,665
+With the end goal of this
+
+6
+00:00:28,666 --> 00:00:33,382
+sprint being the adaptation
+
+7
+00:00:33,543 --> 00:00:38,148
+and continued use of the
+
+8
+00:00:38,149 --> 00:00:42,807
+new phwb.singforhope.org app
+
+9
+00:00:43,405 --> 00:00:48,139
+in replacement with the current
+
+10
+00:00:48,140 --> 00:00:52,045
+system which is displayed here on the left.
+
+11
+00:00:52,890 --> 00:00:57,830
+The window being a google doc timesheet document.
+
+12
+00:00:57,831 --> 00:00:59,952
+Uh,
+
+13
+00:00:59,953 --> 00:01:04,605
+I will first describe this timesheet document so that we understand
+
+14
+00:01:04,650 --> 00:01:09,590
+what we are asking users
+
+15
+00:01:09,591 --> 00:01:12,203
+to move away from.
+
+16
+00:01:12,204 --> 00:01:16,745
+And into our new system so
+
+17
+00:01:16,746 --> 00:01:21,473
+that we can then therefore create a
+
+18
+00:01:21,474 --> 00:01:26,596
+one-to-one map of the user interface
+
+19
+00:01:26,597 --> 00:01:31,561
+requirements to ease in the
+
+20
+00:01:31,643 --> 00:01:36,267
+migration of use from the old to this new system.
+
+21
+00:01:36,268 --> 00:01:42,548
+So the timesheet contains
+
+22
+00:01:43,814 --> 00:01:49,596
+entries which represent payroll
+
+23
+00:01:50,840 --> 00:01:53,390
+items. So these represent,
+
+24
+00:01:53,391 --> 00:01:57,937
+uhm, a record of a performance by
+
+25
+00:01:57,938 --> 00:02:00,331
+a single artist.
+
+26
+00:02:00,332 --> 00:02:01,986
+In a single event.
+
+27
+00:02:06,770 --> 00:02:09,875
+And their calculated pay and the status of the payment.
+
+28
+00:02:11,193 --> 00:02:14,599
+So the first column we have is a standard date column.
+
+29
+00:02:16,662 --> 00:02:22,070
+Note that this timesheet displays
+
+30
+00:02:22,071 --> 00:02:25,911
+this column in ascending order.
+
+31
+00:02:26,600 --> 00:02:31,762
+Therefore, it's
+
+32
+00:02:31,763 --> 00:02:34,046
+not exact, but it's,
+
+33
+00:02:36,227 --> 00:02:40,814
+it leads to seeing the oldest records towards the
+
+34
+00:02:40,815 --> 00:02:45,297
+bottom of, of this sheet.
+
+35
+00:02:45,298 --> 00:02:48,357
+Which, by the way, we are in the FY25 sheet,
+
+36
+00:02:48,358 --> 00:02:53,848
+which is the only sheet we need to migrate over to
+
+37
+00:02:53,849 --> 00:02:58,978
+provide continuity. The second column is
+
+38
+00:03:00,393 --> 00:03:02,442
+the name column,
+
+39
+00:03:02,443 --> 00:03:04,800
+and this refers to the name of the artist.
+
+40
+00:03:04,801 --> 00:03:09,832
+And these names appear to be entered
+
+41
+00:03:11,769 --> 00:03:18,584
+from a drop-down selection of
+
+42
+00:03:18,585 --> 00:03:24,656
+items which represent all of the names
+
+43
+00:03:24,657 --> 00:03:31,692
+available of the artists. And these artist names are displayed sometimes,
+
+44
+00:03:31,928 --> 00:03:35,403
+or they're always displayed last name first,
+
+45
+00:03:35,585 --> 00:03:38,889
+comma, first name. Name, and then in parentheses,
+
+46
+00:03:39,477 --> 00:03:41,555
+the artist, the artistic,
+
+47
+00:03:41,556 --> 00:03:44,684
+or the ensemble, or the group,
+
+48
+00:03:44,685 --> 00:03:48,879
+or band, or organization, or contractor name,
+
+49
+00:03:50,608 --> 00:03:53,997
+as we can see here, there is one clear record of this.
+
+50
+00:03:54,553 --> 00:03:57,345
+There's a record of Suarez Paz, which is last name,
+
+51
+00:03:57,815 --> 00:04:00,651
+Leonardo, first name. and in.
+
+52
+00:04:00,652 --> 00:04:03,705
+Parentheses, LSP Productions,
+
+53
+00:04:03,983 --> 00:04:06,125
+and note that when this happens,
+
+54
+00:04:06,691 --> 00:04:11,643
+it sometimes means that this payment
+
+55
+00:04:11,644 --> 00:04:16,324
+record is going to reflect more
+
+56
+00:04:16,325 --> 00:04:19,698
+than the usual, because it will reflect payment,
+
+57
+00:04:20,957 --> 00:04:23,089
+not just to the artist sometime,
+
+58
+00:04:23,090 --> 00:04:27,924
+but also to them. Their subcontractors,
+
+59
+00:04:27,925 --> 00:04:32,881
+or their fellow artists that are getting paid from under this artist.
+
+60
+00:04:37,670 --> 00:04:39,828
+Third column we have is a location,
+
+61
+00:04:39,829 --> 00:04:43,767
+and this location is also a select from values,
+
+62
+00:04:44,013 --> 00:04:48,784
+which are color-coded. The color coatings are
+
+63
+00:04:48,785 --> 00:04:53,742
+blue for healing arts, yellow
+
+64
+00:04:53,743 --> 00:04:58,371
+for creative placemaking, gray for procedural,
+
+65
+00:05:00,254 --> 00:05:04,011
+and pink, or shall I say magenta for other.
+
+66
+00:05:05,478 --> 00:05:08,162
+We then have a list of locations,
+
+67
+00:05:08,163 --> 00:05:12,848
+and these are mapped into our new system as venues.
+
+68
+00:05:12,849 --> 00:05:19,330
+We then have column
+
+69
+00:05:19,331 --> 00:05:23,878
+D, which is a number column for
+
+70
+00:05:23,879 --> 00:05:29,555
+the number of hours. Column
+
+71
+00:05:29,556 --> 00:05:34,193
+E is the rate. There's a reference
+
+72
+00:05:34,194 --> 00:05:36,907
+to a rate card.
+
+73
+00:05:36,908 --> 00:05:41,825
+Which we will
+
+74
+00:05:41,957 --> 00:05:47,579
+dive into later. But this essentially provides
+
+75
+00:05:47,580 --> 00:05:50,920
+also a drop-down with values, pre-determined values.
+
+76
+00:05:52,459 --> 00:05:55,304
+Which are also color-coded in accordance,
+
+77
+00:05:55,305 --> 00:05:58,288
+I believe, to the location, which is the type.
+
+78
+00:05:58,952 --> 00:06:02,054
+The location is attached to a type,
+
+79
+00:06:02,744 --> 00:06:04,788
+like Healing Arts and Creative Placemaking,
+
+80
+00:06:04,789 --> 00:06:07,940
+and then that, according to the rate sheet,
+
+81
+00:06:09,152 --> 00:06:14,273
+dictates the pay. The rate is
+
+82
+00:06:15,784 --> 00:06:20,489
+in either a standard hour,
+
+83
+00:06:21,435 --> 00:06:25,989
+numeric amount per hour. Flat
+
+84
+00:06:25,990 --> 00:06:33,575
+times the number of hours, or a first
+
+85
+00:06:33,576 --> 00:06:39,124
+hour fee plus an additional hour fee format.
+
+86
+00:06:42,100 --> 00:06:46,225
+Again, we need to make a deep dive video into the rate card.
+
+87
+00:06:47,026 --> 00:06:49,099
+Then we have the next column.
+
+88
+00:06:49,100 --> 00:06:53,619
+This column is for additional pay, which this is just
+
+89
+00:06:53,620 --> 00:06:59,105
+entered. It's a number that's entered. We
+
+90
+00:06:59,106 --> 00:07:03,388
+then have addition, reason for additional pay as a column.
+
+91
+00:07:04,098 --> 00:07:08,122
+This also has a select with some entries,
+
+92
+00:07:09,802 --> 00:07:12,416
+which include Project Leader, Carthage,
+
+93
+00:07:12,417 --> 00:07:14,431
+Bank Deposit, Travel Expenses,
+
+94
+00:07:14,432 --> 00:07:18,264
+Parking, LLC, Holiday Special Guest,
+
+95
+00:07:18,275 --> 00:07:21,303
+Half Pay, Cancellation Fee, Band Leader,
+
+96
+00:07:21,410 --> 00:07:23,478
+Arts Admin, and C-Notes.
+
+97
+00:07:26,197 --> 00:07:28,921
+We then have a total amount,
+
+98
+00:07:28,922 --> 00:07:34,583
+which, column, which, uh, I believe can be computed from
+
+99
+00:07:34,584 --> 00:07:37,227
+the pay, calculated pay, Would you?
+
+100
+00:07:37,228 --> 00:07:40,036
+Is hours temp pay rate with those rules,
+
+101
+00:07:40,377 --> 00:07:43,863
+plus the additional pay, we can calculate this.
+
+102
+00:07:46,391 --> 00:07:48,864
+We then have a column for Insperity Hours,
+
+103
+00:07:48,896 --> 00:07:53,982
+which is meant to track the number of hours that they are accruing
+
+104
+00:07:53,983 --> 00:07:56,573
+on Insperity for vacation purposes.
+
+105
+00:07:57,852 --> 00:08:01,291
+I believe the default behavior here.
+
+106
+00:08:01,292 --> 00:08:06,025
+Is to copy over from the number of hours
+
+107
+00:08:06,026 --> 00:08:10,052
+performed. This needs to be clarified.
+
+108
+00:08:12,371 --> 00:08:17,209
+We then have a Date Paid column, which acts as a record
+
+109
+00:08:17,210 --> 00:08:21,058
+of the date that they were paid, and also as a status of whether
+
+110
+00:08:21,059 --> 00:08:25,691
+they have been paid or not. We
+
+111
+00:08:25,692 --> 00:08:28,058
+have a column for Employee slash Contractor,
+
+112
+00:08:29,710 --> 00:08:33,730
+which is not used, and this information,
+
+113
+00:08:33,731 --> 00:08:37,430
+I believe, is best tracked in the Add Artist tab.
+
+114
+00:08:39,828 --> 00:08:43,731
+We then have a column for Invoice Number,
+
+115
+00:08:43,922 --> 00:08:46,162
+and in parentheses, if applicable,
+
+116
+00:08:47,654 --> 00:08:52,303
+meaning that this is optional. And the
+
+117
+00:08:52,304 --> 00:08:56,158
+final note we have is a Notes field,
+
+118
+00:09:00,186 --> 00:09:05,038
+which we can analyze the content of these fields to identify
+
+119
+00:09:05,039 --> 00:09:10,375
+the kind of notes patterns that are
+
+120
+00:09:10,376 --> 00:09:12,843
+being used, and perhaps how we can build solutions,
+
+121
+00:09:12,844 --> 00:09:17,556
+long-term solutions. So that is a breakdown of the
+
+122
+00:09:17,557 --> 00:09:22,535
+current sheet, which
+
+123
+00:09:22,536 --> 00:09:27,109
+we need to navigate away from. And now
+
+124
+00:09:27,110 --> 00:09:31,635
+we will do a quick review of the
+
+125
+00:09:31,636 --> 00:09:37,547
+corresponding payroll page.
+
+126
+00:09:37,548 --> 00:09:42,872
+Which is a page that we are supposed to be modifying.
+
+127
+00:09:48,299 --> 00:09:50,517
+And the current state of the public health and well-being app. For context,
+
+128
+00:09:50,518 --> 00:09:53,502
+I'm running this app in localhost.
+
+129
+00:09:53,503 --> 00:09:58,055
+And we are going to be processing this video into
+
+130
+00:09:58,056 --> 00:10:01,611
+issues. That are going to,
+
+131
+00:10:01,612 --> 00:10:06,579
+To be worked on. In development.
+
+132
+00:10:08,531 --> 00:10:13,754
+So. I am logged in as an administrator.
+
+133
+00:10:15,386 --> 00:10:20,909
+The first issue. That
+
+134
+00:10:20,910 --> 00:10:25,675
+we need is that we need to add. In the most simple.
+
+135
+00:10:25,676 --> 00:10:28,557
+Uncomplicated way. We need to add.
+
+136
+00:10:29,253 --> 00:10:33,804
+The ability to support. User
+
+137
+00:10:33,805 --> 00:10:37,854
+roles. Admins. Directors and staff.
+
+138
+00:10:39,371 --> 00:10:43,089
+And we need for admins. To be able to add.
+
+139
+00:10:43,090 --> 00:10:45,126
+Other admins.
+
+140
+00:10:45,939 --> 00:10:49,739
+This is all done in super base. As a back end.
+
+141
+00:10:49,740 --> 00:10:54,079
+Then we need for admins to be able to add.
+
+142
+00:10:55,165 --> 00:10:57,875
+Also director users.
+
+143
+00:11:01,455 --> 00:11:05,797
+And staff users. And we need directors. To be able to add staff users.
+
+144
+00:11:05,798 --> 00:11:09,379
+Staffs cannot add any other users.
+
+145
+00:11:12,522 --> 00:11:17,518
+Then. We
+
+146
+00:11:17,519 --> 00:11:23,233
+will then have a slightly different UI
+
+147
+00:11:23,234 --> 00:11:27,285
+shown conditionally on permissions based on these three roles.
+
+148
+00:11:27,286 --> 00:11:32,904
+Administrator will always have all
+
+149
+00:11:35,569 --> 00:11:37,867
+permissions to do anything. Director.
+
+150
+00:11:37,868 --> 00:11:42,106
+Director will have most permissions to do mostly everything.
+
+151
+00:11:43,746 --> 00:11:48,838
+And then staff will have very limited permissions and user
+
+152
+00:11:48,839 --> 00:11:53,194
+interface. So they will likely show a much shorter version of this.
+
+153
+00:11:55,090 --> 00:12:00,513
+To keep things simple. We want to have admins have
+
+154
+00:12:00,514 --> 00:12:05,694
+a option to toggle
+
+155
+00:12:05,695 --> 00:12:10,604
+between the different views so that they can preview and experience the
+
+156
+00:12:10,605 --> 00:12:14,729
+application as seen and viewed by these different roles.
+
+157
+00:12:15,766 --> 00:12:19,079
+Then we need to add a tag on top here,
+
+158
+00:12:19,253 --> 00:12:22,519
+color-coded, that shows what the current view is,
+
+159
+00:12:22,520 --> 00:12:26,233
+so that they're aware. Having said that,
+
+160
+00:12:26,546 --> 00:12:30,220
+and that is the first issue that needs to be worked on,
+
+161
+00:12:31,354 --> 00:12:33,867
+which is more of a foundational issue,
+
+162
+00:12:35,310 --> 00:12:40,093
+let's continue to review the current state of the payroll tab
+
+163
+00:12:40,140 --> 00:12:42,873
+slash page and how it needs to be,
+
+164
+00:12:42,874 --> 00:12:45,062
+uhm, improved.
+
+165
+00:12:45,716 --> 00:12:50,320
+so the workflow here on the
+
+166
+00:12:50,321 --> 00:12:52,349
+left, if I want to add an entry,
+
+167
+00:12:53,270 --> 00:12:55,803
+it's pretty straightforward and simple and flat.
+
+168
+00:12:56,810 --> 00:12:58,956
+I first enter a date,
+
+169
+00:12:58,957 --> 00:13:01,763
+a name, you know, I go down the list essentially,
+
+170
+00:13:04,060 --> 00:13:06,371
+and then, uh,
+
+171
+00:13:06,382 --> 00:13:11,004
+Staff I do this and then every Monday or
+
+172
+00:13:11,005 --> 00:13:15,589
+so a director comes in Or an
+
+173
+00:13:15,590 --> 00:13:18,574
+admin comes in and then adds,
+
+174
+00:13:18,575 --> 00:13:23,287
+you know, enter processes payroll and then adds the payment dates
+
+175
+00:13:25,781 --> 00:13:30,995
+So The equivalent since
+
+176
+00:13:30,996 --> 00:13:34,951
+we don't have inline editing Directly,
+
+177
+00:13:34,952 --> 00:13:39,770
+but we have a drawer that allows us to edit but
+
+178
+00:13:39,771 --> 00:13:44,371
+the equivalent here is to click an add entry which opens the sidebar
+
+179
+00:13:47,046 --> 00:13:52,250
+And then enter the date the artist
+
+180
+00:13:54,040 --> 00:13:58,764
+The venue which is a location The event
+
+181
+00:13:58,765 --> 00:14:03,498
+which this is one conflict we have to work out Because there's no
+
+182
+00:14:03,499 --> 00:14:08,220
+such thing as an event entry in the timesheet
+
+183
+00:14:11,858 --> 00:14:16,468
+Multiple timesheet entries could all belong to one single event
+
+184
+00:14:16,469 --> 00:14:22,727
+and the workflow in this new Application
+
+185
+00:14:22,728 --> 00:14:27,770
+is a little different. We're not adding Timesheet
+
+186
+00:14:27,771 --> 00:14:32,509
+entries directly. We're supposed to be adding events out
+
+187
+00:14:32,510 --> 00:14:38,155
+of which timesheet entries come out of So
+
+188
+00:14:38,156 --> 00:14:43,251
+I'm displaying the direct at payroll entry right now Which
+
+189
+00:14:43,252 --> 00:14:47,846
+is gonna ask me to search and select for an event which
+
+190
+00:14:47,847 --> 00:14:54,056
+is not compatible with the current workflow Then
+
+191
+00:14:54,057 --> 00:14:59,080
+we have payment type, which I don't think it exists
+
+192
+00:14:59,749 --> 00:15:04,596
+on the old one Employee slash contractor
+
+193
+00:15:04,597 --> 00:15:07,251
+status Okay,
+
+194
+00:15:07,252 --> 00:15:11,980
+so this Believe one of the one of the first
+
+195
+00:15:11,981 --> 00:15:17,795
+other issues that needs to be worked on here immediately is
+
+196
+00:15:19,481 --> 00:15:25,638
+for this to turn into a
+
+197
+00:15:25,639 --> 00:15:30,664
+newest first on top with inline ad capabilities
+
+198
+00:15:31,028 --> 00:15:35,767
+that mimics very much the current time sheet so that I can then add
+
+199
+00:15:35,768 --> 00:15:38,507
+there's a plus button here and I can click it.
+
+200
+00:15:38,508 --> 00:15:41,263
+And it would add an empty row and I can go down the list
+
+201
+00:15:41,264 --> 00:15:45,981
+inline and simply add a new item for the payroll and
+
+202
+00:15:45,982 --> 00:15:53,569
+that would drastically. Adaptation
+
+203
+00:15:53,570 --> 00:15:58,189
+ease of use by mimicking instead of showing this conflicting
+
+204
+00:15:58,190 --> 00:16:00,236
+version, we now mimic.
+
+205
+00:16:00,237 --> 00:16:03,989
+All of the,
+
+206
+00:16:03,990 --> 00:16:05,636
+uhm, inline.
+
+207
+00:16:14,528 --> 00:16:19,496
+Then. Looking over at the events
+
+208
+00:16:19,667 --> 00:16:24,246
+interface, the new way of doing this would be a little different.
+
+209
+00:16:24,247 --> 00:16:26,635
+There would first be creation.
+
+210
+00:16:26,636 --> 00:16:30,382
+Creation of an event. Which requires a title in this,
+
+211
+00:16:30,383 --> 00:16:33,544
+perhaps this is conflicting, an event may not need a title,
+
+212
+00:16:33,545 --> 00:16:38,043
+it's just a date and a location,
+
+213
+00:16:38,352 --> 00:16:42,899
+which is a venue. Not even a program,
+
+214
+00:16:46,343 --> 00:16:48,998
+that comes later. And then after that, we need to go straight into artist
+
+215
+00:16:48,999 --> 00:16:54,845
+selection. And
+
+216
+00:16:54,846 --> 00:16:58,599
+make sure that these items are optimized,
+
+217
+00:16:58,600 --> 00:17:03,136
+this workflow. Which would create
+
+218
+00:17:03,137 --> 00:17:07,651
+the event. Which is not functioning
+
+219
+00:17:07,652 --> 00:17:09,870
+right now, this needs to be simplified,
+
+220
+00:17:10,070 --> 00:17:14,096
+drastically. And once we create the event,
+
+221
+00:17:14,097 --> 00:17:17,141
+then the event would be And then after it happened,
+
+222
+00:17:17,203 --> 00:17:22,114
+it would trigger automatically the creation of the corresponding payroll
+
+223
+00:17:22,115 --> 00:17:26,816
+entries. So that we can keep then track of their
+
+224
+00:17:26,817 --> 00:17:29,904
+creation by adding some sort of tagging or column.
+
+225
+00:17:31,853 --> 00:17:35,746
+Of whether they were created automatically by an event that happened,
+
+226
+00:17:36,064 --> 00:17:38,320
+or they were created manually, and then if so,
+
+227
+00:17:38,321 --> 00:17:43,059
+then by who. This is the first set
+
+228
+00:17:43,060 --> 00:17:48,079
+of issues that we need to work on to get to a stable
+
+229
+00:17:48,858 --> 00:17:53,068
+point of adoptability for the public health and well-being app.

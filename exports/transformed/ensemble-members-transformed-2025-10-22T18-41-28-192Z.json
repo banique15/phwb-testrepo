@@ -1,0 +1,98 @@
+[
+  {
+    "ensemble_id": "261b0a65-64f9-4a46-8587-4782b9482c84",
+    "artist_id": "3f3db524-35c9-47a8-98d0-2dfcb86603bf",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "261b0a65-64f9-4a46-8587-4782b9482c84",
+    "artist_id": "80f1e42d-48f2-4271-b9ee-adeb9845ecf7",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "261b0a65-64f9-4a46-8587-4782b9482c84",
+    "artist_id": "522033e0-0ac4-4093-9d1f-8667a8723b26",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "261b0a65-64f9-4a46-8587-4782b9482c84",
+    "artist_id": "31ffdb72-3649-4cce-bfd0-6208fb36c1a9",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "ab305955-822e-435b-a8c0-390c114550d2",
+    "artist_id": "d00894ab-6a05-4ffd-a6d0-c6b369e42cde",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "f21326ca-8f9b-4bc9-a6c7-6ae22aff5b9c",
+    "artist_id": "ab58c4ef-4eb8-4038-934c-461a1a8cc759",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "5ec3e40a-ef67-405f-95cf-04ff9faa1042",
+    "artist_id": "fc12fe45-3759-4c80-b796-130093e38f87",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "6c8e52d6-4bcd-4595-8fef-8fae7e72b9f6",
+    "artist_id": "8db8f6d5-7170-4d3c-a0a4-cf713ab859a4",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "7fe5b862-4dbc-465d-99f4-e67d1edb99f7",
+    "artist_id": "c98bc401-2029-40fb-b391-0ac3d705c5a7",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "24d66b7f-967a-4cd4-b947-64cfee46bdfc",
+    "artist_id": "e4b7dd35-e98a-4d6c-8c78-1a66354e8d59",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "4a0140e3-ce0e-40de-9c25-5a4ef7fb5a9c",
+    "artist_id": "4902ebce-469a-4817-a0e7-e68152a22a2d",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "301c0d96-1168-415a-b126-98e978f47c61",
+    "artist_id": "e1ab34b7-3739-4bd6-8521-bb06dd31472d",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "be6fe454-2d71-4079-8ed5-0c83cc194c3b",
+    "artist_id": "68d55abb-937a-4927-97ab-b54fab618dbb",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "be6fe454-2d71-4079-8ed5-0c83cc194c3b",
+    "artist_id": "d3bead07-0ce1-406c-9551-4e53a5708bf3",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "be6fe454-2d71-4079-8ed5-0c83cc194c3b",
+    "artist_id": "dc9f55d2-2243-4392-a954-6028014840aa",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  },
+  {
+    "ensemble_id": "1cedc2cf-7013-44c9-a5f1-25cd0382f137",
+    "artist_id": "a96883bf-bc3e-463a-a87d-eeacd421bfda",
+    "joined_at": "2025-10-15T18:46:16.265Z",
+    "is_active": true
+  }
+]
