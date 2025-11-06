@@ -44,7 +44,7 @@ export async function getArtistPerformanceHistory(artistId: string, limit?: numb
 			location:phwb_locations(name),
 			program:phwb_programs(title)
 		`)
-		.contains('artists', [artistId])
+		.contains('artists', JSON.stringify([artistId]))
 		.order('date', { ascending: false })
 
 	if (limit) {
@@ -81,7 +81,7 @@ export async function getArtistPerformanceStats(artistId: string): Promise<Artis
 	const { data, error } = await supabase
 		.from('phwb_events')
 		.select('status, total_hours_of_service, total_fee')
-		.contains('artists', [artistId])
+		.contains('artists', JSON.stringify([artistId]))
 
 	if (error) {
 		console.error('Error fetching artist performance stats:', error)

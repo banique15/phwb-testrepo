@@ -40,12 +40,38 @@
 	let venueSearchTerm = $state('')
 	let showVenueDropdown = $state(false)
 
+	// Display-only fields (not saved to database)
+	let selectedInstrument = $state('')
+	let selectedGenre = $state('')
+	let selectedEnsembleSize = $state('')
+	let assignmentMethod = $state<'manual' | 'ai'>('manual') // Track which method user chooses
+
 	const statusOptions = [
 		{ value: 'planned', label: 'Planned' },
 		{ value: 'confirmed', label: 'Confirmed' },
 		{ value: 'in_progress', label: 'In Progress' },
 		{ value: 'completed', label: 'Completed' },
 		{ value: 'cancelled', label: 'Cancelled' }
+	]
+
+	// Display-only options (for demo purposes)
+	const instrumentOptions = [
+		'Violin', 'Viola', 'Cello', 'Bass', 'Piano', 'Guitar', 'Drums',
+		'Trumpet', 'Saxophone', 'Clarinet', 'Flute', 'Voice/Vocals'
+	]
+
+	const genreOptions = [
+		'Classical', 'Jazz', 'Pop', 'Rock', 'Folk', 'Blues',
+		'R&B/Soul', 'World Music', 'Musical Theater', 'Opera'
+	]
+
+	const ensembleSizeOptions = [
+		{ value: 'solo', label: 'Solo' },
+		{ value: 'duo', label: 'Duo' },
+		{ value: 'trio', label: 'Trio' },
+		{ value: 'quartet', label: 'Quartet' },
+		{ value: 'ensemble', label: 'Small Ensemble (5-8)' },
+		{ value: 'large', label: 'Large Ensemble (9+)' }
 	]
 
 	// Generate time options (half-hour blocks from 6am to 10pm)
@@ -297,6 +323,10 @@
 		selectedArtistIds.clear()
 		selectedArtistIds = new Set()
 		artistSearchTerm = ''
+		assignmentMethod = 'manual'
+		selectedInstrument = ''
+		selectedGenre = ''
+		selectedEnsembleSize = ''
 		error = null
 	}
 
@@ -514,128 +544,182 @@
 
 			<!-- Artist Assignment Section -->
 			<div class="space-y-4">
-				<div class="flex items-center justify-between border-b pb-2">
-					<h4 class="font-semibold text-base">Assign Artists</h4>
-					{#if selectedArtistIds.size > 0}
-						<span class="badge badge-primary">{selectedArtistIds.size} selected</span>
-					{/if}
+				<div class="border-b pb-2">
+					<h4 class="font-semibold text-base">Artist Assignment</h4>
 				</div>
 
-				<!-- Artist Search -->
-				<div class="form-control">
-					<input
-						type="text"
-						bind:value={artistSearchTerm}
-						placeholder="Search artists by name or email..."
-						class="input input-bordered input-sm"
-						disabled={submitting}
-					/>
-				</div>
-
-				<!-- Artist List -->
-				{#if loadingArtists}
-					<div class="text-center py-8">
-						<span class="loading loading-spinner loading-md"></span>
-						<p class="mt-2 text-sm">Loading artists...</p>
-					</div>
-				{:else if displayedArtists.length > 0}
-					<div class="border border-base-300 rounded-lg">
-						<!-- Header with bulk actions -->
-						<div class="bg-base-200 px-4 py-2 border-b border-base-300 flex items-center justify-between">
-							<span class="text-sm font-medium">
-								{displayedArtists.length} artists available
-							</span>
-							<div class="flex gap-2">
-								{#if displayedArtists.length > 1}
-									<button
-										type="button"
-										class="btn btn-outline btn-xs"
-										onclick={selectAllVisibleArtists}
-										disabled={submitting}
-									>
-										Select All
-									</button>
-								{/if}
-								{#if selectedArtistIds.size > 0}
-									<button
-										type="button"
-										class="btn btn-outline btn-xs"
-										onclick={clearAllArtists}
-										disabled={submitting}
-									>
-										Clear All
-									</button>
-								{/if}
+				<!-- Split Layout: Manual vs AI -->
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<!-- Manual Assignment Option -->
+					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-base-300 bg-base-200/50'}">
+						<div class="flex items-start gap-3 mb-3">
+							<input
+								type="radio"
+								name="assignmentMethod"
+								value="manual"
+								checked={assignmentMethod === 'manual'}
+								onchange={() => assignmentMethod = 'manual'}
+								class="radio radio-primary radio-sm mt-1"
+								disabled={submitting}
+							/>
+							<div class="flex-1">
+								<h5 class="font-semibold text-sm mb-1">Assign Artists Manually</h5>
+								<p class="text-xs text-base-content/70">Select specific artists from your roster</p>
 							</div>
 						</div>
+						{#if assignmentMethod === 'manual'}
+							<div class="space-y-3 mt-4">
+								<!-- Artist Search -->
+								<input
+									type="text"
+									bind:value={artistSearchTerm}
+									placeholder="Search artists..."
+									class="input input-bordered input-sm w-full"
+									disabled={submitting}
+								/>
 
-						<!-- Artist list -->
-						<div class="max-h-64 overflow-y-auto">
-							{#each displayedArtists as artist}
-								<label class="flex items-center p-3 hover:bg-base-100 border-b border-base-300 last:border-b-0 cursor-pointer">
-									<input
-										type="checkbox"
-										class="checkbox checkbox-primary checkbox-sm mr-3"
-										checked={selectedArtistIds.has(artist.id!)}
-										onchange={() => toggleArtist(artist.id!)}
-										disabled={submitting}
-									/>
-									<div class="flex-1">
-										<div class="font-medium text-sm">
-											{artist.full_name || artist.artist_name || 'Unknown Name'}
-										</div>
-										{#if artist.email}
-											<div class="text-xs text-base-content/60">
-												{artist.email}
-											</div>
-										{/if}
+								<!-- Artist List -->
+								{#if loadingArtists}
+									<div class="text-center py-4">
+										<span class="loading loading-spinner loading-sm"></span>
 									</div>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{:else if artistSearchTerm}
-					<div class="text-center py-6 bg-base-200 rounded-lg">
-						<span class="text-2xl">🔍</span>
-						<p class="mt-2 text-sm">No artists found</p>
-						<p class="text-xs opacity-60">Try adjusting your search terms</p>
-					</div>
-				{:else}
-					<div class="text-center py-6 bg-base-200 rounded-lg">
-						<span class="text-2xl">👥</span>
-						<p class="mt-2 text-sm">No artists available</p>
-					</div>
-				{/if}
-
-				<!-- Selected Artists Preview -->
-				{#if selectedArtistIds.size > 0}
-					<div class="border border-primary/20 bg-primary/5 rounded-lg p-3">
-						<h5 class="text-sm font-medium text-primary mb-2">
-							Selected Artists ({selectedArtistIds.size})
-						</h5>
-						<div class="flex flex-wrap gap-2">
-							{#each Array.from(selectedArtistIds) as artistId}
-								{@const artist = artists.find(a => a.id === artistId)}
-								{#if artist}
-									<span class="badge badge-primary badge-sm gap-1">
-										{artist.full_name || artist.artist_name || 'Unknown'}
-										<button
-											type="button"
-											class="text-xs opacity-70 hover:opacity-100"
-											onclick={() => toggleArtist(artistId)}
-											disabled={submitting}
-										>
-											✕
-										</button>
-									</span>
+								{:else if displayedArtists.length > 0}
+									<div class="border border-base-300 rounded-lg max-h-48 overflow-y-auto">
+										{#each displayedArtists.slice(0, 5) as artist}
+											<label class="flex items-center p-2 hover:bg-base-100 border-b border-base-300 last:border-b-0 cursor-pointer">
+												<input
+													type="checkbox"
+													class="checkbox checkbox-primary checkbox-xs mr-2"
+													checked={selectedArtistIds.has(artist.id!)}
+													onchange={() => toggleArtist(artist.id!)}
+													disabled={submitting}
+												/>
+												<div class="flex-1 min-w-0">
+													<div class="font-medium text-xs truncate">
+														{artist.full_name || artist.artist_name || 'Unknown'}
+													</div>
+												</div>
+											</label>
+										{/each}
+									</div>
+									{#if displayedArtists.length > 5}
+										<p class="text-xs text-center text-base-content/60">
+											Showing 5 of {displayedArtists.length} artists
+										</p>
+									{/if}
 								{/if}
-							{/each}
-						</div>
-						<p class="text-xs text-base-content/60 mt-2">
-							Payment and hours info can be configured after event creation
-						</p>
+
+								<!-- Selected Preview -->
+								{#if selectedArtistIds.size > 0}
+									<div class="bg-primary/10 rounded p-2">
+										<p class="text-xs font-medium mb-1">Selected: {selectedArtistIds.size}</p>
+										<div class="flex flex-wrap gap-1">
+											{#each Array.from(selectedArtistIds).slice(0, 3) as artistId}
+												{@const artist = artists.find(a => a.id === artistId)}
+												{#if artist}
+													<span class="badge badge-primary badge-xs">
+														{(artist.full_name || artist.artist_name || '').split(' ')[0]}
+													</span>
+												{/if}
+											{/each}
+											{#if selectedArtistIds.size > 3}
+												<span class="badge badge-xs">+{selectedArtistIds.size - 3}</span>
+											{/if}
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
-				{/if}
+
+					<!-- AI Matching Option -->
+					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'ai' ? 'border-secondary bg-secondary/5' : 'border-base-300 bg-base-200/50'}">
+						<div class="flex items-start gap-3 mb-3">
+							<input
+								type="radio"
+								name="assignmentMethod"
+								value="ai"
+								checked={assignmentMethod === 'ai'}
+								onchange={() => assignmentMethod = 'ai'}
+								class="radio radio-secondary radio-sm mt-1"
+								disabled={submitting}
+							/>
+							<div class="flex-1">
+								<div class="flex items-center gap-2 mb-1">
+									<h5 class="font-semibold text-sm">AI Auto-Match</h5>
+									<div class="flex gap-0.5">
+										<span class="inline-block w-1 h-1 bg-secondary rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
+										<span class="inline-block w-1 h-1 bg-secondary rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
+										<span class="inline-block w-1 h-1 bg-secondary rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
+									</div>
+								</div>
+								<p class="text-xs text-base-content/70">AI finds artists matching your criteria</p>
+							</div>
+						</div>
+						{#if assignmentMethod === 'ai'}
+							<div class="space-y-3 mt-4">
+								<p class="text-xs font-medium mb-2">Set Preferences:</p>
+
+								<!-- Instrument -->
+								<div class="form-control">
+									<label class="label py-1">
+										<span class="label-text text-xs">Instrument</span>
+									</label>
+									<select
+										bind:value={selectedInstrument}
+										class="select select-bordered select-sm w-full"
+										disabled={submitting}
+									>
+										<option value="">Any</option>
+										{#each instrumentOptions as instrument}
+											<option value={instrument}>{instrument}</option>
+										{/each}
+									</select>
+								</div>
+
+								<!-- Genre -->
+								<div class="form-control">
+									<label class="label py-1">
+										<span class="label-text text-xs">Genre</span>
+									</label>
+									<select
+										bind:value={selectedGenre}
+										class="select select-bordered select-sm w-full"
+										disabled={submitting}
+									>
+										<option value="">Any</option>
+										{#each genreOptions as genre}
+											<option value={genre}>{genre}</option>
+										{/each}
+									</select>
+								</div>
+
+								<!-- Ensemble Size -->
+								<div class="form-control">
+									<label class="label py-1">
+										<span class="label-text text-xs">Size</span>
+									</label>
+									<select
+										bind:value={selectedEnsembleSize}
+										class="select select-bordered select-sm w-full"
+										disabled={submitting}
+									>
+										<option value="">Any</option>
+										{#each ensembleSizeOptions as option}
+											<option value={option.value}>{option.label}</option>
+										{/each}
+									</select>
+								</div>
+
+								<div class="bg-secondary/10 rounded p-2 mt-3">
+									<p class="text-xs text-secondary font-medium">
+										🤖 AI will suggest best matches after event creation
+									</p>
+								</div>
+							</div>
+						{/if}
+					</div>
+				</div>
 			</div>
 
 			<!-- Form Actions -->

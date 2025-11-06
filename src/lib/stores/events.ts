@@ -51,28 +51,40 @@ const enhancedState = writable<StoreState<EnhancedEvent>>(initialEnhancedState)
 function enhanceEvents(events: Event[]): EnhancedEvent[] {
 	return events.map(event => {
 		const enhanced: EnhancedEvent = { ...event }
-		
+
 		// Add venue information
 		if (event.venue) {
 			enhanced.venue_name = lookupUtils.getVenueName(event.venue, 'Venue Not Found')
 			enhanced.venue_object = enhancedLookup.getVenue(event.venue)
 		}
-		
+
 		// Add program information
 		if (event.program) {
 			enhanced.program_name = lookupUtils.getProgramName(event.program, 'Program Not Found')
 			enhanced.program_object = enhancedLookup.getProgram(event.program)
 		}
-		
+
 		// Enhance artist assignments
-		if (event.artists && typeof event.artists === 'object' && event.artists.assignments) {
-			enhanced.artist_assignments = event.artists.assignments.map((assignment: any) => ({
-				...assignment,
-				// Use existing artist_name if available, otherwise look it up
-				artist_name: assignment.artist_name || lookupUtils.getArtistName(assignment.artist_id, 'Unknown Artist')
-			}))
+		// Handle both new format (array of UUIDs) and legacy format (object with assignments)
+		if (event.artists) {
+			// New format: Simple array of artist UUIDs
+			if (Array.isArray(event.artists)) {
+				enhanced.artist_assignments = event.artists.map((artistId: string) => ({
+					artist_id: artistId,
+					artist_name: lookupUtils.getArtistName(artistId, 'Unknown Artist'),
+					role: 'performer'
+				}))
+			}
+			// Legacy format: Object with assignments array
+			else if (typeof event.artists === 'object' && event.artists.assignments) {
+				enhanced.artist_assignments = event.artists.assignments.map((assignment: any) => ({
+					...assignment,
+					// Use existing artist_name if available, otherwise look it up
+					artist_name: assignment.artist_name || lookupUtils.getArtistName(assignment.artist_id, 'Unknown Artist')
+				}))
+			}
 		}
-		
+
 		return enhanced
 	})
 }

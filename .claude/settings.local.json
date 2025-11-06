@@ -22,7 +22,10 @@
       "Bash(npx svelte-check:*)",
       "Bash(curl:*)",
       "Bash(psql:*)",
-      "Bash(bun dev)"
+      "Bash(bun dev)",
+      "Bash(bun add:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

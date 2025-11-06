@@ -21,6 +21,13 @@
 	let isLoading = $state(false)
 	let error = $state<string | null>(null)
 
+	// Availability modal state
+	let isAvailabilityModalOpen = $state(false)
+	let availabilityPeriod = $state('7') // days
+	let availabilityStartDate = $state(new Date().toISOString().split('T')[0])
+	let availabilityEndDate = $state('')
+	let checkingAvailability = $state(false)
+
 	// Reset edit data when artist changes
 	$effect(() => {
 		if (artist) {
@@ -86,6 +93,50 @@
 
 	// Get display name
 	let displayName = $derived(artist.full_name || artist.legal_first_name || 'Unnamed Artist')
+
+	// Availability functions
+	function openAvailabilityModal() {
+		isAvailabilityModalOpen = true
+		availabilityPeriod = '7'
+		availabilityStartDate = new Date().toISOString().split('T')[0]
+		availabilityEndDate = ''
+	}
+
+	function closeAvailabilityModal() {
+		isAvailabilityModalOpen = false
+	}
+
+	async function checkAvailability() {
+		checkingAvailability = true
+
+		// Mock AI check - just simulate a delay
+		await new Promise(resolve => setTimeout(resolve, 2000))
+
+		// In a real implementation, this would call an API to trigger AI to reach out
+		console.log('Checking availability for:', {
+			artist: displayName,
+			period: availabilityPeriod,
+			startDate: availabilityStartDate,
+			endDate: availabilityEndDate
+		})
+
+		checkingAvailability = false
+		closeAvailabilityModal()
+
+		// Show success message (could use a toast notification in real implementation)
+		alert(`🤖 AI is reaching out to ${displayName} to check their availability!`)
+	}
+
+	// Update end date when period changes
+	$effect(() => {
+		if (availabilityPeriod && availabilityPeriod !== 'custom') {
+			const start = new Date(availabilityStartDate)
+			const days = parseInt(availabilityPeriod)
+			const end = new Date(start)
+			end.setDate(end.getDate() + days)
+			availabilityEndDate = end.toISOString().split('T')[0]
+		}
+	})
 </script>
 
 <div class="flex flex-col h-full">
@@ -131,6 +182,15 @@
 						Save
 					</button>
 				{:else}
+					<button
+						class="btn btn-sm btn-secondary"
+						onclick={openAvailabilityModal}
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+						</svg>
+						Get Availability
+					</button>
 					<button
 						class="btn btn-sm btn-outline"
 						onclick={startEdit}
@@ -519,3 +579,111 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Get Availability Modal -->
+{#if isAvailabilityModalOpen}
+	<dialog class="modal" open>
+		<div class="modal-box">
+			<h3 class="font-bold text-lg mb-4">Check Artist Availability</h3>
+
+			<div class="space-y-4">
+				<div class="bg-secondary/10 p-3 rounded-lg flex items-start gap-3">
+					<div class="flex gap-0.5 mt-1">
+						<span class="inline-block w-1.5 h-1.5 bg-secondary rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
+						<span class="inline-block w-1.5 h-1.5 bg-secondary rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
+						<span class="inline-block w-1.5 h-1.5 bg-secondary rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
+					</div>
+					<p class="text-sm text-secondary flex-1">
+						AI will reach out to <strong>{displayName}</strong> via their preferred contact method to check their availability.
+					</p>
+				</div>
+
+				<!-- Period Selection -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text font-medium">Time Period</span>
+					</label>
+					<select
+						bind:value={availabilityPeriod}
+						class="select select-bordered w-full"
+						disabled={checkingAvailability}
+					>
+						<option value="7">Next 7 days</option>
+						<option value="14">Next 2 weeks</option>
+						<option value="30">Next month</option>
+						<option value="60">Next 2 months</option>
+						<option value="90">Next 3 months</option>
+						<option value="custom">Custom date range</option>
+					</select>
+				</div>
+
+				<!-- Start Date -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text font-medium">Start Date</span>
+					</label>
+					<input
+						type="date"
+						bind:value={availabilityStartDate}
+						class="input input-bordered w-full"
+						disabled={checkingAvailability}
+					/>
+				</div>
+
+				<!-- End Date (shown when custom or auto-calculated) -->
+				{#if availabilityEndDate}
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text font-medium">End Date</span>
+						</label>
+						<input
+							type="date"
+							bind:value={availabilityEndDate}
+							class="input input-bordered w-full"
+							disabled={availabilityPeriod !== 'custom' || checkingAvailability}
+						/>
+					</div>
+				{/if}
+
+				<!-- Summary -->
+				<div class="bg-base-200 p-3 rounded-lg">
+					<p class="text-sm">
+						<strong>Summary:</strong> AI will check {displayName}'s availability from
+						<strong>{new Date(availabilityStartDate).toLocaleDateString()}</strong>
+						{#if availabilityEndDate}
+							to <strong>{new Date(availabilityEndDate).toLocaleDateString()}</strong>
+						{/if}
+					</p>
+				</div>
+			</div>
+
+			<div class="modal-action">
+				<button
+					class="btn btn-ghost"
+					onclick={closeAvailabilityModal}
+					disabled={checkingAvailability}
+				>
+					Cancel
+				</button>
+				<button
+					class="btn btn-secondary"
+					onclick={checkAvailability}
+					disabled={checkingAvailability}
+				>
+					{#if checkingAvailability}
+						<span class="loading loading-spinner loading-sm"></span>
+						Sending Request...
+					{:else}
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+						</svg>
+						Check Availability
+					{/if}
+				</button>
+			</div>
+		</div>
+		<form method="dialog" class="modal-backdrop">
+			<button onclick={closeAvailabilityModal}>close</button>
+		</form>
+	</dialog>
+{/if}

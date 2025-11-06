@@ -73,30 +73,40 @@
 </svelte:head>
 
 <div class="space-y-8">
+	<!-- Demo Notice -->
+	<div class="alert alert-info text-xs sm:text-sm">
+		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-5 h-5 sm:w-6 sm:h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+		<div>
+			<h3 class="font-bold text-sm sm:text-base">Demo Mode - Mock Data</h3>
+			<div class="text-xs sm:text-sm">This portal showcases sample data for demonstration purposes.</div>
+			<div class="text-xs mt-1 hidden sm:block">Currently displaying: <strong>{data.partner.name}</strong> with {data.stats.totalEvents} sample events</div>
+		</div>
+	</div>
+
 	<!-- Welcome Section -->
 	<div class="hero bg-base-100 rounded-lg shadow-xl">
-		<div class="hero-content flex-col lg:flex-row-reverse gap-8 py-8">
+		<div class="hero-content flex-col lg:flex-row-reverse gap-4 sm:gap-8 py-4 sm:py-8 px-2 sm:px-4">
 			{#if data.partner.logo}
 				<img
 					src={data.partner.logo}
 					alt={data.partner.name}
-					class="max-w-xs rounded-lg shadow-2xl"
+					class="w-32 sm:w-48 lg:max-w-xs rounded-lg shadow-2xl"
 				/>
 			{:else}
-				<div class="w-64 h-64 bg-primary/10 rounded-lg flex items-center justify-center">
-					<span class="text-8xl">🤝</span>
+				<div class="w-32 h-32 sm:w-48 sm:h-48 lg:w-64 lg:h-64 bg-primary/10 rounded-lg flex items-center justify-center">
+					<span class="text-5xl sm:text-6xl lg:text-8xl">🤝</span>
 				</div>
 			{/if}
-			<div>
-				<h1 class="text-5xl font-bold">{data.partner.name}</h1>
+			<div class="text-center lg:text-left">
+				<h1 class="text-2xl sm:text-3xl lg:text-5xl font-bold">{data.partner.name}</h1>
 				{#if data.partner.organization}
-					<p class="text-xl text-base-content/70 mt-2">{data.partner.organization}</p>
+					<p class="text-sm sm:text-base lg:text-xl text-base-content/70 mt-2">{data.partner.organization}</p>
 				{/if}
 				{#if data.partner.description}
-					<p class="py-6 max-w-2xl">{data.partner.description}</p>
+					<p class="py-4 sm:py-6 max-w-2xl text-sm sm:text-base">{data.partner.description}</p>
 				{/if}
-				<button onclick={openRequestModal} class="btn btn-primary btn-lg gap-2">
-					<span class="text-xl">➕</span>
+				<button onclick={openRequestModal} class="btn btn-primary btn-sm sm:btn-md lg:btn-lg gap-2 w-full sm:w-auto">
+					<span class="text-lg sm:text-xl">➕</span>
 					Request New Event
 				</button>
 			</div>
@@ -148,21 +158,23 @@
 
 	<!-- Events Section -->
 	<div class="card bg-base-100 shadow-xl">
-		<div class="card-body">
-			<div class="flex justify-between items-center mb-4">
-				<h2 class="card-title text-2xl">Your Events</h2>
+		<div class="card-body p-3 sm:p-6">
+			<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+				<h2 class="card-title text-lg sm:text-2xl">Your Events</h2>
 
 				<!-- Event View Toggle -->
-				<div class="join">
+				<div class="join w-full sm:w-auto">
 					<button
-						class="join-item btn btn-sm"
+						class="join-item btn btn-xs sm:btn-sm flex-1 sm:flex-none"
 						class:btn-active={showEventView === 'upcoming'}
 						onclick={() => (showEventView = 'upcoming')}
 					>
-						Upcoming ({data.stats.upcomingEvents})
+						<span class="hidden sm:inline">Upcoming</span>
+						<span class="sm:hidden">Up</span>
+						({data.stats.upcomingEvents})
 					</button>
 					<button
-						class="join-item btn btn-sm"
+						class="join-item btn btn-xs sm:btn-sm flex-1 sm:flex-none"
 						class:btn-active={showEventView === 'past'}
 						onclick={() => (showEventView = 'past')}
 					>
@@ -172,8 +184,8 @@
 			</div>
 
 			{#if eventsToShow.length === 0}
-				<div class="alert">
-					<span class="text-2xl">📭</span>
+				<div class="alert text-sm">
+					<span class="text-xl sm:text-2xl">📭</span>
 					<span>
 						{showEventView === 'upcoming'
 							? 'No upcoming events scheduled.'
@@ -181,7 +193,8 @@
 					</span>
 				</div>
 			{:else}
-				<div class="overflow-x-auto">
+				<!-- Desktop Table View -->
+				<div class="overflow-x-auto hidden md:block">
 					<table class="table table-zebra">
 						<thead>
 							<tr>
@@ -245,11 +258,71 @@
 						</tbody>
 					</table>
 				</div>
+
+				<!-- Mobile Card View -->
+				<div class="md:hidden space-y-3">
+					{#each eventsToShow as event}
+						<div class="card bg-base-200 shadow">
+							<div class="card-body p-4">
+								<div class="flex justify-between items-start gap-2">
+									<h3 class="card-title text-base">{event.title || 'Untitled Event'}</h3>
+									{#if event.status}
+										<span class="badge badge-sm shrink-0" class:badge-success={event.status === 'confirmed'} class:badge-warning={event.status === 'pending'}>
+											{event.status}
+										</span>
+									{/if}
+								</div>
+
+								<div class="space-y-2 text-sm">
+									<div class="flex items-center gap-2">
+										<span class="font-semibold">📅</span>
+										<span>{formatEventDate(event.date)}</span>
+									</div>
+
+									{#if event.start_time}
+										<div class="flex items-center gap-2">
+											<span class="font-semibold">🕐</span>
+											<span>
+												{formatEventTime(event.start_time)}
+												{#if event.end_time}
+													- {formatEventTime(event.end_time)}
+												{/if}
+											</span>
+										</div>
+									{/if}
+
+									{#if event.phwb_programs}
+										<div class="flex items-center gap-2">
+											<span class="font-semibold">📋</span>
+											<span class="badge badge-primary badge-sm">
+												{event.phwb_programs.title}
+											</span>
+										</div>
+									{/if}
+
+									{#if event.phwb_locations}
+										<div class="flex items-start gap-2">
+											<span class="font-semibold">📍</span>
+											<div class="text-xs">
+												<div>{event.phwb_locations.name}</div>
+												{#if event.phwb_locations.address}
+													<div class="text-base-content/60">
+														{event.phwb_locations.address}
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
 			{/if}
 
 			{#if showEventView === 'upcoming' && data.stats.upcomingEvents > 10}
 				<div class="card-actions justify-center mt-4">
-					<button class="btn btn-outline btn-sm">View All Upcoming Events</button>
+					<button class="btn btn-outline btn-xs sm:btn-sm">View All Upcoming Events</button>
 				</div>
 			{/if}
 		</div>
@@ -258,15 +331,15 @@
 	<!-- Programs Section -->
 	{#if data.programs.length > 0}
 		<div class="card bg-base-100 shadow-xl">
-			<div class="card-body">
-				<h2 class="card-title text-2xl">Your Programs</h2>
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+			<div class="card-body p-3 sm:p-6">
+				<h2 class="card-title text-lg sm:text-2xl">Your Programs</h2>
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
 					{#each data.programs as program}
 						<div class="card bg-base-200 shadow">
-							<div class="card-body">
-								<h3 class="card-title text-lg">{program.title}</h3>
+							<div class="card-body p-4">
+								<h3 class="card-title text-sm sm:text-lg">{program.title}</h3>
 								<div class="card-actions justify-end">
-									<button class="btn btn-primary btn-sm">View Details</button>
+									<button class="btn btn-primary btn-xs sm:btn-sm">View Details</button>
 								</div>
 							</div>
 						</div>
@@ -280,8 +353,8 @@
 <!-- Event Request Modal -->
 {#if showRequestModal}
 	<dialog class="modal modal-open">
-		<div class="modal-box max-w-2xl">
-			<h3 class="font-bold text-2xl mb-4">Request New Event</h3>
+		<div class="modal-box max-w-2xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
+			<h3 class="font-bold text-xl sm:text-2xl mb-4">Request New Event</h3>
 
 			<form
 				onsubmit={(e) => {

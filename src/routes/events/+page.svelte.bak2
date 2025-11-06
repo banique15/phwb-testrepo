@@ -904,23 +904,13 @@
 <!-- 										<div class="md:col-span-2">
 <!-- 											<EventPerformers eventId={selectedEvent.id} showDetails={true} />
 <!-- 										</div>
-<!-- 									{/if} -->
+<!-- 									{/if}
 
 									<!-- Artists Assigned -->
 									{#if selectedEvent.artist_assignments && selectedEvent.artist_assignments.length > 0}
 										<!-- Enhanced artist assignments with full artist data -->
 										<div class="md:col-span-2 space-y-4">
-											<div class="flex items-center justify-between border-b pb-2">
-												<h3 class="text-lg font-semibold">Assigned Artists</h3>
-												<div class="flex items-center gap-2 text-xs">
-													<div class="flex gap-1">
-														<span class="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
-														<span class="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
-														<span class="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
-													</div>
-													<span class="text-primary opacity-80">AI Learning from this data</span>
-												</div>
-											</div>
+											<h3 class="text-lg font-semibold border-b pb-2">Assigned Artists</h3>
 											<div class="overflow-x-auto">
 												<table class="table table-zebra table-sm">
 													<thead>
@@ -955,17 +945,7 @@
 									{:else if selectedEvent.artists && formatArtists(selectedEvent.artists).length > 0}
 										<!-- Timesheet-imported data format -->
 										<div class="md:col-span-2 space-y-4">
-											<div class="flex items-center justify-between border-b pb-2">
-												<h3 class="text-lg font-semibold">Assigned Artists</h3>
-												<div class="flex items-center gap-2 text-xs">
-													<div class="flex gap-1">
-														<span class="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
-														<span class="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
-														<span class="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
-													</div>
-													<span class="text-primary opacity-80">AI Learning from this data</span>
-												</div>
-											</div>
+											<h3 class="text-lg font-semibold border-b pb-2">Assigned Artists</h3>
 											<div class="overflow-x-auto">
 												<table class="table table-zebra table-sm">
 													<thead>
