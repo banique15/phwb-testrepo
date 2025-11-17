@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { Payroll } from '$lib/schemas/payroll'
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { ClipboardList, CheckCircle, Search, BarChart } from 'lucide-svelte'
 	import PayrollInlineTable from '../PayrollInlineTable.svelte'
 	import PayrollFiltersButton from '../PayrollFiltersButton.svelte'
 	import PayrollMetricsFilterButton from '../PayrollMetricsFilterButton.svelte'
@@ -121,11 +123,11 @@
 		onPaymentExported
 	}: Props = $props()
 
-	const tabs = [
-		{ id: 'entries', label: 'Entries', icon: '📋' },
-		{ id: 'approvals', label: 'Approvals', icon: '✅' },
-		{ id: 'reconciliation', label: 'Reconciliation', icon: '🔍' },
-		{ id: 'audit', label: 'Audit', icon: '📊' }
+	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ id: 'entries', label: 'Entries', icon: ClipboardList },
+		{ id: 'approvals', label: 'Approvals', icon: CheckCircle },
+		{ id: 'reconciliation', label: 'Reconciliation', icon: Search },
+		{ id: 'audit', label: 'Audit', icon: BarChart }
 	]
 
 	let activeTab = $state<string>(
@@ -140,22 +142,24 @@
 	}
 </script>
 
-<div class="space-y-3">
+<div class="flex flex-col h-full min-h-0">
 	<!-- Tab Navigation -->
-	<div class="tabs tabs-boxed">
-		{#each tabs as tab}
-			<button
-				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
-				onclick={() => setActiveTab(tab.id)}
-			>
-				<span class="mr-2">{tab.icon}</span>
-				{tab.label}
-			</button>
-		{/each}
+	<div class="flex-none mb-3">
+		<div class="tabs tabs-boxed">
+			{#each tabs as tab}
+				<button
+					class="tab {activeTab === tab.id ? 'tab-active' : ''}"
+					onclick={() => setActiveTab(tab.id)}
+				>
+					<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
+					{tab.label}
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	<!-- Tab Content -->
-	<div class="tab-content">
+	<div class="flex-1 min-h-0 overflow-y-auto">
 		{#if activeTab === 'entries'}
 			<div class="space-y-4">
 				<!-- Metrics Filter -->

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Search } from 'lucide-svelte'
 	import { createEventDispatcher, onMount } from 'svelte'
 	import { ensemblesStore } from '$lib/stores/ensembles'
 	import type { Ensemble } from '$lib/schemas/ensemble'
@@ -146,7 +147,7 @@
 			</div>
 		{:else if filteredItems.length === 0}
 			<div class="text-center p-12">
-				<div class="text-6xl mb-4">🔍</div>
+				<Search class="w-16 h-16 mx-auto mb-4 text-base-content/70" />
 				<p class="text-lg font-medium text-base-content/90 mb-2">No ensembles found</p>
 				<p class="text-sm text-base-content/60 mb-4">Try adjusting your search or filters</p>
 				{#if hasActiveFilters}

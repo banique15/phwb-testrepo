@@ -1,5 +1,8 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
 	import type { Event } from '$lib/schemas/event'
+	import { ClipboardList, CheckCircle, Music, PartyPopper, XCircle } from 'lucide-svelte'
+	import { getEventStatusIcon } from '$lib/utils/icon-mapping'
 	
 	interface Props {
 		event: Event
@@ -10,39 +13,45 @@
 	let { event, onStatusChange, readonly = false }: Props = $props()
 	
 	// Status workflow definitions
-	const statusWorkflow = {
+	const statusWorkflow: Record<string, {
+		label: string
+		color: string
+		icon: ComponentType<SvelteComponent>
+		description: string
+		nextStates: string[]
+	}> = {
 		planned: {
 			label: 'Planned',
 			color: 'badge-outline',
-			icon: '📋',
+			icon: ClipboardList,
 			description: 'Event is in planning phase',
 			nextStates: ['confirmed', 'cancelled']
 		},
 		confirmed: {
 			label: 'Confirmed',
 			color: 'badge-primary',
-			icon: '✅',
+			icon: CheckCircle,
 			description: 'Event is confirmed and scheduled',
 			nextStates: ['in_progress', 'cancelled']
 		},
 		in_progress: {
 			label: 'In Progress',
 			color: 'badge-info',
-			icon: '🎵',
+			icon: Music,
 			description: 'Event is currently happening',
 			nextStates: ['completed', 'cancelled']
 		},
 		completed: {
 			label: 'Completed',
 			color: 'badge-success',
-			icon: '🎉',
+			icon: PartyPopper,
 			description: 'Event has been completed successfully',
 			nextStates: []
 		},
 		cancelled: {
 			label: 'Cancelled',
 			color: 'badge-error',
-			icon: '❌',
+			icon: XCircle,
 			description: 'Event has been cancelled',
 			nextStates: ['planned']
 		}
@@ -170,7 +179,7 @@
 							{@const statusInfo = statusWorkflow[status]}
 							<li>
 								<button onclick={() => openStatusTransition(status)}>
-									<span class="text-lg">{statusInfo.icon}</span>
+									<svelte:component this={statusInfo.icon} class="w-5 h-5" />
 									<div class="flex-1 text-left">
 										<div class="font-medium">{statusInfo.label}</div>
 										<div class="text-xs opacity-60">{statusInfo.description}</div>
@@ -185,7 +194,7 @@
 		
 		<!-- Current Status Display -->
 		<div class="flex items-center gap-3 mb-4">
-			<span class="text-2xl">{currentStatusInfo.icon}</span>
+			<svelte:component this={currentStatusInfo.icon} class="w-8 h-8 flex-shrink-0" />
 			<div class="flex-1">
 				<div class="flex items-center gap-2">
 					<span class="badge {currentStatusInfo.color}">
@@ -208,7 +217,7 @@
 						{@const statusInfo = statusWorkflow[suggestion.status]}
 						<div class="flex items-center justify-between mt-2">
 							<div class="flex items-center gap-2">
-								<span>{statusInfo.icon}</span>
+								<svelte:component this={statusInfo.icon} class="w-4 h-4 flex-shrink-0" />
 								<span class="text-sm">
 									Mark as <strong>{statusInfo.label}</strong> - {suggestion.reason}
 								</span>

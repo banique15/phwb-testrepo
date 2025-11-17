@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte'
 	import Modal from '$lib/components/ui/Modal.svelte'
+	import MultiSelect from '$lib/components/ui/MultiSelect.svelte'
+	import { GENRE_OPTIONS, INSTRUMENT_OPTIONS } from '$lib/utils/artist-options'
 	import { createArtistSchema, type CreateArtist } from '$lib/schemas/artist'
 	import { createArtist } from '$lib/stores/artists'
 	import { z } from 'zod'
@@ -498,19 +500,16 @@
 							</div>
 
 							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Genres</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.genres ? 'input-error' : ''}"
-									value={getArrayDisplayValue(formData.genres)}
-									oninput={(e) => handleArrayInput('genres', e.currentTarget.value)}
-									placeholder="Classical, Jazz, Pop (comma-separated)"
+								<MultiSelect
+									options={GENRE_OPTIONS}
+									selected={formData.genres || []}
+									onChange={(selected) => {
+										formData.genres = selected
+										validateField('genres')
+									}}
+									placeholder="Select genres..."
+									label="Genres"
 								/>
-								<label class="label">
-									<span class="label-text-alt">Separate multiple genres with commas</span>
-								</label>
 								{#if formErrors.genres}
 									<label class="label">
 										<span class="label-text-alt text-error">{formErrors.genres}</span>
@@ -519,19 +518,16 @@
 							</div>
 
 							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Instruments</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.instruments ? 'input-error' : ''}"
-									value={getArrayDisplayValue(formData.instruments)}
-									oninput={(e) => handleArrayInput('instruments', e.currentTarget.value)}
-									placeholder="Piano, Violin, Voice (comma-separated)"
+								<MultiSelect
+									options={INSTRUMENT_OPTIONS}
+									selected={formData.instruments || []}
+									onChange={(selected) => {
+										formData.instruments = selected
+										validateField('instruments')
+									}}
+									placeholder="Select instruments..."
+									label="Instruments"
 								/>
-								<label class="label">
-									<span class="label-text-alt">Separate multiple instruments with commas</span>
-								</label>
 								{#if formErrors.instruments}
 									<label class="label">
 										<span class="label-text-alt text-error">{formErrors.instruments}</span>

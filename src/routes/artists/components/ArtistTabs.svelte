@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { Artist } from '$lib/schemas/artist'
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { User, Briefcase, FileText, Globe, ScrollText, Settings } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
+	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
 	import { formatPhone } from '$lib/utils/phone'
 	import PerformanceHistory from '$lib/components/PerformanceHistory.svelte'
 
@@ -12,13 +15,13 @@
 
 	let { artist, onUpdateField, onDelete }: Props = $props()
 
-	const tabs = [
-		{ id: 'profile', label: 'Profile', icon: '👤' },
-		{ id: 'professional', label: 'Professional', icon: '💼' },
-		{ id: 'biography', label: 'Biography', icon: '📝' },
-		{ id: 'social', label: 'Social', icon: '🌐' },
-		{ id: 'history', label: 'History', icon: '📜' },
-		{ id: 'settings', label: 'Settings', icon: '⚙️' }
+	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ id: 'profile', label: 'Profile', icon: User },
+		{ id: 'professional', label: 'Professional', icon: Briefcase },
+		{ id: 'biography', label: 'Biography', icon: FileText },
+		{ id: 'social', label: 'Social', icon: Globe },
+		{ id: 'history', label: 'History', icon: ScrollText },
+		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
 
 	let activeTab = $state<string>(
@@ -77,7 +80,7 @@
 				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
 				onclick={() => setActiveTab(tab.id)}
 			>
-				<span class="mr-2">{tab.icon}</span>
+				<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
 				{tab.label}
 			</button>
 		{/each}
@@ -181,25 +184,23 @@
 						/>
 					</div>
 					<div>
-						<InlineEditableField
-							value={getArrayDisplayValue(artist.genres)}
+						<InlineEditableMultiSelect
+							value={artist.genres || []}
 							field="genres"
-							type="text"
-							placeholder="Enter genres (comma-separated)"
 							label="Genres"
-							onSave={(value) => handleArrayFieldUpdate('genres', value)}
-							formatDisplay={(val) => val || 'Not specified'}
+							onSave={async (value) => {
+								await onUpdateField('genres', value)
+							}}
 						/>
 					</div>
 					<div>
-						<InlineEditableField
-							value={getArrayDisplayValue(artist.instruments)}
+						<InlineEditableMultiSelect
+							value={artist.instruments || []}
 							field="instruments"
-							type="text"
-							placeholder="Enter instruments (comma-separated)"
 							label="Instruments"
-							onSave={(value) => handleArrayFieldUpdate('instruments', value)}
-							formatDisplay={(val) => val || 'Not specified'}
+							onSave={async (value) => {
+								await onUpdateField('instruments', value)
+							}}
 						/>
 					</div>
 					<div>

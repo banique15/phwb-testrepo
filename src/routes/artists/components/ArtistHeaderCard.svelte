@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Artist } from '$lib/schemas/artist'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
+	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
 	import { formatPhone } from '$lib/utils/phone'
 
 	interface Props {
@@ -29,15 +30,6 @@
 			'Unnamed Artist'
 	}
 
-	function getGenresDisplay(): string {
-		if (!artist.genres || !Array.isArray(artist.genres)) return ''
-		return artist.genres.join(', ')
-	}
-
-	function getInstrumentsDisplay(): string {
-		if (!artist.instruments || !Array.isArray(artist.instruments)) return ''
-		return artist.instruments.join(', ')
-	}
 </script>
 
 <div class="card bg-base-100 shadow-none mb-4">
@@ -117,35 +109,25 @@
 				</div>
 
 				<!-- Genres and Instruments -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+				<div class="space-y-3">
 					<div>
-						<InlineEditableField
-							value={getGenresDisplay()}
+						<InlineEditableMultiSelect
+							value={artist.genres || []}
 							field="genres"
-							type="text"
-							placeholder="Enter genres (comma-separated)"
 							label="Genres"
-							maxLength={500}
 							onSave={async (value) => {
-								const genres = value ? value.split(',').map(g => g.trim()).filter(Boolean) : []
-								await onUpdateField('genres', genres)
+								await onUpdateField('genres', value)
 							}}
-							formatDisplay={(val) => val || 'Not specified'}
 						/>
 					</div>
 					<div>
-						<InlineEditableField
-							value={getInstrumentsDisplay()}
+						<InlineEditableMultiSelect
+							value={artist.instruments || []}
 							field="instruments"
-							type="text"
-							placeholder="Enter instruments (comma-separated)"
 							label="Instruments"
-							maxLength={500}
 							onSave={async (value) => {
-								const instruments = value ? value.split(',').map(i => i.trim()).filter(Boolean) : []
-								await onUpdateField('instruments', instruments)
+								await onUpdateField('instruments', value)
 							}}
-							formatDisplay={(val) => val || 'Not specified'}
 						/>
 					</div>
 				</div>

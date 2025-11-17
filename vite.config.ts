@@ -29,8 +29,11 @@ export default defineConfig({
 	},
 	// Optimize dependencies
 	optimizeDeps: {
-		include: ['@supabase/supabase-js', '@supabase/ssr', 'zod'],
+		include: ['@supabase/supabase-js', '@supabase/ssr', 'zod', 'lucide-svelte'],
 		exclude: []
+	},
+	ssr: {
+		noExternal: ['lucide-svelte']
 	},
 	// Preview server optimization
 	preview: {

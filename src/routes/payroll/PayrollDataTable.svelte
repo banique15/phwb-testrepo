@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte'
 	import type { Payroll } from '$lib/schemas/payroll'
+	import { DollarSign } from 'lucide-svelte'
 	import DataTable from '$lib/components/ui/DataTable.svelte'
 	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte'
 	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
@@ -234,7 +235,7 @@
 	{:else if entries.length === 0}
 		<!-- Empty state -->
 		<div class="text-center py-12">
-			<div class="text-6xl mb-4">💰</div>
+			<DollarSign class="w-16 h-16 mx-auto mb-4 text-base-content/70" />
 			<h3 class="text-lg font-semibold mb-2">No payroll entries found</h3>
 			<p class="text-base-content/60">
 				{searchQuery ? 'Try adjusting your search or filters' : 'Create your first payroll entry to get started'}

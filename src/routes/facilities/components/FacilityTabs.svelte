@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Facility } from '$lib/schemas/facility'
 	import type { Location } from '$lib/schemas/location'
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { Calendar, ClipboardList, Phone, ScrollText, BarChart, Settings } from 'lucide-svelte'
 	import LocationContextSelector from './LocationContextSelector.svelte'
 	import CalendarTab from './tabs/CalendarTab.svelte'
 	import EventsTab from './tabs/EventsTab.svelte'
@@ -19,13 +21,13 @@
 
 	let { facility, locations, selectedLocationId, onSelectLocation, onDelete }: Props = $props()
 
-	const tabs = [
-		{ id: 'calendar', label: 'Calendar', icon: '📅' },
-		{ id: 'events', label: 'Events', icon: '📋' },
-		{ id: 'contacts', label: 'Contacts', icon: '📞' },
-		{ id: 'history', label: 'History', icon: '📜' },
-		{ id: 'reports', label: 'Reports', icon: '📊' },
-		{ id: 'settings', label: 'Settings', icon: '⚙️' }
+	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ id: 'calendar', label: 'Calendar', icon: Calendar },
+		{ id: 'events', label: 'Events', icon: ClipboardList },
+		{ id: 'contacts', label: 'Contacts', icon: Phone },
+		{ id: 'history', label: 'History', icon: ScrollText },
+		{ id: 'reports', label: 'Reports', icon: BarChart },
+		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
 
 	let activeTab = $state<string>(
@@ -55,7 +57,7 @@
 				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
 				onclick={() => setActiveTab(tab.id)}
 			>
-				<span class="mr-2">{tab.icon}</span>
+				<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
 				{tab.label}
 			</button>
 		{/each}

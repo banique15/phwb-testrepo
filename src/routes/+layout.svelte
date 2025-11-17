@@ -6,7 +6,6 @@
 	import { sidebarStore } from '$lib/stores/sidebar';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
-	import NavigationProgress from '$lib/components/NavigationProgress.svelte';
 	import ErrorDisplay from '$lib/components/ui/ErrorDisplay.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
 
@@ -19,9 +18,6 @@
 	const isLoginPage = $derived($page.url.pathname === '/login');
 	const shouldShowSidebar = $derived(!$sidebarStore.forceCollapse);
 </script>
-
-<!-- Global navigation progress indicator -->
-<NavigationProgress />
 
 {#if isLoginPage}
 	{@render children()}

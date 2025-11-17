@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { EnhancedEvent } from '$lib/stores/events'
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import ScheduleDisplay from './ScheduleDisplay.svelte'
 	import RequirementsDisplay from './RequirementsDisplay.svelte'
@@ -13,13 +15,13 @@
 
 	let { event, onUpdateField, onDelete }: Props = $props()
 
-	const tabs = [
-		{ id: 'schedule', label: 'Schedule', icon: '📅' },
-		{ id: 'requirements', label: 'Requirements', icon: '📋' },
-		{ id: 'performers', label: 'Performers', icon: '🎭' },
-		{ id: 'notes', label: 'Notes', icon: '📝' },
-		{ id: 'history', label: 'History', icon: '📜' },
-		{ id: 'settings', label: 'Settings', icon: '⚙️' }
+	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ id: 'schedule', label: 'Schedule', icon: Calendar },
+		{ id: 'requirements', label: 'Requirements', icon: ClipboardList },
+		{ id: 'performers', label: 'Performers', icon: Theater },
+		{ id: 'notes', label: 'Notes', icon: FileText },
+		{ id: 'history', label: 'History', icon: ScrollText },
+		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
 
 	let activeTab = $state<string>(
@@ -35,7 +37,12 @@
 
 	function formatDate(dateStr: string | undefined) {
 		if (!dateStr) return 'Not specified'
-		return new Date(dateStr).toLocaleDateString()
+		const date = new Date(dateStr)
+		return date.toLocaleDateString('en-US', {
+			month: '2-digit',
+			day: '2-digit',
+			year: 'numeric'
+		})
 	}
 </script>
 
@@ -47,21 +54,27 @@
 				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
 				onclick={() => setActiveTab(tab.id)}
 			>
-				<span class="mr-2">{tab.icon}</span>
+				<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
 				{tab.label}
 			</button>
 		{/each}
 	</div>
 
 	<!-- Tab Content -->
-	<div class="tab-content">
+	<div class="tab-content block">
 		{#if activeTab === 'schedule'}
 			<div class="space-y-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Event Schedule</h3>
 				{#if event.schedule}
 					<ScheduleDisplay schedule={event.schedule} />
 				{:else}
-					<p class="text-base opacity-70">No schedule information available</p>
+					<div class="text-center py-8 border-2 border-dashed border-base-300 rounded-lg bg-base-50">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+						</svg>
+						<p class="text-base opacity-70 mb-2">No schedule information available</p>
+						<p class="text-sm opacity-50">Add schedule details to track event timeline</p>
+					</div>
 				{/if}
 			</div>
 		{:else if activeTab === 'requirements'}

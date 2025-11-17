@@ -76,6 +76,7 @@
 	const hasWarning = $derived(warning && !hasError)
 	const hasSuccess = $derived(success && !hasError && !hasWarning && showValid)
 	const isValid = $derived(!hasError && !hasWarning && hasInteracted && value !== '' && value !== null && value !== undefined)
+	const isEmpty = $derived(value === '' || value === null || value === undefined || (typeof value === 'string' && value.trim() === ''))
 	
 	// Get error messages as array
 	const errorMessages = $derived(() => {
@@ -107,6 +108,8 @@
 			class:textarea-error={hasError}
 			class:textarea-warning={hasWarning}
 			class:textarea-success={hasSuccess || (showValid && isValid)}
+			class:border-yellow-400={isEmpty && !hasError && !hasWarning}
+			class:dark:border-yellow-600={isEmpty && !hasError && !hasWarning}
 			class:ring-2={focused}
 			class:ring-primary={focused && !hasError}
 			class:ring-error={focused && hasError}
@@ -122,11 +125,13 @@
 			onfocus={handleFocus}
 		></textarea>
 	{:else if type === 'select'}
-		<select 
+		<select
 			class="select select-bordered w-full transition-colors"
 			class:select-error={hasError}
 			class:select-warning={hasWarning}
 			class:select-success={hasSuccess || (showValid && isValid)}
+			class:border-yellow-400={isEmpty && !hasError && !hasWarning}
+			class:dark:border-yellow-600={isEmpty && !hasError && !hasWarning}
 			class:ring-2={focused}
 			class:ring-primary={focused && !hasError}
 			class:ring-error={focused && hasError}
@@ -148,6 +153,8 @@
 			class:input-error={hasError}
 			class:input-warning={hasWarning}
 			class:input-success={hasSuccess || (showValid && isValid)}
+			class:border-yellow-400={isEmpty && !hasError && !hasWarning}
+			class:dark:border-yellow-600={isEmpty && !hasError && !hasWarning}
 			class:ring-2={focused}
 			class:ring-primary={focused && !hasError}
 			class:ring-error={focused && hasError}

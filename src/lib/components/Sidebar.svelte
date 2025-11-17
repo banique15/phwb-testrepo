@@ -8,12 +8,13 @@
 	const navItems = [
 		{ name: "Dashboard", href: "/", disabled: false },
 		{ name: "Artists", href: "/artists", disabled: false },
+		{ name: "Ensembles", href: "/ensembles", disabled: false },
 		{ name: "Partners", href: "/partners", disabled: false },
 		{ name: "Programs", href: "/programs", disabled: false },
 		{ name: "Facilities", href: "/facilities", disabled: false },
 		{ name: "Events", href: "/events", disabled: false },
-		{ name: "Reports", href: "/reports", disabled: true },
-		{ name: "Payroll", href: "/payroll", disabled: true },
+		{ name: "Reports", href: "/reports", disabled: false },
+		{ name: "Payroll", href: "/payroll", disabled: false },
 	];
 
 	let isMobile = $state(false);

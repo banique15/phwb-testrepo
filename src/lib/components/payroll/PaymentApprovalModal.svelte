@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte'
+	import { ClipboardList } from 'lucide-svelte'
 	import { payrollStore } from '$lib/stores/payroll'
 	import { user } from '$lib/auth'
 	import type { Payroll } from '$lib/schemas/payroll'
@@ -71,7 +72,7 @@
 
 			{#if payments.length === 0}
 				<div class="text-center py-8">
-					<div class="text-gray-400 mb-2">📋</div>
+					<ClipboardList class="w-12 h-12 mx-auto mb-2 text-base-content/40" />
 					<p>No payments selected for approval</p>
 				</div>
 			{:else}

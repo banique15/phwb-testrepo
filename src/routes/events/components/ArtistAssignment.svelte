@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Search, Users } from 'lucide-svelte'
 	import { artistsStore } from '$lib/stores/artists'
 	import { onMount } from 'svelte'
 	import type { Artist } from '$lib/schemas/artist'
@@ -290,13 +291,13 @@
 			</div>
 		{:else if searchTerm}
 			<div class="text-center py-8 bg-base-200 rounded-lg">
-				<span class="text-4xl">🔍</span>
+				<Search class="w-16 h-16 mx-auto text-base-content/70" />
 				<p class="mt-2 text-lg">No artists found</p>
 				<p class="text-sm opacity-60">Try adjusting your search terms</p>
 			</div>
 		{:else}
 			<div class="text-center py-8 bg-base-200 rounded-lg">
-				<span class="text-4xl">👥</span>
+				<Users class="w-16 h-16 mx-auto text-base-content/70" />
 				<p class="mt-2 text-lg">No available artists</p>
 				<p class="text-sm opacity-60">All artists are already assigned to this event</p>
 			</div>
@@ -542,7 +543,7 @@
 		</div>
 	{:else}
 		<div class="text-center py-8 bg-base-200 rounded-lg">
-			<span class="text-4xl">👥</span>
+			<Users class="w-16 h-16 mx-auto text-base-content/70" />
 			<p class="mt-2 text-lg">No artists assigned</p>
 			<p class="text-sm opacity-60">
 				{readonly ? 'No artist assignments for this event' : 'Use the search above to find and assign artists to this event'}

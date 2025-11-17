@@ -1,4 +1,7 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { getRequirementIcon as getRequirementIconFromMapping } from '$lib/utils/icon-mapping'
+	
 	interface Props {
 		requirements?: any
 	}
@@ -56,19 +59,8 @@
 		return []
 	})
 	
-	function getRequirementIcon(key: string, value: any) {
-		const lowerKey = key.toLowerCase()
-		if (lowerKey.includes('equipment')) return '🎵'
-		if (lowerKey.includes('sound') || lowerKey.includes('audio')) return '🎚️'
-		if (lowerKey.includes('mic') || lowerKey.includes('microphone')) return '🎤'
-		if (lowerKey.includes('stage') || lowerKey.includes('platform')) return '🎭'
-		if (lowerKey.includes('lighting') || lowerKey.includes('light')) return '💡'
-		if (lowerKey.includes('parking')) return '🚗'
-		if (lowerKey.includes('security')) return '🔒'
-		if (lowerKey.includes('catering') || lowerKey.includes('food')) return '🍽️'
-		if (lowerKey.includes('dress') || lowerKey.includes('attire')) return '👔'
-		if (lowerKey.includes('access') || lowerKey.includes('entry')) return '🚪'
-		return '📋'
+	function getRequirementIcon(key: string, value: any): ComponentType<SvelteComponent> {
+		return getRequirementIconFromMapping(key)
 	}
 	
 	function formatValue(value: any, type: string) {
@@ -90,9 +82,7 @@
 		{#each requirementsList as requirement}
 			<div class="bg-base-200 p-4 rounded-lg">
 				<div class="flex items-start gap-3">
-					<span class="text-2xl">
-						{getRequirementIcon(requirement.key, requirement.value)}
-					</span>
+					<svelte:component this={getRequirementIcon(requirement.key, requirement.value)} class="w-6 h-6 flex-shrink-0 mt-0.5" />
 					<div class="flex-1">
 						<h4 class="font-medium text-sm mb-1 capitalize">
 							{requirement.key}
@@ -129,7 +119,7 @@
 	</div>
 {:else}
 	<div class="bg-base-200 p-4 rounded-lg text-center opacity-60">
-		<span class="text-4xl">📋</span>
+		<svelte:component this={getRequirementIcon('', null)} class="w-16 h-16 mx-auto text-base-content/70" />
 		<p class="mt-2 text-sm">No specific requirements defined</p>
 	</div>
 {/if}

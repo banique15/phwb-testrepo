@@ -505,15 +505,17 @@
 <ErrorBoundary>
 	<div class="h-full flex flex-col overflow-hidden">
 		<!-- Scrollable Content Area -->
-		<div class="flex-1 p-4 min-h-0 flex flex-col">
-			<div class="overflow-y-auto h-full">
-				<!-- Header Card -->
+		<div class="flex-1 p-4 min-h-0 flex flex-col overflow-hidden">
+			<!-- Header Card -->
+			<div class="flex-none mb-4">
 				<PayrollHeaderCard
 					{stats}
 					dateRange={metricsDateRange !== 'all' ? metricsDateRange : undefined}
 				/>
+			</div>
 
-				<!-- Tabs Section -->
+			<!-- Tabs Section -->
+			<div class="flex-1 min-h-0">
 				<PayrollTabs
 					{payrollEntries}
 					{selectedEntries}

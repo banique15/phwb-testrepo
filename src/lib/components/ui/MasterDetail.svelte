@@ -1,7 +1,9 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
 	import { createEventDispatcher } from 'svelte'
 	import { browser } from '$app/environment'
 	import type { Snippet } from 'svelte'
+	import { FileText } from 'lucide-svelte'
 	import LoadingSpinner from './LoadingSpinner.svelte'
 	import Pagination from './Pagination.svelte'
 	import EmptyState from './EmptyState.svelte'
@@ -30,7 +32,7 @@
 		getItemSubtitle?: (item: T) => string
 		getItemDetail?: (item: T) => string
 		// Detail view configuration
-		detailEmptyIcon?: string
+		detailEmptyIcon?: string | ComponentType<SvelteComponent>
 		detailEmptyTitle?: string
 		detailEmptyMessage?: string
 		// Storage and persistence
@@ -176,7 +178,7 @@
 <svelte:window onkeydown={handleKeyboardNavigation} />
 
 <div
-	class="flex flex-col lg:flex-row gap-6 h-full min-h-0"
+	class="flex flex-col lg:flex-row gap-0 h-full min-h-0 "
 	ontouchstart={handleTouchStart}
 	ontouchend={handleTouchEnd}
 >
@@ -209,7 +211,7 @@
 
 	<!-- Master List -->
 	<div
-		class="lg:w-1/3 lg:flex-none {isMobile ? 'fixed inset-0 z-30 bg-base-100' : 'h-full'}"
+		class="border-r border-base-200 lg:w-1/3 lg:flex-none {isMobile ? 'fixed inset-0 z-30 bg-base-100' : 'h-full'}"
 		class:hidden={isMobile && !showMasterPanel}
 		class:pt-20={isMobile}
 	>
@@ -265,7 +267,7 @@
 						</div>
 					{:else if items.length === 0}
 						<EmptyState
-							icon="📝"
+							icon={FileText}
 							title="No items"
 							message={searchValue ? 'No items match your search' : 'No items found'}
 							size="sm"
@@ -289,16 +291,16 @@
 									tabindex="0"
 									onkeydown={(e) => e.key === 'Enter' && handleSelect(item)}
 								>
-									<div class="font-medium text-sm">
+									<div class="font-medium text-sm truncate">
 										{getItemTitle(item)}
 									</div>
 									{#if getItemSubtitle}
-										<div class="text-xs mt-1" class:opacity-70={selectedItem?.id !== item.id} class:opacity-90={selectedItem?.id === item.id}>
+										<div class="text-xs mt-1 truncate" class:opacity-70={selectedItem?.id !== item.id} class:opacity-90={selectedItem?.id === item.id}>
 											{getItemSubtitle(item)}
 										</div>
 									{/if}
 									{#if getItemDetail}
-										<div class="text-xs mt-1" class:opacity-50={selectedItem?.id !== item.id} class:opacity-75={selectedItem?.id === item.id}>
+										<div class="text-xs mt-1 line-clamp-2" class:opacity-50={selectedItem?.id !== item.id} class:opacity-75={selectedItem?.id === item.id}>
 											{getItemDetail(item)}
 										</div>
 									{/if}
@@ -325,7 +327,7 @@
 		class:pt-20={isMobile && !showMasterPanel}
 	>
 		<div class="card bg-base-100 shadow-none h-full flex flex-col min-h-0">
-			<div class="card-body flex flex-col h-full min-h-0">
+			<div class="card-body p-4 flex flex-col h-full min-h-0">
 				{#if selectedItem}
 					<div class="overflow-y-auto h-full min-h-0">
 						{#if children}

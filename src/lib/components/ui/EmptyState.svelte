@@ -1,6 +1,10 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { FileText } from 'lucide-svelte'
+	import Icon from './Icon.svelte'
+
 	interface Props {
-		icon?: string
+		icon?: string | ComponentType<SvelteComponent>
 		title?: string
 		message?: string
 		size?: 'sm' | 'md' | 'lg'
@@ -10,7 +14,7 @@
 	}
 
 	let {
-		icon = '📄',
+		icon = FileText,
 		title = 'No data found',
 		message = 'There are no items to display.',
 		size = 'md',
@@ -21,19 +25,19 @@
 
 	const sizeConfig = {
 		sm: {
-			iconSize: 'text-4xl',
+			iconSize: 'xl',
 			titleSize: 'text-lg',
 			messageSize: 'text-sm',
 			padding: 'py-8'
 		},
 		md: {
-			iconSize: 'text-6xl',
+			iconSize: 'xl',
 			titleSize: 'text-xl',
 			messageSize: 'text-base',
 			padding: 'py-12'
 		},
 		lg: {
-			iconSize: 'text-8xl',
+			iconSize: 'xl',
 			titleSize: 'text-2xl',
 			messageSize: 'text-lg',
 			padding: 'py-16'
@@ -48,8 +52,8 @@
 		<div class="card bg-base-100 shadow-xl">
 			<div class="card-body">
 				<div class="text-center {config.padding}">
-					<div class="mb-4">
-						<span class="{config.iconSize}">{icon}</span>
+					<div class="mb-4 flex justify-center">
+						<Icon icon={icon} size={config.iconSize} class="text-base-content/70" />
 					</div>
 					<h3 class="font-semibold {config.titleSize} mb-2">
 						{title}
@@ -75,8 +79,8 @@
 		</div>
 	{:else}
 		<div class="text-center {config.padding}">
-			<div class="mb-4">
-				<span class="{config.iconSize}">{icon}</span>
+			<div class="mb-4 flex justify-center">
+				<Icon icon={icon} size={config.iconSize} class="text-base-content/70" />
 			</div>
 			<h3 class="font-semibold {config.titleSize} mb-2">
 				{title}

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Calendar, MapPin } from 'lucide-svelte'
+	
 	interface Props {
 		schedule?: any
 	}
@@ -96,8 +98,9 @@
 						{/if}
 						
 						{#if block.location}
-							<div class="text-xs opacity-60">
-								📍 {block.location}
+							<div class="text-xs opacity-60 flex items-center gap-1">
+								<MapPin class="w-3 h-3" />
+								{block.location}
 							</div>
 						{/if}
 						
@@ -119,7 +122,7 @@
 	</div>
 {:else}
 	<div class="bg-base-200 p-4 rounded-lg text-center opacity-60">
-		<span class="text-4xl">📅</span>
+		<Calendar class="w-16 h-16 mx-auto text-base-content/70" />
 		<p class="mt-2 text-sm">No schedule blocks defined</p>
 	</div>
 {/if}

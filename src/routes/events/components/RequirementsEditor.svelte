@@ -1,4 +1,8 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { Mic, Theater, Users, Truck, Utensils, Zap, ClipboardList, FileText, Clock, CheckCircle, XCircle } from 'lucide-svelte'
+	import { getRequirementIcon } from '$lib/utils/icon-mapping'
+	
 	interface Requirement {
 		id: string
 		category: string
@@ -40,22 +44,22 @@
 	})
 	
 	// Categories and their icons
-	const categories = [
-		{ value: 'equipment', label: 'Equipment', icon: '🎤' },
-		{ value: 'staging', label: 'Staging', icon: '🎭' },
-		{ value: 'personnel', label: 'Personnel', icon: '👥' },
-		{ value: 'logistics', label: 'Logistics', icon: '🚚' },
-		{ value: 'catering', label: 'Catering', icon: '🍽️' },
-		{ value: 'technical', label: 'Technical', icon: '⚡' },
-		{ value: 'permits', label: 'Permits', icon: '📋' },
-		{ value: 'other', label: 'Other', icon: '📝' }
+	const categories: Array<{ value: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ value: 'equipment', label: 'Equipment', icon: Mic },
+		{ value: 'staging', label: 'Staging', icon: Theater },
+		{ value: 'personnel', label: 'Personnel', icon: Users },
+		{ value: 'logistics', label: 'Logistics', icon: Truck },
+		{ value: 'catering', label: 'Catering', icon: Utensils },
+		{ value: 'technical', label: 'Technical', icon: Zap },
+		{ value: 'permits', label: 'Permits', icon: ClipboardList },
+		{ value: 'other', label: 'Other', icon: FileText }
 	]
 	
 	// Status options
-	const statusOptions = [
-		{ value: 'pending', label: 'Pending', class: 'badge-warning', icon: '⏳' },
-		{ value: 'secured', label: 'Secured', class: 'badge-success', icon: '✅' },
-		{ value: 'not_available', label: 'Not Available', class: 'badge-error', icon: '❌' }
+	const statusOptions: Array<{ value: string; label: string; class: string; icon: ComponentType<SvelteComponent> }> = [
+		{ value: 'pending', label: 'Pending', class: 'badge-warning', icon: Clock },
+		{ value: 'secured', label: 'Secured', class: 'badge-success', icon: CheckCircle },
+		{ value: 'not_available', label: 'Not Available', class: 'badge-error', icon: XCircle }
 	]
 	
 	// Priority options
@@ -231,8 +235,8 @@
 		jsonEditMode = !jsonEditMode
 	}
 	
-	function getCategoryIcon(category: string): string {
-		return categories.find(c => c.value === category)?.icon || '📝'
+	function getCategoryIcon(category: string): ComponentType<SvelteComponent> {
+		return categories.find(c => c.value === category)?.icon || FileText
 	}
 	
 	function getCategoryLabel(category: string): string {
@@ -335,13 +339,13 @@
 					<select bind:value={filterCategory} class="select select-bordered select-sm">
 						<option value="all">All Categories</option>
 						{#each categories as category}
-							<option value={category.value}>{category.icon} {category.label}</option>
+							<option value={category.value}>{category.label}</option>
 						{/each}
 					</select>
 					<select bind:value={filterStatus} class="select select-bordered select-sm">
 						<option value="all">All Status</option>
 						{#each statusOptions as status}
-							<option value={status.value}>{status.icon} {status.label}</option>
+							<option value={status.value}>{status.label}</option>
 						{/each}
 					</select>
 				</div>
@@ -380,7 +384,7 @@
 							</label>
 							<select bind:value={newRequirement.category} class="select select-bordered w-full">
 								{#each categories as category}
-									<option value={category.value}>{category.icon} {category.label}</option>
+									<option value={category.value}>{category.label}</option>
 								{/each}
 							</select>
 						</div>
@@ -432,7 +436,7 @@
 							</label>
 							<select bind:value={newRequirement.status} class="select select-bordered w-full">
 								{#each statusOptions as status}
-									<option value={status.value}>{status.icon} {status.label}</option>
+									<option value={status.value}>{status.label}</option>
 								{/each}
 							</select>
 						</div>
@@ -509,7 +513,7 @@
 							<tr>
 								<td>
 									<div class="flex items-center gap-2">
-										<span class="text-lg">{getCategoryIcon(requirement.category)}</span>
+										<svelte:component this={getCategoryIcon(requirement.category)} class="w-5 h-5 flex-shrink-0" />
 										<span class="text-sm">{getCategoryLabel(requirement.category)}</span>
 									</div>
 								</td>
@@ -568,8 +572,9 @@
 											{/each}
 										</select>
 									{:else}
-										<span class="badge badge-sm {statusInfo.class}">
-											{statusInfo.icon} {statusInfo.label}
+										<span class="badge badge-sm {statusInfo.class} flex items-center gap-1">
+											<svelte:component this={statusInfo.icon} class="w-3.5 h-3.5" />
+											{statusInfo.label}
 										</span>
 									{/if}
 								</td>
@@ -625,7 +630,7 @@
 			</div>
 		{:else if requirementsList.length === 0}
 			<div class="text-center py-8 bg-base-200 rounded-lg">
-				<span class="text-4xl">📋</span>
+				<ClipboardList class="w-16 h-16 mx-auto text-base-content/70" />
 				<p class="mt-2 text-lg">No requirements defined</p>
 				<p class="text-sm opacity-60">
 					{readonly ? 'No requirements have been set for this event' : 'Click "Add Requirement" to define event requirements'}

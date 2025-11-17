@@ -17,7 +17,8 @@
 	import EventHeaderCard from './components/EventHeaderCard.svelte'
 	import EventTabs from './components/EventTabs.svelte'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
-	import PageHeader from '$lib/components/ui/PageHeader.svelte'
+	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
+	import { Calendar } from 'lucide-svelte'
 	import { updateEventSchema } from '$lib/schemas/event'
 	import { z } from 'zod'
 
@@ -94,6 +95,27 @@
 		}
 	}
 
+	// MasterDetail helper functions
+	function getEventTitle(item: any): string {
+		return item.title || 'No title'
+	}
+
+	function getEventSubtitle(item: any): string {
+		return formatDate(item.date)
+	}
+
+	function getEventDetail(item: any): string {
+		const status = item.status || 'Unknown'
+		const time = item.start_time || item.end_time 
+			? `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`
+			: 'No time specified'
+		return `${status} • ${time}`
+	}
+
+	async function handleSelectEvent(event: CustomEvent<{ item: EnhancedEvent }>) {
+		await selectEvent(event.detail.item)
+	}
+
 	async function updateEventField(field: string, value: any) {
 		if (!selectedEvent?.id) return
 
@@ -128,7 +150,12 @@
 
 	function formatDate(dateStr: string | undefined) {
 		if (!dateStr) return 'Not specified'
-		return new Date(dateStr).toLocaleDateString()
+		const date = new Date(dateStr)
+		return date.toLocaleDateString('en-US', {
+			month: '2-digit',
+			day: '2-digit',
+			year: 'numeric'
+		})
 	}
 
 	function formatTime(timeStr: string | undefined) {
@@ -397,221 +424,175 @@
 
 <ErrorBoundary>
 	<div class="h-full flex flex-col overflow-hidden">
-		<!-- Fixed Page Header with Inline Controls -->
-		<div class="sticky top-0 z-30 flex-none px-4 py-2 bg-base-100 border-b border-base-200 shadow-sm">
-			<div class="flex flex-col gap-2">
-				<!-- Title and Action Buttons Row -->
-				<div class="flex items-start justify-between">
-					<div>
-						<h1 class="text-xl font-bold leading-tight">Events</h1>
-						<p class="text-sm opacity-70">Manage event scheduling and coordination</p>
-					</div>
-					<div class="flex gap-2">
-						<button
-							class="btn btn-outline btn-sm"
-							onclick={toggleViewMode}
-							title={viewMode === 'list' ? 'Switch to Calendar View' : 'Switch to List View'}
-						>
-							{#if viewMode === 'list'}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-								Calendar View
-							{:else}
+		{#if viewMode === 'calendar'}
+			<!-- Calendar View - Full Layout -->
+			<div class="flex-1 min-h-0 flex flex-col">
+				<!-- Calendar View Header -->
+				<div class="flex-none px-4 py-2 bg-base-100 border-b border-base-200">
+					<div class="flex items-center justify-between">
+						<div>
+							<h1 class="text-xl font-bold leading-tight">Events - Calendar View</h1>
+							<p class="text-sm opacity-70">View events in calendar format</p>
+						</div>
+						<div class="flex gap-2">
+							<button
+								class="btn btn-outline btn-sm"
+								onclick={toggleViewMode}
+								title="Switch to List View"
+							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
 								</svg>
 								List View
-							{/if}
-						</button>
-						<button class="btn btn-primary btn-sm" onclick={openCreateModal}>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-							</svg>
-							Create Event
-						</button>
-					</div>
-				</div>
-
-				<!-- Inline Search and Filters Row -->
-				<EventsSearchFilters
-					searchValue={clientFilters.search}
-					statusFilter={clientFilters.status}
-					venueFilter={clientFilters.venue}
-					programFilter={clientFilters.program}
-					partnerFilter={clientFilters.partner}
-					dateFilter={clientFilters.dateFilter}
-					dateFrom={clientFilters.dateFrom}
-					dateTo={clientFilters.dateTo}
-					{venues}
-					{programs}
-					{partners}
-					statistics={filteredStatistics}
-					{loading}
-					on:search={handleSearch}
-					on:statusChange={handleStatusChange}
-					on:venueChange={handleVenueChange}
-					on:programChange={handleProgramChange}
-					on:partnerChange={handlePartnerChange}
-					on:dateFilterChange={handleDateFilterChange}
-					on:dateFromChange={handleDateFromChange}
-					on:dateToChange={handleDateToChange}
-					on:clearFilters={handleClearFilters}
-				/>
-			</div>
-		</div>
-
-		<!-- Content Area -->
-		<div class="flex-1 p-6 min-h-0">
-			<div class="h-full">
-	
-	{#if loading}
-		<div class="text-center py-12">
-			<span class="loading loading-spinner loading-lg"></span>
-			<p class="mt-4">Loading events...</p>
-		</div>
-	{:else if error}
-		<div class="alert alert-error">
-			<span>{error}</span>
-		</div>
-	{:else if filteredEvents.length === 0}
-		<div class="card bg-base-100 shadow-xl">
-			<div class="card-body">
-				<div class="text-center py-12">
-					{#if events.length === 0}
-						<p class="mt-4 text-lg">No events scheduled yet</p>
-						<p class="text-sm opacity-60">Create your first event to get started</p>
-					{:else}
-						<p class="mt-4 text-lg">No events match your filters</p>
-						<p class="text-sm opacity-60">Try adjusting your search or filter criteria</p>
-						<button class="btn btn-sm btn-outline mt-4" onclick={handleClearFilters}>
-							Clear Filters
-						</button>
-					{/if}
-				</div>
-			</div>
-		</div>
-	{:else}
-		{#if viewMode === 'calendar'}
-			<!-- Calendar View -->
-			<div class="flex flex-col lg:flex-row gap-6 h-full min-h-0">
-				<!-- Calendar -->
-				<div class="lg:flex-1 h-full">
-					<div class="card bg-base-100 shadow-xl h-full">
-						<div class="card-body">
-							<CalendarView
-								events={filteredEvents}
-								{selectedEvent}
-								onSelectEvent={selectEvent}
-							/>
+							</button>
+							<button class="btn btn-primary btn-sm" onclick={openCreateModal}>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+								</svg>
+								Create Event
+							</button>
 						</div>
 					</div>
 				</div>
-
-				<!-- Detail View (if event selected) -->
-				{#if selectedEvent}
-					<div class="lg:w-1/3 lg:flex-none h-full">
-						<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
-							<div class="card-body flex flex-col h-full min-h-0">
-								<div class="overflow-y-auto flex-1 min-h-0">
-									<!-- Header Card -->
-									<EventHeaderCard
-										event={selectedEvent}
-										artistsCount={eventArtistsCount}
-										onUpdateField={updateEventField}
-									/>
-
-									<!-- Tabs Section -->
-									<EventTabs
-										event={selectedEvent}
-										onUpdateField={updateEventField}
-										onDelete={openDeleteModal}
+				<div class="flex-1 min-h-0 p-6">
+					<div class="flex flex-col lg:flex-row gap-6 h-full min-h-0">
+						<!-- Calendar -->
+						<div class="lg:flex-1 h-full">
+							<div class="card bg-base-100 shadow-xl h-full">
+								<div class="card-body">
+									<CalendarView
+										events={filteredEvents}
+										{selectedEvent}
+										onSelectEvent={selectEvent}
 									/>
 								</div>
 							</div>
 						</div>
-					</div>
-				{/if}
-			</div>
-		{:else}
-			<!-- List View (existing) -->
-			<div class="flex flex-col lg:flex-row gap-6 h-full min-h-0">
-				<!-- Master List -->
-				<div class="lg:w-1/3 lg:flex-none h-full">
-					<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
-						<div class="card-body p-4 flex flex-col h-full min-h-0">
-							<h2 class="card-title text-lg mb-4 flex-none">Events ({filteredEvents.length})</h2>
-							<div class="overflow-y-auto flex-1 space-y-2 min-h-0 pr-2">
-								{#each filteredEvents as event (event.id)}
-									<div
-										class="p-3 rounded-lg border cursor-pointer transition-colors hover:bg-base-200 {selectedEvent?.id === event.id ? 'bg-primary/10 border-primary' : 'border-base-300'}"
-										onclick={() => selectEvent(event)}
-										role="button"
-										tabindex="0"
-										onkeydown={(e) => e.key === 'Enter' && selectEvent(event)}
-									>
-										<div class="font-medium">
-											{event.title || 'No title'}
-										</div>
-										<div class="text-sm opacity-70">
-											{formatDate(event.date)}
-										</div>
-										<div class="flex items-center gap-2 mt-2">
-											<span class="badge {getStatusBadgeClass(event.status)} badge-sm">
-												{event.status || 'Unknown'}
-											</span>
-											{#if isUpcoming(event.date)}
-												<span class="text-xs text-info">Upcoming</span>
-											{:else if isPast(event.date)}
-												<span class="text-xs opacity-50">Past</span>
-											{/if}
-										</div>
-										{#if event.start_time || event.end_time}
-											<div class="text-xs opacity-50 mt-1">
-												{formatTime(event.start_time)} - {formatTime(event.end_time)}
-											</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						</div>
-					</div>
-				</div>
 
-				<!-- Detail View -->
-				<div class="lg:flex-1 lg:min-w-0 h-full">
-				<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
-					<div class="card-body flex flex-col h-full min-h-0">
+						<!-- Detail View (if event selected) -->
 						{#if selectedEvent}
-							<div class="overflow-y-auto flex-1 min-h-0">
-								<!-- Header Card -->
-								<EventHeaderCard
-									event={selectedEvent}
-									artistsCount={eventArtistsCount}
-									onUpdateField={updateEventField}
-								/>
+							<div class="lg:w-1/3 lg:flex-none h-full">
+								<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
+									<div class="card-body flex flex-col h-full min-h-0">
+										<div class="overflow-y-auto flex-1 min-h-0">
+											<!-- Header Card -->
+											<EventHeaderCard
+												event={selectedEvent}
+												artistsCount={eventArtistsCount}
+												onUpdateField={updateEventField}
+											/>
 
-								<!-- Tabs Section -->
-								<EventTabs
-									event={selectedEvent}
-									onUpdateField={updateEventField}
-									onDelete={openDeleteModal}
-								/>
-							</div>
-						{:else}
-							<div class="text-center py-12">
-								<p class="mt-4 text-lg">Select an event to view details</p>
-								<p class="text-sm opacity-60">Choose an event from the list to see its full information</p>
+											<!-- Tabs Section -->
+											<EventTabs
+												event={selectedEvent}
+												onUpdateField={updateEventField}
+												onDelete={openDeleteModal}
+											/>
+										</div>
+									</div>
+								</div>
 							</div>
 						{/if}
 					</div>
 				</div>
+			</div>
+		{:else}
+			<!-- List View - Using MasterDetail -->
+			<div class="flex-1 min-h-0 flex flex-col">
+				<div class="flex-1 min-h-0">
+					<MasterDetail
+						items={filteredEvents as any}
+						selectedItem={selectedEvent as any}
+						loading={loading}
+						searchPlaceholder="Search events..."
+						searchValue={clientFilters.search}
+						masterTitle="Events"
+						getItemTitle={getEventTitle}
+						getItemSubtitle={getEventSubtitle}
+						getItemDetail={getEventDetail}
+						detailEmptyIcon={Calendar}
+						detailEmptyTitle="Select an event"
+						detailEmptyMessage="Choose an event from the list to view its full information"
+						storageKey={STORAGE_KEY}
+						on:search={handleSearch}
+						on:select={handleSelectEvent}
+					>
+						{#snippet masterActions()}
+							<button
+								class="btn btn-outline btn-xs"
+								onclick={toggleViewMode}
+								title="Switch to Calendar View"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+								Calendar
+							</button>
+							<button
+								class="btn btn-primary btn-xs"
+								onclick={openCreateModal}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+								</svg>
+								Add
+							</button>
+						{/snippet}
+						{#snippet filters()}
+							<EventsSearchFilters
+								searchValue={clientFilters.search}
+								statusFilter={clientFilters.status}
+								venueFilter={clientFilters.venue}
+								programFilter={clientFilters.program}
+								partnerFilter={clientFilters.partner}
+								dateFilter={clientFilters.dateFilter}
+								dateFrom={clientFilters.dateFrom}
+								dateTo={clientFilters.dateTo}
+								{venues}
+								{programs}
+								{partners}
+								statistics={filteredStatistics}
+								{loading}
+								hideSearch={true}
+								on:search={handleSearch}
+								on:statusChange={handleStatusChange}
+								on:venueChange={handleVenueChange}
+								on:programChange={handleProgramChange}
+								on:partnerChange={handlePartnerChange}
+								on:dateFilterChange={handleDateFilterChange}
+								on:dateFromChange={handleDateFromChange}
+								on:dateToChange={handleDateToChange}
+								on:clearFilters={handleClearFilters}
+							/>
+						{/snippet}
+						{#snippet children(props)}
+							{@const event = props.item as EnhancedEvent}
+							{#if event}
+								<div class="flex flex-col h-full overflow-hidden">
+									<!-- Header Card -->
+									<div class="flex-none">
+										<EventHeaderCard
+											event={event}
+											artistsCount={eventArtistsCount}
+											onUpdateField={updateEventField}
+										/>
+									</div>
+
+									<!-- Tabs Section -->
+									<div class="flex-1 min-h-0 overflow-y-auto">
+										<EventTabs
+											event={event}
+											onUpdateField={updateEventField}
+											onDelete={openDeleteModal}
+										/>
+									</div>
+								</div>
+							{/if}
+						{/snippet}
+					</MasterDetail>
 				</div>
 			</div>
 		{/if}
-	{/if}
-			</div>
-		</div>
 	</div>
 </ErrorBoundary>
 

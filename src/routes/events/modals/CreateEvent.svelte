@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Lightbulb } from 'lucide-svelte'
 	import { eventsStore } from '$lib/stores/events'
 	import { venuesStore } from '$lib/stores/venues'
 	import { artistsStore } from '$lib/stores/artists'
@@ -402,8 +403,9 @@
 						disabled={submitting}
 					/>
 					<label class="label">
-						<span class="label-text-alt text-info">
-							💡 Will auto-generate as "Artist @ Venue" if left blank
+						<span class="label-text-alt text-info flex items-center gap-1">
+							<Lightbulb class="w-3 h-3" />
+							Will auto-generate as "Artist @ Venue" if left blank
 						</span>
 					</label>
 				</div>

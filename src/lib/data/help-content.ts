@@ -9,7 +9,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'overview',
 		title: 'Artists Overview',
-		icon: '🎨',
+		icon: 'Sparkles',
 		content: `
 			<p>The Artists page helps you manage all artist profiles and information in your PHWB system. Here you can:</p>
 			<ul>
@@ -24,7 +24,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'navigation',
 		title: 'Page Navigation',
-		icon: '🧭',
+		icon: 'Compass',
 		content: `
 			<p>This page uses a master-detail layout for efficient artist management:</p>
 			<ul>
@@ -39,7 +39,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'searching',
 		title: 'Searching & Filtering',
-		icon: '🔍',
+		icon: 'Search',
 		content: `
 			<p>Use the search functionality to quickly find specific artists:</p>
 			<ul>
@@ -59,7 +59,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'artist-details',
 		title: 'Artist Profile Information',
-		icon: '👤',
+		icon: 'User',
 		content: `
 			<p>Each artist profile contains comprehensive information organized into sections:</p>
 			
@@ -91,7 +91,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'adding-editing',
 		title: 'Adding & Editing Artists',
-		icon: '✏️',
+		icon: 'Edit',
 		content: `
 			<h4>Adding New Artists</h4>
 			<p>Click the <strong>"Add Artist"</strong> button in the page header to create a new artist profile.</p>
@@ -117,7 +117,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'keyboard-shortcuts',
 		title: 'Keyboard Shortcuts',
-		icon: '⌨️',
+		icon: 'Keyboard',
 		content: `
 			<p>Use these keyboard shortcuts for faster navigation:</p>
 			<ul>
@@ -133,7 +133,7 @@ export const artistsHelpContent: HelpSection[] = [
 	{
 		id: 'best-practices',
 		title: 'Best Practices',
-		icon: '⭐',
+		icon: 'Sparkles',
 		content: `
 			<h4>Data Management Tips</h4>
 			<ul>
@@ -166,7 +166,7 @@ export const dashboardHelpContent: HelpSection[] = [
 	{
 		id: 'overview',
 		title: 'Dashboard Overview',
-		icon: '🏠',
+		icon: 'Home',
 		content: `
 			<p>Your PHWB Admin dashboard provides a comprehensive overview of your organization's key metrics and quick access to important functions.</p>
 		`

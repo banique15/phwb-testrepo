@@ -6,6 +6,7 @@
 	import { venuesStore } from '$lib/stores/venues'
 	import { artistLookup, venueLookup } from '$lib/stores/lookup'
 	import { PaymentStatus, PaymentType, EmployeeContractorStatus } from '$lib/schemas/payroll'
+	import { DollarSign } from 'lucide-svelte'
 	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
 	import ArtistSelector from '$lib/components/ui/ArtistSelector.svelte'
 	import { onMount } from 'svelte'
@@ -419,7 +420,7 @@
 		</div>
 	{:else if displayEntries.length === 0}
 		<div class="text-center py-12">
-			<div class="text-6xl mb-4">💰</div>
+			<DollarSign class="w-16 h-16 mx-auto mb-4 text-base-content/70" />
 			<h3 class="text-lg font-semibold mb-2">No payroll entries found</h3>
 			<p class="text-base-content/60">
 				Click "Add Entry" to create your first payroll entry

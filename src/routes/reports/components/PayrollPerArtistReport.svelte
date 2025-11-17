@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
+	import { BarChart } from 'lucide-svelte'
 	import { payrollStore } from '$lib/stores/payroll'
 	import { artistsStore } from '$lib/stores/artists'
 	import { supabase } from '$lib/supabase'
@@ -460,7 +461,7 @@
 		</div>
 	{:else}
 		<div class="text-center py-12 bg-base-200 rounded-lg">
-			<span class="text-4xl">📊</span>
+			<BarChart class="w-16 h-16 mx-auto text-base-content/70" />
 			<p class="mt-4 text-lg">No payroll data found</p>
 			<p class="text-sm opacity-60">Try adjusting your date range or filters</p>
 		</div>

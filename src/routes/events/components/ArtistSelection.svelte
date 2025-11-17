@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Search, Users, FileText } from 'lucide-svelte'
 	import { artistsStore } from '$lib/stores/artists'
 	import { supabase } from '$lib/supabase'
 	import { onMount } from 'svelte'
@@ -312,13 +313,13 @@
 				</div>
 			{:else if searchTerm}
 				<div class="text-center py-8 bg-base-200 rounded-lg">
-					<span class="text-4xl">🔍</span>
+					<Search class="w-16 h-16 mx-auto text-base-content/70" />
 					<p class="mt-2 text-lg">No artists found</p>
 					<p class="text-sm opacity-60">Try adjusting your search terms</p>
 				</div>
 			{:else}
 				<div class="text-center py-8 bg-base-200 rounded-lg">
-					<span class="text-4xl">👥</span>
+					<Users class="w-16 h-16 mx-auto text-base-content/70" />
 					<p class="mt-2 text-lg">No artists available</p>
 					<p class="text-sm opacity-60">No artists found in the database</p>
 				</div>
@@ -504,13 +505,13 @@
 				</div>
 			{:else if selectedIds.size > 0 && !readonly}
 				<div class="text-center py-8 bg-base-200 rounded-lg">
-					<span class="text-4xl">📝</span>
+					<FileText class="w-16 h-16 mx-auto text-base-content/70" />
 					<p class="mt-2 text-lg">Assignment Details</p>
 					<p class="text-sm opacity-60">Select artists to configure their assignments</p>
 				</div>
 			{:else}
 				<div class="text-center py-8 bg-base-200 rounded-lg">
-					<span class="text-4xl">📝</span>
+					<FileText class="w-16 h-16 mx-auto text-base-content/70" />
 					<p class="mt-2 text-lg">Assignment Details</p>
 					<p class="text-sm opacity-60">
 						{readonly ? 'Assignment details will appear here' : 'Select artists to configure their assignments'}

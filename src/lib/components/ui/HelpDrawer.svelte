@@ -1,9 +1,28 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { Lightbulb, Sparkles, Compass, Search, User, Edit, Keyboard, Home, HelpCircle, X } from 'lucide-svelte'
+	
 	interface HelpSection {
 		id: string
 		title: string
 		content: string
 		icon?: string
+	}
+	
+	// Map icon names to lucide components
+	const iconMap: Record<string, ComponentType<SvelteComponent>> = {
+		'Sparkles': Sparkles,
+		'Compass': Compass,
+		'Search': Search,
+		'User': User,
+		'Edit': Edit,
+		'Keyboard': Keyboard,
+		'Home': Home
+	}
+	
+	function getIconComponent(iconName?: string): ComponentType<SvelteComponent> | null {
+		if (!iconName) return null
+		return iconMap[iconName] || null
 	}
 
 	interface Props {
@@ -44,7 +63,7 @@
 		<!-- Header -->
 		<div class="flex items-center justify-between p-4 border-b border-base-300">
 			<div class="flex items-center gap-2">
-				<span class="text-xl">❓</span>
+				<HelpCircle class="w-6 h-6" />
 				<h2 class="text-lg font-semibold">{title} Help</h2>
 			</div>
 			<button 
@@ -52,9 +71,7 @@
 				on:click={onClose}
 				aria-label="Close help"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				</svg>
+				<X class="w-5 h-5" />
 			</button>
 		</div>
 
@@ -66,7 +83,12 @@
 						<input type="checkbox" class="peer" />
 						<div class="collapse-title text-sm font-medium flex items-center gap-2">
 							{#if section.icon}
-								<span>{section.icon}</span>
+								{@const IconComponent = getIconComponent(section.icon)}
+								{#if IconComponent}
+									<svelte:component this={IconComponent} class="w-4 h-4" />
+								{:else}
+									<span>{section.icon}</span>
+								{/if}
 							{/if}
 							{section.title}
 						</div>
@@ -81,7 +103,8 @@
 				<!-- Quick Tips -->
 				<div class="bg-info bg-opacity-10 p-4 rounded-lg border border-info border-opacity-30">
 					<h3 class="font-semibold text-info flex items-center gap-2 mb-2">
-						💡 Quick Tip
+						<Lightbulb class="w-4 h-4" />
+						Quick Tip
 					</h3>
 					<p class="text-sm opacity-80">
 						Press <kbd class="kbd kbd-xs">Ctrl</kbd> + <kbd class="kbd kbd-xs">?</kbd> to quickly open help on any page, or <kbd class="kbd kbd-xs">Esc</kbd> to close this panel.

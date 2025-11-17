@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
+	import { ClipboardList } from 'lucide-svelte'
 	import { goto } from '$app/navigation'
 	import { page } from '$app/stores'
 	import { programsStore } from '$lib/stores/programs'
@@ -308,7 +309,7 @@
 <ErrorBoundary>
 	<div class="h-full flex flex-col overflow-hidden">
 		<!-- Scrollable Content Area -->
-		<div class="flex-1 p-4 min-h-0 flex flex-col">
+		<div class="flex-1 min-h-0 flex flex-col">
 			<div class="flex-1 min-h-0">
 				<MasterDetail
 					items={filteredPrograms as any}
@@ -320,7 +321,7 @@
 					getItemTitle={getProgramTitle}
 					getItemSubtitle={getProgramSubtitle}
 					getItemDetail={getProgramDetail}
-					detailEmptyIcon="📋"
+					detailEmptyIcon={ClipboardList}
 					detailEmptyTitle="Select a program"
 					detailEmptyMessage="Choose a program from the list to view its full information"
 					storageKey="phwb-selected-program"
@@ -329,12 +330,12 @@
 				>
 					{#snippet masterActions()}
 						<button
-							class="btn btn-primary btn-xs"
+							class="btn btn-primary btn-sm"
 							onclick={openCreateModal}
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								class="h-3 w-3 mr-1"
+								class="h-4 w-4 mr-1"
 								fill="none"
 								viewBox="0 0 24 24"
 								stroke="currentColor"

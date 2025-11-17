@@ -25,14 +25,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const { data: { session } } = await event.locals.supabase.auth.getSession()
 	event.locals.session = session
 
-	// Protected routes - require authentication
-	const protectedRoutes = ['/']
-	const isProtectedRoute = protectedRoutes.some(route =>
+	// Public routes that don't require authentication
+	const publicRoutes = ['/login']
+	const isPublicRoute = publicRoutes.some(route =>
 		event.url.pathname === route || event.url.pathname.startsWith(route + '/')
 	)
 
 	// Redirect to login if accessing protected route without session
-	if (isProtectedRoute && !session && event.url.pathname !== '/login') {
+	if (!isPublicRoute && !session) {
 		throw redirect(302, '/login')
 	}
 

@@ -9,6 +9,7 @@
         "@supabase/supabase-js": "^2.50.0",
         "daisyui": "^5.0.43",
         "date-fns": "^4.1.0",
+        "lucide-svelte": "^0.446.0",
         "zod": "^3.25.67",
       },
       "devDependencies": {
@@ -295,6 +296,8 @@
     "lodash.isplainobject": ["lodash.isplainobject@4.0.6", "", {}, "sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA=="],
 
     "lodash.merge": ["lodash.merge@4.6.2", "", {}, "sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ=="],
+
+    "lucide-svelte": ["lucide-svelte@0.446.0", "", { "peerDependencies": { "svelte": "^3 || ^4 || ^5.0.0-next.42" } }, "sha512-ofx/Ykes1q1/sb0t4weezIt0SrMZd4x5Ox1APeR/ZgAHB7taXHqEExS9aGVImFqS35CfnjNGUqMr16/GwTd2lQ=="],
 
     "magic-string": ["magic-string@0.30.17", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0" } }, "sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA=="],
 

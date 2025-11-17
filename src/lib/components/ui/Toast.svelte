@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { toastStore, removeToast, type Toast } from '$lib/stores/toast'
 	import { fly } from 'svelte/transition'
+	import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-svelte'
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { getToastIcon } from '$lib/utils/icon-mapping'
 
 	let toasts = $state<Toast[]>([])
 
@@ -27,19 +30,8 @@
 		}
 	}
 
-	function getToastIcon(type: Toast['type']): string {
-		switch (type) {
-			case 'success':
-				return '✅'
-			case 'error':
-				return '❌'
-			case 'warning':
-				return '⚠️'
-			case 'info':
-				return 'ℹ️'
-			default:
-				return 'ℹ️'
-		}
+	function getToastIconComponent(type: Toast['type']): ComponentType<SvelteComponent> {
+		return getToastIcon(type)
 	}
 </script>
 
@@ -52,7 +44,7 @@
 			out:fly={{ x: 300, duration: 300 }}
 		>
 			<div class="flex items-center gap-2">
-				<span class="text-lg">{getToastIcon(toast.type)}</span>
+				<svelte:component this={getToastIconComponent(toast.type)} class="w-5 h-5 flex-shrink-0" />
 				<div class="flex-1">
 					<div class="text-sm font-medium">{toast.message}</div>
 				</div>
@@ -60,9 +52,7 @@
 					class="btn btn-sm btn-circle btn-ghost"
 					onclick={() => removeToast(toast.id)}
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-					</svg>
+					<X class="w-4 h-4" />
 				</button>
 			</div>
 		</div>

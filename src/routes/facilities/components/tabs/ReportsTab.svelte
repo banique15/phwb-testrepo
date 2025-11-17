@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { BarChart } from 'lucide-svelte'
 	import type { Facility } from '$lib/schemas/facility'
 	import type { Location } from '$lib/schemas/location'
 
@@ -12,7 +13,7 @@
 </script>
 
 <div class="text-center py-6 bg-base-200 rounded-lg">
-	<span class="text-4xl">📊</span>
+	<BarChart class="w-16 h-16 mx-auto text-base-content/70" />
 	<p class="mt-2 text-lg">Reports</p>
 	<p class="text-sm opacity-60">
 		Report generation will be implemented here

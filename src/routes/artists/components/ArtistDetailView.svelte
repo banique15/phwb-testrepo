@@ -1,4 +1,6 @@
 <script lang="ts">
+	import MultiSelect from '$lib/components/ui/MultiSelect.svelte'
+	import { GENRE_OPTIONS, INSTRUMENT_OPTIONS } from '$lib/utils/artist-options'
 	import { createEventDispatcher } from 'svelte'
 	import { updateArtist } from '$lib/stores/artists'
 	import type { Artist } from '$lib/schemas/artist'
@@ -375,15 +377,24 @@
 						<span class="label-text text-xs font-semibold">Genres</span>
 					</label>
 					{#if isEditing}
-						<input
-							type="text"
-							class="input input-sm input-bordered"
-							value={getArrayDisplayValue(editData.genres)}
-							oninput={(e) => handleArrayInput('genres', e.currentTarget.value)}
-							placeholder="Classical, Jazz, Pop (comma-separated)"
+						<MultiSelect
+							options={GENRE_OPTIONS}
+							selected={Array.isArray(editData.genres) ? editData.genres : []}
+							onChange={(selected) => {
+								editData.genres = selected
+							}}
+							placeholder="Select genres..."
 						/>
 					{:else}
-						<p class="text-sm">{getArrayDisplayValue(artist.genres) || '-'}</p>
+						{#if artist.genres && Array.isArray(artist.genres) && artist.genres.length > 0}
+							<div class="flex flex-wrap gap-1">
+								{#each artist.genres as genre}
+									<span class="badge badge-sm badge-outline">{genre}</span>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-sm">-</p>
+						{/if}
 					{/if}
 				</div>
 
@@ -392,15 +403,24 @@
 						<span class="label-text text-xs font-semibold">Instruments</span>
 					</label>
 					{#if isEditing}
-						<input
-							type="text"
-							class="input input-sm input-bordered"
-							value={getArrayDisplayValue(editData.instruments)}
-							oninput={(e) => handleArrayInput('instruments', e.currentTarget.value)}
-							placeholder="Piano, Violin, Voice (comma-separated)"
+						<MultiSelect
+							options={INSTRUMENT_OPTIONS}
+							selected={Array.isArray(editData.instruments) ? editData.instruments : []}
+							onChange={(selected) => {
+								editData.instruments = selected
+							}}
+							placeholder="Select instruments..."
 						/>
 					{:else}
-						<p class="text-sm">{getArrayDisplayValue(artist.instruments) || '-'}</p>
+						{#if artist.instruments && Array.isArray(artist.instruments) && artist.instruments.length > 0}
+							<div class="flex flex-wrap gap-1">
+								{#each artist.instruments as instrument}
+									<span class="badge badge-sm badge-outline">{instrument}</span>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-sm">-</p>
+						{/if}
 					{/if}
 				</div>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from "svelte";
+	import { Building } from 'lucide-svelte'
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { facilitiesStore } from "$lib/stores/facilities";
@@ -647,7 +648,7 @@
 <ErrorBoundary>
 	<div class="h-full flex flex-col overflow-hidden">
 		<!-- Scrollable Content Area -->
-		<div class="flex-1 p-4 min-h-0 flex flex-col">
+		<div class="flex-1 min-h-0 flex flex-col">
 			<div class="flex-1 min-h-0">
 				<MasterDetail
 					items={facilities as any}
@@ -659,7 +660,7 @@
 					getItemTitle={getFacilityTitle}
 					getItemSubtitle={getFacilitySubtitle}
 					getItemDetail={getFacilityDetail}
-					detailEmptyIcon="🏢"
+					detailEmptyIcon={Building}
 					detailEmptyTitle="Select a facility"
 					detailEmptyMessage="Choose a facility from the list to view its details and locations"
 					storageKey="phwb-selected-facility"

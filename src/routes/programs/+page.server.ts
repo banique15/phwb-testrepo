@@ -1,8 +1,13 @@
 import type { PageServerLoad } from './$types'
+import { error } from '@sveltejs/kit'
 import { programsStore } from '$lib/stores/programs'
 import type { PaginationOptions } from '$lib/types'
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
+	// Check authentication
+	if (!locals.session) {
+		throw error(401, 'Authentication required')
+	}
 	const searchParams = url.searchParams
 	
 	// Extract pagination and filter parameters

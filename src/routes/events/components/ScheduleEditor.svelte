@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
+	import { Calendar } from 'lucide-svelte'
 	
 	interface ScheduleBlock {
 		id: string
@@ -522,7 +523,7 @@
 			</div>
 		{:else}
 			<div class="text-center py-8 bg-base-200 rounded-lg">
-				<span class="text-4xl">📅</span>
+				<Calendar class="w-16 h-16 mx-auto text-base-content/70" />
 				<p class="mt-2 text-lg">No schedule blocks</p>
 				<p class="text-sm opacity-60">
 					{readonly ? 'No schedule defined for this event' : 'Click "Add Block" to create a schedule'}

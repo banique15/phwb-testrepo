@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { BarChart, ClipboardList, Calendar, CheckCircle, Users } from 'lucide-svelte'
 	import { createEventSchema, type Event, type CreateEvent, type UpdateEvent } from '$lib/schemas/event'
 	import { eventsStore } from '$lib/stores/events'
 	import ArtistSelection from './ArtistSelection.svelte'
@@ -160,12 +162,12 @@
 	
 	// Tab management
 	let activeTab = $state('basic')
-	const tabs = [
-		{ id: 'basic', label: 'Basic Info', icon: '📋' },
-		{ id: 'schedule', label: 'Schedule', icon: '📅' },
-		{ id: 'requirements', label: 'Requirements', icon: '✅' },
-		{ id: 'artists', label: 'Artists', icon: '👥' },
-		{ id: 'status', label: 'Status', icon: '📊' }
+	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ id: 'basic', label: 'Basic Info', icon: ClipboardList },
+		{ id: 'schedule', label: 'Schedule', icon: Calendar },
+		{ id: 'requirements', label: 'Requirements', icon: CheckCircle },
+		{ id: 'artists', label: 'Artists', icon: Users },
+		{ id: 'status', label: 'Status', icon: BarChart }
 	]
 	
 	// Handle advanced component updates
@@ -213,7 +215,7 @@
 				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
 				onclick={() => activeTab = tab.id}
 			>
-				<span class="mr-2">{tab.icon}</span>
+				<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
 				{tab.label}
 			</button>
 		{/each}
@@ -399,7 +401,7 @@
 				/>
 			{:else}
 				<div class="text-center py-8 bg-base-200 rounded-lg">
-					<span class="text-4xl">📊</span>
+					<BarChart class="w-16 h-16 mx-auto text-base-content/70" />
 					<p class="mt-2 text-lg">Status Management</p>
 					<p class="text-sm opacity-60">
 						Status management is available after creating the event

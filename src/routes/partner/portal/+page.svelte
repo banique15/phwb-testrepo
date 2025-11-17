@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Plus, Calendar, CheckCircle, Theater, ClipboardList, MapPin, Clock } from 'lucide-svelte'
 	import type { PageData } from './$types';
 	import { format } from 'date-fns';
 
@@ -106,7 +107,7 @@
 					<p class="py-4 sm:py-6 max-w-2xl text-sm sm:text-base">{data.partner.description}</p>
 				{/if}
 				<button onclick={openRequestModal} class="btn btn-primary btn-sm sm:btn-md lg:btn-lg gap-2 w-full sm:w-auto">
-					<span class="text-lg sm:text-xl">➕</span>
+					<Plus class="w-5 h-5 sm:w-6 sm:h-6" />
 					Request New Event
 				</button>
 			</div>
@@ -118,7 +119,7 @@
 		<div class="stats shadow">
 			<div class="stat bg-base-100">
 				<div class="stat-figure text-primary">
-					<span class="text-4xl">📅</span>
+					<Calendar class="w-12 h-12" />
 				</div>
 				<div class="stat-title">Upcoming Events</div>
 				<div class="stat-value text-primary">{data.stats.upcomingEvents}</div>
@@ -128,7 +129,7 @@
 		<div class="stats shadow">
 			<div class="stat bg-base-100">
 				<div class="stat-figure text-secondary">
-					<span class="text-4xl">✅</span>
+					<CheckCircle class="w-12 h-12" />
 				</div>
 				<div class="stat-title">Past Events</div>
 				<div class="stat-value text-secondary">{data.stats.pastEvents}</div>
@@ -138,7 +139,7 @@
 		<div class="stats shadow">
 			<div class="stat bg-base-100">
 				<div class="stat-figure text-accent">
-					<span class="text-4xl">🎪</span>
+					<Theater class="w-12 h-12" />
 				</div>
 				<div class="stat-title">Total Events</div>
 				<div class="stat-value text-accent">{data.stats.totalEvents}</div>
@@ -148,7 +149,7 @@
 		<div class="stats shadow">
 			<div class="stat bg-base-100">
 				<div class="stat-figure text-info">
-					<span class="text-4xl">📋</span>
+					<ClipboardList class="w-12 h-12" />
 				</div>
 				<div class="stat-title">Programs</div>
 				<div class="stat-value text-info">{data.stats.totalPrograms}</div>
@@ -275,13 +276,13 @@
 
 								<div class="space-y-2 text-sm">
 									<div class="flex items-center gap-2">
-										<span class="font-semibold">📅</span>
+										<Calendar class="w-4 h-4 font-semibold" />
 										<span>{formatEventDate(event.date)}</span>
 									</div>
 
 									{#if event.start_time}
 										<div class="flex items-center gap-2">
-											<span class="font-semibold">🕐</span>
+											<Clock class="w-4 h-4 font-semibold" />
 											<span>
 												{formatEventTime(event.start_time)}
 												{#if event.end_time}
@@ -293,7 +294,7 @@
 
 									{#if event.phwb_programs}
 										<div class="flex items-center gap-2">
-											<span class="font-semibold">📋</span>
+											<ClipboardList class="w-4 h-4 font-semibold" />
 											<span class="badge badge-primary badge-sm">
 												{event.phwb_programs.title}
 											</span>
@@ -302,7 +303,7 @@
 
 									{#if event.phwb_locations}
 										<div class="flex items-start gap-2">
-											<span class="font-semibold">📍</span>
+											<MapPin class="w-4 h-4 font-semibold mt-0.5" />
 											<div class="text-xs">
 												<div>{event.phwb_locations.name}</div>
 												{#if event.phwb_locations.address}

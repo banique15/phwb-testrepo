@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte'
+	import { Landmark } from 'lucide-svelte'
 	import { goto } from '$app/navigation'
 	import { page } from '$app/stores'
 	import { venuesStore } from '$lib/stores/venues'
@@ -270,7 +271,7 @@
 					getItemTitle={getVenueTitle}
 					getItemSubtitle={getVenueSubtitle}
 					getItemDetail={getVenueDetail}
-					detailEmptyIcon="🏛️"
+					detailEmptyIcon={Landmark}
 					detailEmptyTitle="Select a venue"
 					detailEmptyMessage="Choose a venue from the list to view its full information"
 					storageKey="phwb-selected-venue"
@@ -328,21 +329,21 @@
 									<div class="space-y-3">
 										<div>
 											<span class="text-sm font-medium opacity-70">Venue Name</span>
-											<p class="text-base">{venue.name || 'Not specified'}</p>
+											<p class="text-base {!venue.name ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{venue.name || 'Not specified'}</p>
 										</div>
 										<div>
 											<span class="text-sm font-medium opacity-70">Type</span>
-											<span class="badge {getTypeColor(venue.type)}">
+											<span class="badge {getTypeColor(venue.type)} {!venue.type ? 'border border-yellow-400 dark:border-yellow-600' : ''}">
 												{venue.type || 'Not specified'}
 											</span>
 										</div>
 										<div>
 											<span class="text-sm font-medium opacity-70">Reference</span>
-											<p class="text-base">{venue.reference || 'Not specified'}</p>
+											<p class="text-base {!venue.reference ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{venue.reference || 'Not specified'}</p>
 										</div>
 										<div>
 											<span class="text-sm font-medium opacity-70">Address</span>
-											<p class="text-base">{venue.address || 'Not specified'}</p>
+											<p class="text-base {!venue.address ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{venue.address || 'Not specified'}</p>
 										</div>
 										<div>
 											<span class="text-sm font-medium opacity-70">Created</span>
@@ -359,11 +360,11 @@
 											{#each formatContacts(venue.contacts) as contact}
 												<div>
 													<span class="text-sm font-medium opacity-70 capitalize">{contact.key}</span>
-													<p class="text-base">{contact.value}</p>
+													<p class="text-base {!contact.value ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{contact.value || 'Not specified'}</p>
 												</div>
 											{/each}
 										{:else}
-											<p class="text-base opacity-70">No contact information available</p>
+											<p class="text-base opacity-70 border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block">No contact information available</p>
 										{/if}
 									</div>
 								</div>
@@ -372,7 +373,7 @@
 								<div class="md:col-span-2 space-y-4">
 									<h3 class="text-lg font-semibold border-b-2 border-secondary pb-2 text-secondary">Description</h3>
 									<div>
-										<p class="text-base whitespace-pre-wrap">{venue.description || 'No description provided'}</p>
+										<p class="text-base whitespace-pre-wrap {!venue.description ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{venue.description || 'No description provided'}</p>
 									</div>
 								</div>
 
@@ -396,12 +397,12 @@
 													{#each formatParking(venue.parking) as parking}
 														<div>
 															<span class="text-sm font-medium opacity-70 capitalize">{parking.key}</span>
-															<p class="text-base">{parking.value}</p>
+															<p class="text-base {!parking.value ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{parking.value || 'Not specified'}</p>
 														</div>
 													{/each}
 												</div>
 											{:else}
-												<p class="text-base opacity-70">No parking information available</p>
+												<p class="text-base opacity-70 border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block">No parking information available</p>
 											{/if}
 										</div>
 									</div>

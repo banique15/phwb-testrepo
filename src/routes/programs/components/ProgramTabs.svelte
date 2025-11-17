@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { Program } from '$lib/schemas/program'
+	import type { ComponentType, SvelteComponent } from 'svelte'
+	import { ClipboardList, Calendar, Users, BarChart, Settings } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 
 	interface Props {
@@ -10,12 +12,12 @@
 
 	let { program, onUpdateField, onDelete }: Props = $props()
 
-	const tabs = [
-		{ id: 'details', label: 'Details', icon: '📋' },
-		{ id: 'events', label: 'Events', icon: '📅' },
-		{ id: 'participants', label: 'Participants', icon: '👥' },
-		{ id: 'reports', label: 'Reports', icon: '📊' },
-		{ id: 'settings', label: 'Settings', icon: '⚙️' }
+	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
+		{ id: 'details', label: 'Details', icon: ClipboardList },
+		{ id: 'events', label: 'Events', icon: Calendar },
+		{ id: 'participants', label: 'Participants', icon: Users },
+		{ id: 'reports', label: 'Reports', icon: BarChart },
+		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
 
 	let activeTab = $state<string>(
@@ -43,7 +45,7 @@
 				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
 				onclick={() => setActiveTab(tab.id)}
 			>
-				<span class="mr-2">{tab.icon}</span>
+				<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
 				{tab.label}
 			</button>
 		{/each}

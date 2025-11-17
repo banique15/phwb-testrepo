@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Sparkles, User } from 'lucide-svelte'
 	import '../../../app.css';
 
 	let { children } = $props();
@@ -14,7 +15,7 @@
 	<header class="navbar bg-primary text-primary-content shadow-lg px-2 md:px-4 flex-shrink-0">
 		<div class="flex-1 min-w-0">
 			<a href="/partner/portal" class="btn btn-ghost text-sm sm:text-base md:text-xl normal-case">
-				<span class="text-xl sm:text-2xl">🎨</span>
+				<Sparkles class="w-6 h-6 sm:w-8 sm:h-8" />
 				<span class="hidden sm:inline">Sing for Hope Partner Portal</span>
 				<span class="sm:hidden">Partner Portal</span>
 			</a>
@@ -29,7 +30,7 @@
 					<div
 						class="w-8 sm:w-10 rounded-full bg-primary-content text-primary flex items-center justify-center"
 					>
-						<span class="text-base sm:text-lg">👤</span>
+						<User class="w-4 h-4 sm:w-5 sm:h-5" />
 					</div>
 				</div>
 				<ul

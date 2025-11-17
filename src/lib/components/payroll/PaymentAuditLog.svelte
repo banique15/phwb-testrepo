@@ -1,8 +1,11 @@
 <script lang="ts">
+	import type { ComponentType, SvelteComponent } from 'svelte'
 	import { onMount } from 'svelte'
+	import { X, ClipboardList } from 'lucide-svelte'
 	import { payrollStore } from '$lib/stores/payroll'
 	import type { PayrollAudit } from '$lib/schemas/payroll-audit'
 	import { AuditAction } from '$lib/schemas/payroll-audit'
+	import { getAuditActionIcon } from '$lib/utils/icon-mapping'
 
 	interface AuditLogEntry extends PayrollAudit {
 		users?: {
@@ -41,27 +44,8 @@
 		return new Date(dateString).toLocaleString()
 	}
 
-	function getActionIcon(action: string): string {
-		switch (action) {
-			case AuditAction.CREATE:
-				return '➕'
-			case AuditAction.UPDATE:
-				return '✏️'
-			case AuditAction.DELETE:
-				return '🗑️'
-			case AuditAction.APPROVE:
-				return '✅'
-			case AuditAction.REJECT:
-				return '❌'
-			case AuditAction.PROCESS:
-				return '💳'
-			case AuditAction.RECONCILE:
-				return '🔄'
-			case AuditAction.EXPORT:
-				return '📤'
-			default:
-				return '📝'
-		}
+	function getActionIcon(action: string): ComponentType<SvelteComponent> {
+		return getAuditActionIcon(action)
 	}
 
 	function getActionColor(action: string): string {
@@ -106,7 +90,9 @@
 		<div class="modal-box w-11/12 max-w-4xl">
 			<div class="flex items-center justify-between mb-6">
 				<h3 class="font-bold text-lg">Payment Audit Log</h3>
-				<button class="btn btn-sm btn-circle btn-ghost" on:click={() => isOpen = false}>✕</button>
+				<button class="btn btn-sm btn-circle btn-ghost" on:click={() => isOpen = false}>
+					<X class="w-4 h-4" />
+				</button>
 			</div>
 
 			{#if isLoading}
@@ -122,7 +108,7 @@
 				</div>
 			{:else if auditLog.length === 0}
 				<div class="text-center py-12">
-					<div class="text-4xl mb-4">📋</div>
+					<ClipboardList class="w-16 h-16 mx-auto mb-4 text-base-content/70" />
 					<h4 class="text-lg font-medium mb-2">No Audit Trail</h4>
 					<p class="text-base-content/60">No audit entries found for this payment.</p>
 				</div>
@@ -133,7 +119,7 @@
 							<div class="card-body p-4">
 								<div class="flex items-start justify-between">
 									<div class="flex items-start space-x-3">
-										<div class="text-2xl">{getActionIcon(entry.action)}</div>
+										<svelte:component this={getActionIcon(entry.action)} class="w-6 h-6 mt-0.5 flex-shrink-0" />
 										<div class="flex-1">
 											<div class="flex items-center space-x-2 mb-2">
 												<span class="badge {getActionColor(entry.action)} badge-sm">
@@ -180,7 +166,9 @@
 						{@const count = auditLog.filter(entry => entry.action === action).length}
 						{#if count > 0}
 							<div class="stat bg-base-200 rounded-lg">
-								<div class="stat-figure text-2xl">{getActionIcon(action)}</div>
+								<div class="stat-figure">
+									<svelte:component this={getActionIcon(action)} class="w-8 h-8" />
+								</div>
 								<div class="stat-title text-xs capitalize">{action}</div>
 								<div class="stat-value text-lg">{count}</div>
 							</div>

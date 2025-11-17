@@ -16,6 +16,7 @@ Once the database schema is updated, this component can be uncommented and used.
 
 <script lang="ts">
 	import { onMount } from 'svelte'
+	import { Theater } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
 	
 	// Report state
@@ -629,7 +630,7 @@ Once the database schema is updated, this component can be uncommented and used.
 		</div>
 	{:else}
 		<div class="text-center py-12 bg-base-200 rounded-lg">
-			<span class="text-4xl">🎭</span>
+			<Theater class="w-16 h-16 mx-auto text-base-content/70" />
 			<p class="mt-4 text-lg">No performance data available</p>
 			<p class="text-sm opacity-60">Generate a report to view performance metrics</p>
 		</div>

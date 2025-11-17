@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { type CreateArtist, type UpdateArtist, createArtistSchema, updateArtistSchema, type Artist } from '$lib/schemas/artist'
 	import FormField from '$lib/components/ui/FormField.svelte'
+	import MultiSelect from '$lib/components/ui/MultiSelect.svelte'
+	import { GENRE_OPTIONS, INSTRUMENT_OPTIONS } from '$lib/utils/artist-options'
 	import { FormValidator, artistFieldSchemas, validationUtils } from '$lib/utils/validation'
 	import { createEventDispatcher } from 'svelte'
 
@@ -365,29 +367,47 @@
 				/>
 			</div>
 
+			<div class="space-y-4">
+				<div class="form-control">
+					<MultiSelect
+						options={GENRE_OPTIONS}
+						selected={Array.isArray(formData.genres) ? formData.genres : []}
+						onChange={(selected) => {
+							formData.genres = selected
+							handleArrayFieldChange('genres', selected.join(', '))
+						}}
+						placeholder="Select genres..."
+						label="Musical Genres"
+						disabled={disabled || loading}
+					/>
+					{#if formErrors.genres}
+						<label class="label">
+							<span class="label-text-alt text-error">{formErrors.genres}</span>
+						</label>
+					{/if}
+				</div>
+
+				<div class="form-control">
+					<MultiSelect
+						options={INSTRUMENT_OPTIONS}
+						selected={Array.isArray(formData.instruments) ? formData.instruments : []}
+						onChange={(selected) => {
+							formData.instruments = selected
+							handleArrayFieldChange('instruments', selected.join(', '))
+						}}
+						placeholder="Select instruments..."
+						label="Instruments"
+						disabled={disabled || loading}
+					/>
+					{#if formErrors.instruments}
+						<label class="label">
+							<span class="label-text-alt text-error">{formErrors.instruments}</span>
+						</label>
+					{/if}
+				</div>
+			</div>
+
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<FormField
-					label="Musical Genres"
-					type="text"
-					value={genresInput}
-					error={formErrors.genres}
-					placeholder="e.g., Classical, Jazz, Pop"
-					disabled={disabled || loading}
-					onchange={(value) => { genresInput = value }}
-					helpText="Separate multiple genres with commas"
-				/>
-
-				<FormField
-					label="Instruments"
-					type="text"
-					value={instrumentsInput}
-					error={formErrors.instruments}
-					placeholder="e.g., Piano, Voice, Guitar"
-					disabled={disabled || loading}
-					onchange={(value) => { instrumentsInput = value }}
-					helpText="Separate multiple instruments with commas"
-				/>
-
 				<FormField
 					label="Languages"
 					type="text"

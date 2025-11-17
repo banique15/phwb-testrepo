@@ -1,6 +1,11 @@
 import type { PageServerLoad } from './$types';
+import { error } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
+	// Check authentication
+	if (!locals.session) {
+		throw error(401, 'Authentication required')
+	}
 	// MOCK DATA FOR DEMO PURPOSES
 	// This showcases what the partner portal will look like with real data
 

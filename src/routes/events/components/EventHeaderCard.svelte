@@ -18,7 +18,12 @@
 
 	function formatDate(dateStr: string | undefined) {
 		if (!dateStr) return 'Not specified'
-		return new Date(dateStr).toLocaleDateString()
+		const date = new Date(dateStr)
+		return date.toLocaleDateString('en-US', {
+			month: '2-digit',
+			day: '2-digit',
+			year: 'numeric'
+		})
 	}
 
 	function formatTime(timeStr: string | undefined) {
@@ -61,9 +66,9 @@
 
 <div class="card bg-base-100 shadow-none mb-4">
 	<div class="card-body p-4">
-		<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-			<!-- Left Side: Basic Information (2 columns on large screens) -->
-			<div class="lg:col-span-2 space-y-3">
+		<div class="grid grid-cols-1 {event.digital_flyer_link ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4">
+			<!-- Left Side: Basic Information (2 columns on large screens if flyer exists, full width otherwise) -->
+			<div class="{event.digital_flyer_link ? 'lg:col-span-2' : 'lg:col-span-1'} space-y-3">
 				<!-- Title and Status -->
 				<div class="space-y-3">
 					<div>
@@ -78,7 +83,7 @@
 							displayClass="text-3xl font-bold"
 						/>
 					</div>
-					<div class="flex items-center gap-3 flex-wrap">
+					<div class="flex items-center gap-2">
 						<InlineEditableField
 							value={event.status}
 							field="status"
@@ -87,10 +92,8 @@
 							placeholder="Select status"
 							onSave={(value) => onUpdateField('status', value)}
 							formatDisplay={(val) => val || 'Unknown Status'}
+							displayClass={getStatusBadgeClass(event.status)}
 						/>
-						<span class="badge {getStatusBadgeClass(event.status)}">
-							{event.status || 'Unknown'}
-						</span>
 					</div>
 				</div>
 
@@ -104,6 +107,7 @@
 							placeholder="YYYY-MM-DD"
 							label="Date"
 							onSave={(value) => onUpdateField('date', value)}
+							formatDisplay={(val) => val ? formatDate(val) : 'Not specified'}
 						/>
 					</div>
 					<div>
@@ -136,7 +140,7 @@
 						<label class="text-sm font-medium opacity-70 block mb-1">Venue</label>
 						<VenueSelector
 							value={event.venue}
-							placeholder="Search for a venue..."
+							placeholder={event.venue ? "Search for a venue..." : "Not assigned"}
 							onchange={handleVenueChange}
 						/>
 					</div>
@@ -144,7 +148,7 @@
 						<label class="text-sm font-medium opacity-70 block mb-1">Program</label>
 						<ProgramSelector
 							value={event.program}
-							placeholder="Search for a program..."
+							placeholder={event.program ? "Search for a program..." : "Not assigned"}
 							onchange={handleProgramChange}
 						/>
 					</div>
@@ -165,35 +169,24 @@
 				</div>
 			</div>
 
-			<!-- Right Side: Event Image/Visual (1 column on large screens) -->
-			<div class="lg:col-span-1">
-				<div class="space-y-2">
-					<h3 class="text-sm font-semibold opacity-70">Event Details</h3>
+			<!-- Right Side: Event Image/Visual (1 column on large screens) - Only show if flyer exists -->
+			{#if event.digital_flyer_link}
+				<div class="lg:col-span-1">
 					<div class="space-y-2">
-						{#if event.digital_flyer_link}
-							<div class="mt-3 rounded-lg overflow-hidden border border-base-300">
-								<img 
-									src={event.digital_flyer_link} 
-									alt={event.title || 'Event'} 
-									class="w-full h-auto object-cover"
-									onerror={(e) => {
-										(e.target as HTMLImageElement).style.display = 'none'
-									}}
-								/>
-							</div>
-						{:else}
-							<div class="mt-3 rounded-lg border-2 border-dashed border-base-300 bg-base-200 flex items-center justify-center h-48">
-								<div class="text-center text-base-content/50">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-									</svg>
-									<p class="text-sm">No flyer</p>
-								</div>
-							</div>
-						{/if}
+						<h3 class="text-sm font-semibold opacity-70">Event Flyer</h3>
+						<div class="mt-3 rounded-lg overflow-hidden border border-base-300">
+							<img 
+								src={event.digital_flyer_link} 
+								alt={event.title || 'Event'} 
+								class="w-full h-auto object-cover"
+								onerror={(e) => {
+									(e.target as HTMLImageElement).style.display = 'none'
+								}}
+							/>
+						</div>
 					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 	</div>
 </div>

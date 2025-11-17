@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
+	import { MapPin } from 'lucide-svelte'
 	import { getEventPerformers } from '$lib/utils/performanceHistory'
 
 	interface Props {
@@ -152,8 +153,9 @@
 
 									<!-- Location -->
 									{#if performer.location}
-										<div class="text-xs opacity-70 mt-2">
-											📍 {performer.location}
+										<div class="text-xs opacity-70 mt-2 flex items-center gap-1">
+											<MapPin class="w-3 h-3" />
+											{performer.location}
 										</div>
 									{/if}
 								{/if}
