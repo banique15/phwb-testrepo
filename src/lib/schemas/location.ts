@@ -14,6 +14,8 @@ export const locationSchema = z.object({
 	attributes: z.any().optional().nullable(),
 	notes: z.string().optional().nullable(),
 	active: z.boolean().default(true),
+	image: z.string().url('Invalid image URL format').optional().nullable(),
+	contacts: z.any().optional().nullable(),
 })
 
 export const createLocationSchema = locationSchema.omit({

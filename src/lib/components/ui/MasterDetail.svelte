@@ -41,6 +41,7 @@
 		showMasterOnMobile?: boolean
 		// Snippets
 		filters?: Snippet
+		masterActions?: Snippet
 		children?: Snippet<[{ item: T }]>
 	}
 
@@ -62,6 +63,7 @@
 		responsive = true,
 		showMasterOnMobile = true,
 		filters,
+		masterActions,
 		children
 	}: Props = $props()
 
@@ -211,7 +213,7 @@
 		class:hidden={isMobile && !showMasterPanel}
 		class:pt-20={isMobile}
 	>
-		<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
+		<div class="card bg-base-100 shadow-none h-full flex flex-col min-h-0">
 			<div class="card-body p-4 flex flex-col h-full min-h-0">
 				<!-- Header with Search -->
 				<div class="flex items-center justify-between flex-none">
@@ -221,17 +223,22 @@
 							<div class="badge badge-neutral">{pagination.total}</div>
 						{/if}
 					</div>
-					{#if isMobile && selectedItem}
-						<button
-							class="btn btn-ghost btn-sm lg:hidden"
-							onclick={() => showMasterPanel = false}
-							aria-label="Close master panel"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
-					{/if}
+					<div class="flex items-center gap-2">
+						{#if masterActions}
+							{@render masterActions()}
+						{/if}
+						{#if isMobile && selectedItem}
+							<button
+								class="btn btn-ghost btn-sm lg:hidden"
+								onclick={() => showMasterPanel = false}
+								aria-label="Close master panel"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						{/if}
+					</div>
 				</div>
 
 				<!-- Search -->
@@ -265,7 +272,7 @@
 							showCard={false}
 						/>
 					{:else}
-						<div class="overflow-y-auto h-full space-y-2 pr-2">
+						<div class="overflow-y-auto h-full space-y-2">
 							{#each items as item (item.id)}
 								<div
 									class="p-3 rounded-lg border cursor-pointer transition-all duration-200"
@@ -317,7 +324,7 @@
 		class:hidden={isMobile && showMasterPanel}
 		class:pt-20={isMobile && !showMasterPanel}
 	>
-		<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
+		<div class="card bg-base-100 shadow-none h-full flex flex-col min-h-0">
 			<div class="card-body flex flex-col h-full min-h-0">
 				{#if selectedItem}
 					<div class="overflow-y-auto h-full min-h-0">

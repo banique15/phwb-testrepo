@@ -4,11 +4,14 @@
 	import { page } from '$app/stores'
 	import { programsStore } from '$lib/stores/programs'
 	import type { Program } from '$lib/schemas/program'
+	import { updateProgramSchema } from '$lib/schemas/program'
+	import { z } from 'zod'
+	import { supabase } from '$lib/supabase'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
-	import PageHeader from '$lib/components/ui/PageHeader.svelte'
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
+	import ProgramHeaderCard from './components/ProgramHeaderCard.svelte'
+	import ProgramTabs from './components/ProgramTabs.svelte'
 	import CreateProgram from './components/modals/CreateProgram.svelte'
-	import EditProgram from './components/modals/EditProgram.svelte'
 	import DeleteProgram from './components/modals/DeleteProgram.svelte'
 
 	interface Props {
@@ -39,9 +42,9 @@
 
 	let selectedProgram = $state<Program | null>(null)
 	let isCreateModalOpen = $state(false)
-	let isEditModalOpen = $state(false)
 	let isDeleteModalOpen = $state(false)
 	let clientLoading = $state(false)
+	let programEventsCount = $state(0)
 
 	// Filter state
 	let hideEndedPrograms = $state(false)
@@ -72,6 +75,9 @@
 			const savedProgram = data.programs.find(program => String(program.id) === savedId)
 			if (savedProgram) {
 				selectedProgram = savedProgram
+				if (savedProgram.id) {
+					loadProgramEventsCount(savedProgram.id)
+				}
 			}
 		}
 
@@ -131,8 +137,67 @@
 		})
 	}
 
-	function handleSelectProgram(event: CustomEvent<{ item: Program }>) {
+	async function handleSelectProgram(event: CustomEvent<{ item: Program }>) {
 		selectedProgram = event.detail.item
+		if (selectedProgram?.id) {
+			await loadProgramEventsCount(selectedProgram.id)
+		}
+	}
+
+	async function loadProgramEventsCount(programId: number) {
+		try {
+			const { count, error } = await supabase
+				.from('phwb_events')
+				.select('*', { count: 'exact', head: true })
+				.eq('program', programId)
+			
+			if (error) {
+				console.error('Error loading program events count:', error)
+				programEventsCount = 0
+			} else {
+				programEventsCount = count || 0
+			}
+		} catch (err) {
+			console.error('Failed to load program events count:', err)
+			programEventsCount = 0
+		}
+	}
+
+	async function updateProgramField(field: string, value: any) {
+		if (!selectedProgram?.id) return
+
+		try {
+			// Validate the field
+			const fieldSchema =
+				updateProgramSchema.shape[
+					field as keyof typeof updateProgramSchema.shape
+				]
+			if (fieldSchema) {
+				fieldSchema.parse(value)
+			}
+
+			// Prepare update data
+			const updateData: any = { [field]: value === "" ? null : value }
+
+			// Special handling for partner (convert string to number)
+			if (field === 'partner' && value) {
+				updateData.partner = Number(value)
+			}
+
+			// Update program
+			const updatedProgram = await programsStore.update(selectedProgram.id, updateData)
+			selectedProgram = updatedProgram
+
+			// Refresh the page data
+			await updateUrlAndFetch({})
+		} catch (error) {
+			if (error instanceof z.ZodError) {
+				throw new Error(
+					error.errors[0]?.message || "Validation failed",
+				)
+			}
+			throw error
+		}
 	}
 
 	function formatDate(dateStr: string | undefined) {
@@ -197,7 +262,7 @@
 		isCreateModalOpen = false
 	}
 
-	function handleProgramCreated(event: CustomEvent<{ program: any }>) {
+	async function handleProgramCreated(event: CustomEvent<{ program: any }>) {
 		// The program will be automatically added to the store by the create function
 		// We can optionally select the newly created program
 		selectedProgram = event.detail.program
@@ -205,28 +270,15 @@
 		// Close the modal
 		isCreateModalOpen = false
 		
+		// Load counts for the new program
+		if (selectedProgram?.id) {
+			await loadProgramEventsCount(selectedProgram.id)
+		}
+		
 		// Refresh the page data to ensure we have the latest list
-		updateUrlAndFetch({})
+		await updateUrlAndFetch({})
 		
 		console.log('Program created successfully:', event.detail.program.title)
-	}
-
-	function openEditModal() {
-		if (selectedProgram) {
-			isEditModalOpen = true
-		}
-	}
-
-	function closeEditModal() {
-		isEditModalOpen = false
-	}
-
-	function handleEditSuccess(event: CustomEvent<{ program: Program }>) {
-		// Update the selected program with the updated data
-		selectedProgram = event.detail.program
-		
-		// The store will handle the update automatically
-		console.log('Program updated successfully:', event.detail.program.title)
 	}
 
 	function openDeleteModal() {
@@ -254,49 +306,49 @@
 </script>
 
 <ErrorBoundary>
-	<div class="flex flex-col h-full">
-		<!-- Fixed Page Header -->
-		<div class="sticky top-0 z-30 flex-none px-4 py-2 bg-base-100 border-b border-base-200 shadow-sm">
-			<PageHeader
-				title="Programs"
-				subtitle="Manage program offerings and structure"
-			>
-				{#snippet actions()}
-					<!-- Performance indicator (development only) -->
-					{#if import.meta.env.DEV && performanceMetrics}
-						<div class="btn btn-ghost btn-sm text-xs opacity-60" title="Server load time">
-							⚡ {performanceMetrics.totalTime}ms
-						</div>
-					{/if}
-					<button class="btn btn-primary" onclick={openCreateModal}>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-						</svg>
-						Add Program
-					</button>
-				{/snippet}
-			</PageHeader>
-		</div>
-		
+	<div class="h-full flex flex-col overflow-hidden">
 		<!-- Scrollable Content Area -->
-		<div class="flex-1 p-6 min-h-0">
-			<MasterDetail
-				items={filteredPrograms as any}
-				selectedItem={selectedProgram as any}
-				loading={clientLoading}
-				searchPlaceholder="Search programs..."
-				searchValue={currentFilters.search || ''}
-				masterTitle="Programs"
-				getItemTitle={getProgramTitle}
-				getItemSubtitle={getProgramSubtitle}
-				getItemDetail={getProgramDetail}
-				detailEmptyIcon="📋"
-				detailEmptyTitle="Select a program"
-				detailEmptyMessage="Choose a program from the list to view its full information"
-				storageKey="phwb-selected-program"
-				on:search={handleSearch}
-				on:select={handleSelectProgram}
-			>
+		<div class="flex-1 p-4 min-h-0 flex flex-col">
+			<div class="flex-1 min-h-0">
+				<MasterDetail
+					items={filteredPrograms as any}
+					selectedItem={selectedProgram as any}
+					loading={clientLoading}
+					searchPlaceholder="Search programs..."
+					searchValue={currentFilters.search || ''}
+					masterTitle="Programs"
+					getItemTitle={getProgramTitle}
+					getItemSubtitle={getProgramSubtitle}
+					getItemDetail={getProgramDetail}
+					detailEmptyIcon="📋"
+					detailEmptyTitle="Select a program"
+					detailEmptyMessage="Choose a program from the list to view its full information"
+					storageKey="phwb-selected-program"
+					on:search={handleSearch}
+					on:select={handleSelectProgram}
+				>
+					{#snippet masterActions()}
+						<button
+							class="btn btn-primary btn-xs"
+							onclick={openCreateModal}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-3 w-3 mr-1"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 4v16m8-8H4"
+								/>
+							</svg>
+							Add
+						</button>
+					{/snippet}
 				{#snippet filters()}
 					<div class="dropdown dropdown-end">
 						<button tabindex="0" class="btn btn-sm btn-outline" class:btn-active={hideEndedPrograms}>
@@ -341,142 +393,28 @@
 						</div>
 					</div>
 				{/snippet}
-				{#snippet children(props)}
-					{@const program = props.item}
-					{#if program}
-						<div class="overflow-y-auto h-full">
-							<div class="flex items-start justify-between mb-6">
-								<div>
-									<h2 class="card-title text-2xl">
-										{program.title || 'Unnamed Program'}
-									</h2>
-									<div class="flex items-center gap-3 mt-2">
-										<span class="badge {getStatusColor(program.start_date, program.end_date)}">
-											{getStatusText(program.start_date, program.end_date)}
-										</span>
-										{#if program.geo_coverage}
-											<span class="badge badge-outline">
-												{program.geo_coverage}
-											</span>
-										{/if}
-									</div>
-								</div>
-								<div class="flex gap-2">
-									<button 
-										class="btn btn-sm btn-outline"
-										onclick={openEditModal}
-										title="Edit program information"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-										</svg>
-										Edit
-									</button>
-									<button 
-										class="btn btn-sm btn-outline btn-error"
-										onclick={openDeleteModal}
-										title="Delete program"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-										</svg>
-										Delete
-									</button>
-								</div>
+					{#snippet children(props)}
+						{@const program = props.item as Program}
+						{#if program}
+							<div class="overflow-y-auto h-full">
+								<!-- Header Card -->
+								<ProgramHeaderCard
+									{program}
+									eventsCount={programEventsCount}
+									onUpdateField={updateProgramField}
+								/>
+
+								<!-- Tabs Section -->
+								<ProgramTabs
+									{program}
+									onUpdateField={updateProgramField}
+									onDelete={openDeleteModal}
+								/>
 							</div>
-
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-								<!-- Program Details -->
-								<div class="space-y-4">
-									<h3 class="text-lg font-semibold border-b pb-2">Program Details</h3>
-									<div class="space-y-3">
-										<div>
-											<label class="text-sm font-medium opacity-70">Program Title</label>
-											<p class="text-base">{program.title || 'Not specified'}</p>
-										</div>
-										<div>
-											<label class="text-sm font-medium opacity-70">Geographic Coverage</label>
-											<p class="text-base">{program.geo_coverage || 'Not specified'}</p>
-										</div>
-										<div>
-											<label class="text-sm font-medium opacity-70">Partner ID</label>
-											<p class="text-base">{program.partner || 'No partner assigned'}</p>
-										</div>
-										<div>
-											<label class="text-sm font-medium opacity-70">Created</label>
-											<p class="text-base">{formatDate(program.created_at)}</p>
-										</div>
-									</div>
-								</div>
-
-								<!-- Timeline -->
-								<div class="space-y-4">
-									<h3 class="text-lg font-semibold border-b pb-2">Timeline</h3>
-									<div class="space-y-3">
-										<div>
-											<label class="text-sm font-medium opacity-70">Start Date</label>
-											<p class="text-base">{formatDate(program.start_date)}</p>
-										</div>
-										<div>
-											<label class="text-sm font-medium opacity-70">End Date</label>
-											<p class="text-base">{formatDate(program.end_date)}</p>
-										</div>
-										<div>
-											<label class="text-sm font-medium opacity-70">Duration</label>
-											<p class="text-base">{calculateDuration(program.start_date, program.end_date)}</p>
-										</div>
-										<div>
-											<span class="text-sm font-medium opacity-70">Status</span>
-											<span class="badge {getStatusColor(program.start_date, program.end_date)}">
-												{getStatusText(program.start_date, program.end_date)}
-											</span>
-										</div>
-									</div>
-								</div>
-
-								<!-- Description -->
-								<div class="md:col-span-2 space-y-4">
-									<h3 class="text-lg font-semibold border-b pb-2">Description</h3>
-									<div>
-										<p class="text-base whitespace-pre-wrap">{program.description || 'No description provided'}</p>
-									</div>
-								</div>
-
-								<!-- Program Timeline Visualization -->
-								{#if program.start_date}
-									<div class="md:col-span-2 space-y-4">
-										<h3 class="text-lg font-semibold border-b pb-2">Timeline Visualization</h3>
-										<div class="bg-base-200 p-4 rounded-lg">
-											<div class="flex items-center justify-between text-sm">
-												<span class="font-medium">Start</span>
-												<span class="font-medium">End</span>
-											</div>
-											{#if program.start_date}
-												{@const now = new Date()}
-												{@const start = new Date(program.start_date)}
-												{@const end = program.end_date ? new Date(program.end_date) : new Date()}
-												{@const total = end.getTime() - start.getTime()}
-												{@const progress = Math.min(100, Math.max(0, ((now.getTime() - start.getTime()) / total) * 100))}
-												
-												<div class="relative mt-2 h-2 bg-base-300 rounded-full overflow-hidden">
-													<div 
-														class="h-full bg-primary transition-all duration-500 rounded-full"
-														style="width: {progress}%"
-													></div>
-												</div>
-											{/if}
-											<div class="flex items-center justify-between text-xs mt-2 opacity-70">
-												<span>{formatDate(program.start_date)}</span>
-												<span>{formatDate(program.end_date)}</span>
-											</div>
-										</div>
-									</div>
-								{/if}
-							</div>
-						</div>
-					{/if}
-				{/snippet}
-			</MasterDetail>
+						{/if}
+					{/snippet}
+				</MasterDetail>
+			</div>
 		</div>
 	</div>
 
@@ -485,14 +423,6 @@
 		open={isCreateModalOpen}
 		on:close={closeCreateModal}
 		on:success={handleProgramCreated}
-	/>
-
-	<!-- Edit Program Modal -->
-	<EditProgram 
-		open={isEditModalOpen}
-		program={selectedProgram}
-		on:close={closeEditModal}
-		on:success={handleEditSuccess}
 	/>
 
 	<!-- Delete Program Modal -->

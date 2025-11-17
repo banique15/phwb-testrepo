@@ -6,18 +6,8 @@
 	import type { Payroll, CreatePayroll } from '$lib/schemas/payroll'
 	import { supabase } from '$lib/supabase'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
-	import PageHeader from '$lib/components/ui/PageHeader.svelte'
-	import PayrollInlineTable from './PayrollInlineTable.svelte'
-	import PayrollFiltersButton from './PayrollFiltersButton.svelte'
-	import PayrollMetricsFilterButton from './PayrollMetricsFilterButton.svelte'
-	import PayrollBulkActions from './PayrollBulkActions.svelte'
-	import StatsCard from '$lib/components/ui/StatsCard.svelte'
-	import PaymentApprovalModal from '$lib/components/payroll/PaymentApprovalModal.svelte'
-	import PaymentBatchProcessor from '$lib/components/payroll/PaymentBatchProcessor.svelte'
-	import PaymentExport from '$lib/components/payroll/PaymentExport.svelte'
-	import PaymentAuditLog from '$lib/components/payroll/PaymentAuditLog.svelte'
-	import PaymentReconciliation from '$lib/components/payroll/PaymentReconciliation.svelte'
-	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
+	import PayrollHeaderCard from './components/PayrollHeaderCard.svelte'
+	import PayrollTabs from './components/PayrollTabs.svelte'
 
 	// State management
 	let payrollEntries = $state<Payroll[]>([])
@@ -513,235 +503,76 @@
 </script>
 
 <ErrorBoundary>
-	<div class="flex flex-col h-full">
-		<!-- Fixed Page Header -->
-		<div class="flex-none px-4 sm:px-6 pt-4 pb-4 bg-base-100 border-b border-base-200">
-			<PageHeader
-				title="Payroll"
-				subtitle="Payment and compensation management"
-			>
-				{#snippet actions()}
-					<div class="flex flex-col sm:flex-row flex-wrap gap-2">
-						<button 
-							class="btn btn-ghost btn-sm order-3 sm:order-1" 
-							onclick={async () => {
-								await loadPayrollData()
-								await refreshAllRecords()
-							}}
-							disabled={loading || metricsLoading}
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-							</svg>
-							<span class="hidden sm:inline">Refresh</span>
-							{#if loading || metricsLoading}
-								<span class="loading loading-spinner loading-xs ml-1"></span>
-							{/if}
-						</button>
-						
-						<button 
-							class="btn btn-primary btn-sm order-2 sm:order-2" 
-							onclick={generatePayrollFromEvents}
-							disabled={loading || metricsLoading}
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-							</svg>
-							<span class="hidden sm:inline">Generate from Events</span>
-							<span class="sm:hidden">Generate</span>
-						</button>
-						
-						<div class="dropdown dropdown-end order-3">
-							<div tabindex="0" role="button" class="btn btn-info btn-sm">
-								<span class="hidden sm:inline">💳 Payment Tools</span>
-								<span class="sm:hidden">💳 Tools</span>
-								{#if selectedEntries.size > 0}
-									<span class="badge badge-sm badge-warning">{selectedEntries.size}</span>
-								{/if}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-								</svg>
-							</div>
-							<ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56">
-								<li>
-									<button 
-										onclick={() => openApprovalModal()}
-										disabled={selectedEntries.size === 0}
-									>
-										✅ Approve Payments
-										{#if selectedEntries.size > 0}
-											<span class="badge badge-xs">{selectedEntries.size}</span>
-										{/if}
-									</button>
-								</li>
-								<li>
-									<button 
-										onclick={() => openBatchModal()}
-										disabled={selectedEntries.size === 0}
-									>
-										💳 Process Batch
-										{#if selectedEntries.size > 0}
-											<span class="badge badge-xs">{selectedEntries.size}</span>
-										{/if}
-									</button>
-								</li>
-								<li><button onclick={() => openReconcileModal()}>🔄 Reconcile</button></li>
-								<li><button onclick={() => openExportModal()}>📤 Export Data</button></li>
-							</ul>
-						</div>
-						
-					</div>
-				{/snippet}
-			</PageHeader>
-		</div>
-		
+	<div class="h-full flex flex-col overflow-hidden">
 		<!-- Scrollable Content Area -->
-		<div class="flex-1 p-4 sm:p-6 overflow-auto min-h-0">
-			<div class="space-y-4 sm:space-y-6">
-				<!-- Stats Cards with Filter Button -->
-				<div class="space-y-3">
-					<div class="flex items-center justify-between">
-						<h3 class="text-lg font-semibold">Payroll Metrics</h3>
-						<PayrollMetricsFilterButton
-							dateRange={metricsDateRange}
-							paymentType={metricsPaymentType}
-							artistId={metricsArtistId}
-							on:filterChange={handleMetricsFilterChange}
-						/>
-					</div>
-					
-					<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-						<StatsCard
-							title="Planned"
-							value={formatCurrency(stats.totalPlanned)}
-							icon="📅"
-							size="sm"
-							loading={metricsLoading}
-						/>
-						<StatsCard
-							title="Approved"
-							value={formatCurrency(stats.totalApproved)}
-							icon="✅"
-							size="sm"
-							loading={metricsLoading}
-						/>
-						<StatsCard
-							title="Paid"
-							value={formatCurrency(stats.totalPaid)}
-							icon="💳"
-							size="sm"
-							loading={metricsLoading}
-						/>
-						<StatsCard
-							title="Completed"
-							value={formatCurrency(stats.totalCompleted)}
-							icon="🎯"
-							size="sm"
-							loading={metricsLoading}
-						/>
-						<StatsCard
-							title="Unreconciled"
-							value={stats.unreconciled.toString()}
-							icon="⚠️"
-							size="sm"
-							loading={metricsLoading}
-						/>
-						<StatsCard
-							title="Avg Payment"
-							value={formatCurrency(stats.averagePayment)}
-							icon="📊"
-							size="sm"
-							loading={metricsLoading}
-						/>
-					</div>
-				</div>
+		<div class="flex-1 p-4 min-h-0 flex flex-col">
+			<div class="overflow-y-auto h-full">
+				<!-- Header Card -->
+				<PayrollHeaderCard
+					{stats}
+					dateRange={metricsDateRange !== 'all' ? metricsDateRange : undefined}
+				/>
 
-				<!-- Bulk Actions -->
-				{#if selectedEntries.size > 0}
-					<PayrollBulkActions
-						selectedCount={selectedEntries.size}
-						selectedEntries={Array.from(selectedEntries)}
-						on:bulkAction={handleBulkAction}
-					/>
-				{/if}
-
-				<!-- Data Table with improved container -->
-				<div class="min-h-0 flex-1">
-					<PayrollInlineTable
-						entries={payrollEntries}
-						{loading}
-						{searchQuery}
-						{selectedEntries}
-						pagination={{
-							currentPage,
-							totalPages,
-							total: totalEntries,
-							limit
-						}}
-						{sortBy}
-						{sortOrder}
-						on:search={handleSearch}
-						on:sort={handleSort}
-						on:pageChange={handlePageChange}
-						on:select={handleSelect}
-						on:update={async (e) => {
-							await loadPayrollData()
-							await refreshAllRecords()
-						}}
-						on:delete={async (e) => {
-							await loadPayrollData()
-							await refreshAllRecords()
-						}}
-						actions={filterActions}
-					/>
-				</div>
-
-{#snippet filterActions()}
-	<PayrollFiltersButton
-		{statusFilter}
-		{paymentTypeFilter}
-		{employeeContractorFilter}
-		{dateRangeStart}
-		{dateRangeEnd}
-		on:filtersChange={handleFiltersChange}
-	/>
-{/snippet}
+				<!-- Tabs Section -->
+				<PayrollTabs
+					{payrollEntries}
+					{selectedEntries}
+					{loading}
+					{searchQuery}
+					pagination={{
+						currentPage,
+						totalPages,
+						total: totalEntries,
+						limit
+					}}
+					{sortBy}
+					{sortOrder}
+					{statusFilter}
+					{paymentTypeFilter}
+					{employeeContractorFilter}
+					{dateRangeStart}
+					{dateRangeEnd}
+					metricsDateRange={metricsDateRange}
+					metricsPaymentType={metricsPaymentType}
+					metricsArtistId={metricsArtistId}
+					onSearch={handleSearch}
+					onSort={handleSort}
+					onPageChange={handlePageChange}
+					onSelect={handleSelect}
+					onUpdate={async () => {
+						await loadPayrollData()
+						await refreshAllRecords()
+					}}
+					onDelete={async () => {
+						await loadPayrollData()
+						await refreshAllRecords()
+					}}
+					onFiltersChange={handleFiltersChange}
+					onMetricsFilterChange={handleMetricsFilterChange}
+					onBulkAction={handleBulkAction}
+					showApprovalModal={showApprovalModal}
+					showBatchModal={showBatchModal}
+					showExportModal={showExportModal}
+					showAuditModal={showAuditModal}
+					showReconcileModal={showReconcileModal}
+					{auditPaymentId}
+					getSelectedPayments={getSelectedPayments}
+					onCloseApproval={() => showApprovalModal = false}
+					onCloseBatch={() => showBatchModal = false}
+					onCloseExport={() => showExportModal = false}
+					onCloseAudit={() => showAuditModal = false}
+					onCloseReconcile={() => showReconcileModal = false}
+					onOpenApproval={openApprovalModal}
+					onOpenBatch={openBatchModal}
+					onOpenExport={openExportModal}
+					onOpenAudit={showAuditLog}
+					onOpenReconcile={openReconcileModal}
+					onPaymentApproved={handlePaymentApproved}
+					onPaymentProcessed={handlePaymentProcessed}
+					onPaymentReconciled={handlePaymentReconciled}
+					onPaymentExported={handlePaymentExported}
+				/>
 			</div>
 		</div>
 	</div>
-
-
-	<!-- Payment Workflow Modals -->
-	<PaymentApprovalModal
-		bind:isOpen={showApprovalModal}
-		payments={getSelectedPayments()}
-		on:approve={handlePaymentApproved}
-		on:close={() => showApprovalModal = false}
-	/>
-
-	<PaymentBatchProcessor
-		bind:isOpen={showBatchModal}
-		payments={getSelectedPayments()}
-		on:processed={handlePaymentProcessed}
-		on:close={() => showBatchModal = false}
-	/>
-
-	<PaymentExport
-		bind:isOpen={showExportModal}
-		on:exported={handlePaymentExported}
-		on:close={() => showExportModal = false}
-	/>
-
-	<PaymentReconciliation
-		bind:isOpen={showReconcileModal}
-		payments={payrollEntries}
-		on:reconciled={handlePaymentReconciled}
-		on:close={() => showReconcileModal = false}
-	/>
-
-	<PaymentAuditLog
-		bind:isOpen={showAuditModal}
-		paymentId={auditPaymentId}
-		on:close={() => showAuditModal = false}
-	/>
 </ErrorBoundary>
