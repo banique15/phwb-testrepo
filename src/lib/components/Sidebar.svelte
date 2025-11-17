@@ -1,66 +1,70 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { browser } from '$app/environment';
-	import { onMount } from 'svelte';
-	import { authStore } from '$lib/auth';
-	import { sidebarStore } from '$lib/stores/sidebar';
-	
+	import { page } from "$app/stores";
+	import { browser } from "$app/environment";
+	import { onMount } from "svelte";
+	import { authStore } from "$lib/auth";
+	import { sidebarStore } from "$lib/stores/sidebar";
+
 	const navItems = [
-		{ name: 'Dashboard', href: '/', disabled: false },
-		{ name: 'Artists', href: '/artists', disabled: false },
-		{ name: 'Partners', href: '/partners', disabled: false },
-		{ name: 'Programs', href: '/programs', disabled: false },
-		{ name: 'Facilities', href: '/facilities', disabled: false },
-		{ name: 'Events', href: '/events', disabled: false },
-		{ name: 'Reports', href: '/reports', disabled: true },
-		{ name: 'Payroll', href: '/payroll', disabled: true }
+		{ name: "Dashboard", href: "/", disabled: false },
+		{ name: "Artists", href: "/artists", disabled: false },
+		{ name: "Partners", href: "/partners", disabled: false },
+		{ name: "Programs", href: "/programs", disabled: false },
+		{ name: "Facilities", href: "/facilities", disabled: false },
+		{ name: "Events", href: "/events", disabled: false },
+		{ name: "Reports", href: "/reports", disabled: true },
+		{ name: "Payroll", href: "/payroll", disabled: true },
 	];
-	
+
 	let isMobile = $state(false);
 	let isDrawerOpen = $state(false);
 	let touchStartX = 0;
 	let touchStartY = 0;
-	
+
 	function isActive(href: string): boolean {
-		if (href === '/') {
-			return $page.url.pathname === '/';
+		if (href === "/") {
+			return $page.url.pathname === "/";
 		}
 		return $page.url.pathname.startsWith(href);
 	}
-	
+
 	function closeDrawer() {
 		isDrawerOpen = false;
-		const drawerToggle = document.getElementById('drawer-toggle') as HTMLInputElement;
+		const drawerToggle = document.getElementById(
+			"drawer-toggle",
+		) as HTMLInputElement;
 		if (drawerToggle) {
 			drawerToggle.checked = false;
 		}
 	}
-	
+
 	function handleNavClick() {
 		if (isMobile) {
 			closeDrawer();
 		}
 	}
-	
+
 	// Touch gesture handling for swipe to open/close
 	function handleTouchStart(event: TouchEvent) {
 		touchStartX = event.touches[0].clientX;
 		touchStartY = event.touches[0].clientY;
 	}
-	
+
 	function handleTouchEnd(event: TouchEvent) {
 		if (!isMobile) return;
-		
+
 		const touchEndX = event.changedTouches[0].clientX;
 		const touchEndY = event.changedTouches[0].clientY;
 		const deltaX = touchEndX - touchStartX;
 		const deltaY = touchEndY - touchStartY;
-		
+
 		// Check if it's a horizontal swipe (more horizontal than vertical)
 		if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-			const drawerToggle = document.getElementById('drawer-toggle') as HTMLInputElement;
+			const drawerToggle = document.getElementById(
+				"drawer-toggle",
+			) as HTMLInputElement;
 			if (!drawerToggle) return;
-			
+
 			if (deltaX > 0 && touchStartX < 50) {
 				// Swipe right from left edge - open drawer
 				drawerToggle.checked = true;
@@ -71,24 +75,26 @@
 			}
 		}
 	}
-	
+
 	onMount(() => {
 		if (browser) {
 			// Detect mobile
-			const mediaQuery = window.matchMedia('(max-width: 1024px)');
+			const mediaQuery = window.matchMedia("(max-width: 1024px)");
 			isMobile = mediaQuery.matches;
-			mediaQuery.addEventListener('change', (e) => {
+			mediaQuery.addEventListener("change", (e) => {
 				isMobile = e.matches;
 			});
-			
+
 			// Listen for drawer state changes
-			const drawerToggle = document.getElementById('drawer-toggle') as HTMLInputElement;
+			const drawerToggle = document.getElementById(
+				"drawer-toggle",
+			) as HTMLInputElement;
 			if (drawerToggle) {
-				drawerToggle.addEventListener('change', (e) => {
+				drawerToggle.addEventListener("change", (e) => {
 					isDrawerOpen = (e.target as HTMLInputElement).checked;
 				});
 			}
-			
+
 			// Subscribe to sidebar store for force collapse state
 			const unsubscribeSidebar = sidebarStore.subscribe((state) => {
 				if (state.forceCollapse && isDrawerOpen) {
@@ -96,14 +102,21 @@
 					closeDrawer();
 				}
 			});
-			
+
 			// Add touch event listeners to body for swipe gestures
-			document.body.addEventListener('touchstart', handleTouchStart, { passive: true });
-			document.body.addEventListener('touchend', handleTouchEnd, { passive: true });
-			
+			document.body.addEventListener("touchstart", handleTouchStart, {
+				passive: true,
+			});
+			document.body.addEventListener("touchend", handleTouchEnd, {
+				passive: true,
+			});
+
 			return () => {
-				document.body.removeEventListener('touchstart', handleTouchStart);
-				document.body.removeEventListener('touchend', handleTouchEnd);
+				document.body.removeEventListener(
+					"touchstart",
+					handleTouchStart,
+				);
+				document.body.removeEventListener("touchend", handleTouchEnd);
 				unsubscribeSidebar();
 			};
 		}
@@ -114,27 +127,40 @@
 	<label for="drawer-toggle" class="drawer-overlay"></label>
 	<aside class="h-full w-40 bg-base-200 flex flex-col">
 		<!-- Header -->
-		<div class="w-full flex items-center justify-between p-4 border-b border-base-300">
+		<div
+			class="w-full flex items-center justify-between p-4 border-b border-base-300"
+		>
 			<a href="/" class="flex items-center" onclick={handleNavClick}>
-				<img 
-					src="https://singforhope.org/sfh-logo.png" 
-					alt="Sing for Hope" 
+				<img
+					src="/sfh-logo.png"
+					alt="Sing for Hope"
 					class="h-16 w-auto"
 				/>
 			</a>
 			{#if isMobile}
-				<button 
+				<button
 					class="btn btn-ghost btn-sm btn-circle lg:hidden"
 					onclick={closeDrawer}
 					aria-label="Close menu"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M6 18L18 6M6 6l12 12"
+						/>
 					</svg>
 				</button>
 			{/if}
 		</div>
-		
+
 		<!-- Navigation -->
 		<nav class="flex-1 overflow-y-auto w-full p-2">
 			<ul class="menu p-0 space-y-1 w-full">
@@ -159,7 +185,9 @@
 								class:hover:bg-base-300={!isActive(item.href)}
 								class:text-base-content={!isActive(item.href)}
 								onclick={handleNavClick}
-								aria-current={isActive(item.href) ? 'page' : undefined}
+								aria-current={isActive(item.href)
+									? "page"
+									: undefined}
 							>
 								<span>{item.name}</span>
 							</a>
@@ -168,7 +196,6 @@
 				{/each}
 			</ul>
 		</nav>
-		
 
 		<!-- Footer with swipe hint for mobile -->
 		{#if isMobile}
@@ -178,31 +205,59 @@
 				</div>
 			</div>
 		{/if}
-		
+
 		<!-- User section -->
 		{#if $authStore}
 			<div class="p-4 border-t border-base-300">
 				<div class="dropdown dropdown-top dropdown-end w-full">
-					<div tabindex="0" role="button" class="btn btn-ghost w-full justify-start gap-3 p-2 h-auto">
+					<div
+						tabindex="0"
+						role="button"
+						class="btn btn-ghost w-full justify-start gap-3 p-2 h-auto"
+					>
 						<div class="avatar placeholder">
-							<div class="bg-primary text-primary-content rounded-full w-8">
+							<div
+								class="bg-primary text-primary-content rounded-full w-8"
+							>
 								<span class="text-xs font-bold">
 									{$authStore.email?.charAt(0).toUpperCase()}
 								</span>
 							</div>
 						</div>
 						<div class="flex-1 min-w-0 text-left">
-							<div class="text-sm font-medium truncate">{$authStore.email}</div>
-							<div class="text-xs text-base-content/60 truncate">Admin</div>
+							<div class="text-sm font-medium truncate">
+								{$authStore.email}
+							</div>
+							<div class="text-xs text-base-content/60 truncate">
+								Admin
+							</div>
 						</div>
-						<svg class="w-4 h-4 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						<svg
+							class="w-4 h-4 opacity-60"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M19 9l-7 7-7-7"
+							></path>
 						</svg>
 					</div>
-					<ul class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-						<li><span class="text-sm opacity-60">{$authStore.email}</span></li>
+					<ul
+						class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52"
+					>
+						<li>
+							<span class="text-sm opacity-60"
+								>{$authStore.email}</span
+							>
+						</li>
 						<li><hr class="my-1" /></li>
-						<li><button onclick={authStore.signOut}>Logout</button></li>
+						<li>
+							<button onclick={authStore.signOut}>Logout</button>
+						</li>
 					</ul>
 				</div>
 			</div>

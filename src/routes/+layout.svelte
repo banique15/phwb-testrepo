@@ -35,7 +35,7 @@
 				<div class="flex items-center justify-between">
 					<a href="/" class="flex items-center">
 						<img
-							src="https://singforhope.org/sfh-logo.png"
+							src="/sfh-logo.png"
 							alt="Sing for Hope"
 							class="h-12 w-auto"
 						/>
