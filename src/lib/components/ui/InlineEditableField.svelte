@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { formatPhoneInput, validatePhoneInput, formatPhone } from '$lib/utils/phone'
+
 	interface Props {
 		value: string | number | boolean | null | undefined
 		field: string
-		type?: 'text' | 'textarea' | 'select' | 'number' | 'url' | 'checkbox'
+		type?: 'text' | 'textarea' | 'select' | 'number' | 'url' | 'checkbox' | 'phone'
 		options?: Array<{ value: string; label: string }>
 		placeholder?: string
 		required?: boolean
@@ -62,7 +64,13 @@
 	function startEdit() {
 		if (disabled) return
 		isManuallyEditing = true
-		editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
+		// For phone type, show unformatted digits when editing
+		if (type === 'phone' && value && typeof value === 'string') {
+			// Extract digits only for editing
+			editValue = value.replace(/\D/g, '')
+		} else {
+			editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
+		}
 		validationError = null
 		// Focus input after a brief delay to ensure it's rendered
 		setTimeout(() => {
@@ -75,7 +83,11 @@
 
 	function cancelEdit() {
 		isManuallyEditing = false
-		editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
+		if (type === 'phone' && value && typeof value === 'string') {
+			editValue = value.replace(/\D/g, '')
+		} else {
+			editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
+		}
 		validationError = null
 		onCancel?.()
 	}
@@ -114,13 +126,34 @@
 			}
 		}
 
+		if (type === 'phone' && editValue && typeof editValue === 'string') {
+			const validation = validatePhoneInput(editValue)
+			if (!validation.isValid) {
+				validationError = validation.error || 'Please enter a valid US phone number'
+				return
+			}
+			// Format the phone number before saving
+			const formatted = formatPhoneInput(editValue)
+			editValue = formatted
+		}
+
 		if (maxLength && typeof editValue === 'string' && editValue.length > maxLength) {
 			validationError = `Maximum length is ${maxLength} characters`
 			return
 		}
 
 		// If value hasn't changed, just cancel
-		if (editValue === value) {
+		// For phone fields, compare normalized values
+		let hasChanged = false
+		if (type === 'phone') {
+			const editDigits = typeof editValue === 'string' ? editValue.replace(/\D/g, '') : ''
+			const valueDigits = typeof value === 'string' ? value.replace(/\D/g, '') : ''
+			hasChanged = editDigits !== valueDigits
+		} else {
+			hasChanged = editValue !== value
+		}
+		
+		if (!hasChanged) {
 			cancelEdit()
 			return
 		}
@@ -157,6 +190,9 @@
 		if (type === 'checkbox') {
 			return val ? 'Yes' : 'No'
 		}
+		if (type === 'phone' && typeof val === 'string') {
+			return formatPhone(val) || val
+		}
 		return String(val)
 	}
 
@@ -166,10 +202,18 @@
 			editValue = target.value === '' ? '' : Number(target.value)
 		} else if (type === 'checkbox') {
 			editValue = (target as HTMLInputElement).checked
+		} else if (type === 'phone') {
+			// Format phone number as user types
+			const formatted = formatPhoneInput(target.value)
+			editValue = formatted
+			// Clear validation error on input
+			validationError = null
 		} else {
 			editValue = target.value
 		}
-		validationError = null
+		if (type !== 'phone') {
+			validationError = null
+		}
 	}
 
 	let isBlank = $derived(isEmpty(value))
@@ -206,6 +250,14 @@
 			}
 		}
 		
+		// For phone, allow saving if there are any digits (validation happens on save)
+		// This allows the save button to show even while typing
+		if (type === 'phone' && typeof val === 'string') {
+			const digits = val.replace(/\D/g, '')
+			// Allow saving if there are digits (even if incomplete) or if empty (to clear the field)
+			return digits.length > 0 || val === ''
+		}
+		
 		// Check max length
 		if (maxLength && typeof val === 'string' && val.length > maxLength) {
 			return false
@@ -222,7 +274,14 @@
 		if (!isValidInput(editValue)) return false
 		
 		// Value must be different from current value
-		if (editValue === value) return false
+		// For phone fields, compare normalized values
+		if (type === 'phone') {
+			const editDigits = typeof editValue === 'string' ? editValue.replace(/\D/g, '') : ''
+			const valueDigits = typeof value === 'string' ? value.replace(/\D/g, '') : ''
+			if (editDigits === valueDigits) return false
+		} else {
+			if (editValue === value) return false
+		}
 		
 		// For required fields, make sure it's not empty
 		if (required && (editValue === '' || editValue === null || editValue === undefined)) {
@@ -235,7 +294,11 @@
 	// Initialize edit value when value changes and we're in auto-edit mode
 	$effect(() => {
 		if (isEditing && !isManuallyEditing) {
-			editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
+			if (type === 'phone' && value && typeof value === 'string') {
+				editValue = value.replace(/\D/g, '')
+			} else {
+				editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
+			}
 		}
 	})
 </script>
@@ -310,6 +373,19 @@
 						/>
 						<span class="label-text">{editValue ? 'Yes' : 'No'}</span>
 					</label>
+				{:else if type === 'phone'}
+					<input
+						bind:this={inputElement}
+						type="tel"
+						class="input input-bordered w-full {validationError || error ? 'input-error' : ''} {isBlank && !validationError && !error ? 'border-yellow-400 dark:border-yellow-600' : ''}"
+						placeholder={placeholder || '(555) 123-4567'}
+						{required}
+						maxlength={14}
+						value={editValue as string}
+						oninput={handleInputChange}
+						onkeydown={handleKeyDown}
+						disabled={isLoading}
+					/>
 				{:else}
 					<input
 						bind:this={inputElement}

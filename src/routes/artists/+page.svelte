@@ -174,13 +174,21 @@
 				fieldSchema.parse(value)
 			}
 
-			// Prepare update data
-			let updateData: any = { [field]: value === "" ? null : value }
+		// Prepare update data
+		// For arrays, always save them (even if empty) - don't convert to null
+		// For strings, convert empty strings to null
+		let updateData: any
+		if (Array.isArray(value)) {
+			// Arrays should be saved as-is, even if empty
+			updateData = { [field]: value }
+		} else {
+			updateData = { [field]: value === "" ? null : value }
+		}
 
-			// Special handling for phone
-			if (field === 'phone' && value) {
-				updateData.phone = normalizePhoneForDB(value)
-			}
+		// Special handling for phone
+		if (field === 'phone' && value) {
+			updateData.phone = normalizePhoneForDB(value)
+		}
 
 			// Update artist
 			const updatedArtist = await updateArtist(selectedArtist.id, updateData)

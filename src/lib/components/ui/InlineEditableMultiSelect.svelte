@@ -55,10 +55,14 @@
 		isLoading = true
 		try {
 			await onSave(editValue)
+			// Exit edit mode after successful save
 			isManuallyEditing = false
 			isEditing = false
+			// Update editValue to match the saved value to prevent auto-edit from triggering
+			editValue = Array.isArray(editValue) ? [...editValue] : []
 		} catch (err) {
 			console.error('Failed to save:', err)
+			// Don't exit edit mode on error so user can retry
 		} finally {
 			isLoading = false
 		}
@@ -74,9 +78,21 @@
 		return value.join(', ')
 	}
 
-	// Auto-edit if value is empty
+	// Sync editValue when value prop changes (after save)
 	$effect(() => {
-		if ((!value || (Array.isArray(value) && value.length === 0)) && !isManuallyEditing) {
+		// If we're not editing and value has changed, sync editValue
+		if (!isEditing && !isManuallyEditing) {
+			editValue = Array.isArray(value) ? [...value] : []
+		}
+	})
+
+	// Auto-edit if value is empty (only on initial mount, not after saves)
+	$effect(() => {
+		// Only auto-edit if:
+		// 1. Value is truly empty (null, undefined, or empty array)
+		// 2. User hasn't manually entered edit mode
+		// 3. We're not currently editing (to avoid interfering with saves)
+		if ((!value || (Array.isArray(value) && value.length === 0)) && !isManuallyEditing && !isEditing) {
 			isEditing = true
 			editValue = []
 		}

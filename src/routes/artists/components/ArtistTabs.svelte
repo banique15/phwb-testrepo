@@ -4,7 +4,6 @@
 	import { User, Briefcase, FileText, Globe, ScrollText, Settings } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
-	import { formatPhone } from '$lib/utils/phone'
 	import PerformanceHistory from '$lib/components/PerformanceHistory.svelte'
 
 	interface Props {
@@ -74,7 +73,7 @@
 
 <div class="space-y-3">
 	<!-- Tab Navigation -->
-	<div class="tabs tabs-boxed">
+	<div class="tabs tabs-boxed px-4">
 		{#each tabs as tab}
 			<button
 				class="tab {activeTab === tab.id ? 'tab-active' : ''}"
@@ -87,9 +86,9 @@
 	</div>
 
 	<!-- Tab Content -->
-	<div class="tab-content">
+	<div class="tab-content block">
 		{#if activeTab === 'profile'}
-			<div class="space-y-4">
+			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Profile Information</h3>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div>
@@ -127,11 +126,10 @@
 						<InlineEditableField
 							value={artist.phone}
 							field="phone"
-							type="text"
-							placeholder="Enter phone"
+							type="phone"
+							placeholder="(555) 123-4567"
 							label="Phone"
 							onSave={(value) => onUpdateField('phone', value)}
-							formatDisplay={(val) => val ? formatPhone(val) : 'Not specified'}
 						/>
 					</div>
 					<div>
@@ -169,7 +167,7 @@
 				</div>
 			</div>
 		{:else if activeTab === 'professional'}
-			<div class="space-y-4">
+			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Professional Details</h3>
 				<div class="space-y-4">
 					<div>
@@ -237,7 +235,7 @@
 				</div>
 			</div>
 		{:else if activeTab === 'biography'}
-			<div class="space-y-4">
+			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Biography</h3>
 				<div class="space-y-4">
 					<div>
@@ -267,7 +265,7 @@
 				</div>
 			</div>
 		{:else if activeTab === 'social'}
-			<div class="space-y-4">
+			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Social Media & Web</h3>
 				<div class="space-y-4">
 					<div>
@@ -303,7 +301,7 @@
 				</div>
 			</div>
 		{:else if activeTab === 'history'}
-			<div class="space-y-4">
+			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Performance History</h3>
 				{#if artist.id}
 					<PerformanceHistory artistId={artist.id} showStats={true} />
@@ -312,7 +310,7 @@
 				{/if}
 			</div>
 		{:else if activeTab === 'settings'}
-			<div class="space-y-4">
+			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Settings</h3>
 				<div class="space-y-4">
 					<button
