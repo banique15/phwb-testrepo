@@ -2,14 +2,20 @@ import { derived, get } from 'svelte/store'
 import { venuesStore } from './venues'
 import { programsStore } from './programs'
 import { artistsStore } from './artists'
+import { facilitiesStore } from './facilities'
+import { locationsStore } from './locations'
 import type { Venue } from '$lib/schemas/venue'
 import type { Program } from '$lib/schemas/program'
 import type { Artist } from '$lib/schemas/artist'
+import type { Facility } from '$lib/schemas/facility'
+import type { Location } from '$lib/schemas/location'
 
 // Derived stores for each entity (no memory leaks)
 const venuesState = derived(venuesStore, $store => $store.items)
 const programsState = derived(programsStore, $store => $store.items)
 const artistsState = derived(artistsStore, $store => $store.items)
+const facilitiesState = derived(facilitiesStore, $store => $store.items)
+const locationsState = derived(locationsStore, $store => $store.items)
 
 // Derived lookup maps for quick ID-to-name resolution
 export const venueLookup = derived(venuesState, ($venues) => {
