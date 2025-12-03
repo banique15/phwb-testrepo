@@ -43,12 +43,32 @@ export const artistLookup = derived(artistsState, ($artists) => {
 	$artists.forEach(artist => {
 		if (artist.id) {
 			// Use full_name or fall back to artist_name, then legal names
-			const name = artist.full_name || 
-						artist.artist_name || 
+			const name = artist.full_name ||
+						artist.artist_name ||
 						`${artist.legal_first_name || ''} ${artist.legal_last_name || ''}`.trim() ||
 						`${artist.public_first_name || ''} ${artist.public_last_name || ''}`.trim() ||
 						'Unknown Artist'
 			lookup.set(artist.id, name)
+		}
+	})
+	return lookup
+})
+
+export const facilityLookup = derived(facilitiesState, ($facilities) => {
+	const lookup = new Map<number, string>()
+	$facilities.forEach(facility => {
+		if (facility.id && facility.name) {
+			lookup.set(facility.id, facility.name)
+		}
+	})
+	return lookup
+})
+
+export const locationLookup = derived(locationsState, ($locations) => {
+	const lookup = new Map<number, string>()
+	$locations.forEach(location => {
+		if (location.id && location.name) {
+			lookup.set(location.id, location.name)
 		}
 	})
 	return lookup
