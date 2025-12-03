@@ -38,8 +38,12 @@
 		instruments: [] as string[],
 		canBeSoloist: null as boolean | null,
 		sightReads: null as boolean | null,
-		hideIncomplete: false as boolean
+		hideIncomplete: false as boolean,
+		hasEnsemble: false as boolean
 	})
+
+	// Track artist IDs that belong to ensembles
+	let artistsWithEnsembles = $state<Set<string>>(new Set())
 
 	// Use derived state to avoid infinite loops
 	let artists = $derived(data.artists)
