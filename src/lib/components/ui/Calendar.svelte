@@ -381,7 +381,7 @@
 				<div class="bg-base-200 p-2"></div>
 				{#each weekDays as day, i}
 					{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
-					<div class="bg-base-200 p-2 text-center {isCurrentDay ? 'bg-base-300/50' : ''}">
+					<div class="bg-base-200 p-2 text-center {isCurrentDay ? 'bg-base-300/20' : ''}">
 						<div class="text-xs font-semibold text-base-content/70">{daysOfWeek[i]}</div>
 						<div class="text-lg font-bold {isCurrentDay ? 'text-primary' : ''}">{day.getDate()}</div>
 					</div>
@@ -410,7 +410,7 @@
 							{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
 
 							<div
-								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30 {isCurrentDay ? 'bg-base-200/40' : ''}"
+								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30 {isCurrentDay ? 'bg-base-200/15' : ''}"
 								onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
 								role="button"
 								tabindex="0"
