@@ -1,13 +1,24 @@
 <script lang="ts">
 	import { authStore } from '$lib/auth'
 	import { goto } from '$app/navigation'
-	
-	let email = ''
-	let password = ''
-	let loading = false
-	let error = ''
-	let isSignUp = false
-	
+
+	let email = $state('')
+	let password = $state('')
+	let loading = $state(false)
+	let error = $state('')
+	let isSignUp = $state(false)
+
+	async function handleGoogleSignIn() {
+		loading = true
+		error = ''
+		try {
+			await authStore.signInWithGoogle()
+		} catch (err: any) {
+			error = err.message
+			loading = false
+		}
+	}
+
 	async function handleSubmit() {
 		if (!email || !password) {
 			error = 'Please fill in all fields'
