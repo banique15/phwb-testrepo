@@ -62,10 +62,27 @@ function enhanceEvents(events: Event[]): EnhancedEvent[] {
 	return events.map(event => {
 		const enhanced: EnhancedEvent = { ...event }
 
-		// Add venue information
+		// Add venue information (legacy)
 		if (event.venue) {
 			enhanced.venue_name = lookupUtils.getVenueName(event.venue, 'Venue Not Found')
 			enhanced.venue_object = enhancedLookup.getVenue(event.venue)
+		}
+
+		// Add facility and location information
+		if (event.location_id) {
+			const locationWithFacility = enhancedLookup.getLocationWithFacility(event.location_id)
+			if (locationWithFacility) {
+				enhanced.location_name = locationWithFacility.location.name
+				enhanced.location_object = locationWithFacility.location
+				if (locationWithFacility.facility) {
+					enhanced.facility_name = locationWithFacility.facility.name
+					enhanced.facility_object = locationWithFacility.facility
+				}
+			}
+		} else if (event.venue) {
+			// Fallback: treat venue as facility for backward compatibility
+			enhanced.facility_name = enhanced.venue_name
+			enhanced.facility_object = enhanced.venue_object as Facility | null
 		}
 
 		// Add program information
@@ -76,23 +93,38 @@ function enhanceEvents(events: Event[]): EnhancedEvent[] {
 
 		// Enhance artist assignments
 		// Handle both new format (array of UUIDs) and legacy format (object with assignments)
+		const artistIds: string[] = []
+
 		if (event.artists) {
 			// New format: Simple array of artist UUIDs
 			if (Array.isArray(event.artists)) {
-				enhanced.artist_assignments = event.artists.map((artistId: string) => ({
-					artist_id: artistId,
-					artist_name: lookupUtils.getArtistName(artistId, 'Unknown Artist'),
-					role: 'performer'
-				}))
+				enhanced.artist_assignments = event.artists.map((artistId: string) => {
+					artistIds.push(artistId)
+					return {
+						artist_id: artistId,
+						artist_name: lookupUtils.getArtistName(artistId, 'Unknown Artist'),
+						role: 'performer'
+					}
+				})
 			}
 			// Legacy format: Object with assignments array
 			else if (typeof event.artists === 'object' && event.artists.assignments) {
-				enhanced.artist_assignments = event.artists.assignments.map((assignment: any) => ({
-					...assignment,
-					// Use existing artist_name if available, otherwise look it up
-					artist_name: assignment.artist_name || lookupUtils.getArtistName(assignment.artist_id, 'Unknown Artist')
-				}))
+				enhanced.artist_assignments = event.artists.assignments.map((assignment: any) => {
+					if (assignment.artist_id) artistIds.push(assignment.artist_id)
+					return {
+						...assignment,
+						// Use existing artist_name if available, otherwise look it up
+						artist_name: assignment.artist_name || lookupUtils.getArtistName(assignment.artist_id, 'Unknown Artist')
+					}
+				})
 			}
+		}
+
+		// Get full artist objects for profile photos and contact info
+		if (artistIds.length > 0) {
+			enhanced.artist_details = artistIds
+				.map(id => enhancedLookup.getArtist(id))
+				.filter((a): a is Artist => a !== null)
 		}
 
 		return enhanced
