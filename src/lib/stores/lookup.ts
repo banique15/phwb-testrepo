@@ -140,5 +140,30 @@ export const enhancedLookup = {
 		if (!id) return null
 		const artists = get(artistsState)
 		return artists.find(a => a.id === id) || null
+	},
+
+	getFacility: (id: number | undefined): Facility | null => {
+		if (!id) return null
+		const facilities = get(facilitiesState)
+		return facilities.find(f => f.id === id) || null
+	},
+
+	getLocation: (id: number | undefined): Location | null => {
+		if (!id) return null
+		const locations = get(locationsState)
+		return locations.find(l => l.id === id) || null
+	},
+
+	// Get location with its parent facility
+	getLocationWithFacility: (locationId: number | undefined): { location: Location; facility: Facility | null } | null => {
+		if (!locationId) return null
+		const locations = get(locationsState)
+		const location = locations.find(l => l.id === locationId)
+		if (!location) return null
+
+		const facilities = get(facilitiesState)
+		const facility = facilities.find(f => f.id === location.facility_id) || null
+
+		return { location, facility }
 	}
 }
