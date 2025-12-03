@@ -9,6 +9,15 @@ type DashboardStats = {
 	locations: number
 }
 
+type CalendarEvent = {
+	id: number
+	title: string
+	date: string
+	start_time: string | null
+	end_time: string | null
+	status: string
+}
+
 export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 	const startTime = performance.now()
 
