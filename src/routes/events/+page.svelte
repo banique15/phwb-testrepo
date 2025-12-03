@@ -420,6 +420,18 @@
 			}
 		}
 	}
+
+	async function handleCreateFormSuccess(createdEvent?: EnhancedEvent) {
+		showCreateForm = false
+		if (createdEvent) {
+			newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
+			await selectEvent(createdEvent)
+		}
+	}
+
+	function handleCreateFormCancel() {
+		showCreateForm = false
+	}
 	
 	// Real-time subscription management
 	let realtimeSubscription: any
