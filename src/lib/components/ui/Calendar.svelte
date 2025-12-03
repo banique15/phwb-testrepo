@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
+	import { eventsStore, type EnhancedEvent } from '$lib/stores/events'
 
 	type CalendarEvent = {
 		id: number
@@ -20,17 +21,16 @@
 	let view = $state<'month' | 'week'>('week')
 	let weekViewRef = $state<HTMLDivElement | null>(null)
 
-	// Popup state
+	// Drawer state
+	let showDrawer = $state(false)
 	let selectedEvent = $state<CalendarEvent | null>(null)
-	let popupPosition = $state({ x: 0, y: 0 })
-	let showPopup = $state(false)
+	let fullEventDetails = $state<EnhancedEvent | null>(null)
+	let loadingDetails = $state(false)
 
 	const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 	const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
 		'July', 'August', 'September', 'October', 'November', 'December']
 
-	// Hours for the week view (0-23)
-	const allHours = Array.from({ length: 24 }, (_, i) => i)
 	const defaultStartHour = 8
 	const defaultEndHour = 20
 
@@ -77,7 +77,7 @@
 	function getEventsForDateAndHour(date: string, hour: number): CalendarEvent[] {
 		return events.filter(e => {
 			if (e.date !== date) return false
-			if (!e.start_time) return hour === 9 // Default events without time to 9am
+			if (!e.start_time) return hour === 9
 			const eventHour = parseInt(e.start_time.split(':')[0])
 			return eventHour === hour
 		})
@@ -103,7 +103,7 @@
 						}
 					}
 				} else {
-					hours.add(9) // Default hour for events without time
+					hours.add(9)
 				}
 			})
 		})
@@ -123,7 +123,6 @@
 			}
 		}
 
-		// Ensure continuous range by filling gaps
 		if (visible.length > 0) {
 			const min = Math.min(...visible)
 			const max = Math.max(...visible)
@@ -145,7 +144,6 @@
 	}
 
 	function prevPeriod() {
-		closePopup()
 		if (view === 'month') {
 			currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
 		} else {
@@ -156,7 +154,6 @@
 	}
 
 	function nextPeriod() {
-		closePopup()
 		if (view === 'month') {
 			currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
 		} else {
@@ -167,7 +164,6 @@
 	}
 
 	function goToToday() {
-		closePopup()
 		currentDate = new Date()
 	}
 
@@ -200,9 +196,9 @@
 		if (!time) return ''
 		const [hours, minutes] = time.split(':')
 		const h = parseInt(hours)
-		const ampm = h >= 12 ? 'p' : 'a'
+		const ampm = h >= 12 ? 'PM' : 'AM'
 		const hour12 = h % 12 || 12
-		return `${hour12}:${minutes}${ampm}`
+		return `${hour12}:${minutes} ${ampm}`
 	}
 
 	function formatHour(hour: number): string {
@@ -213,45 +209,54 @@
 
 	function formatDateDisplay(dateStr: string): string {
 		const date = new Date(dateStr + 'T00:00:00')
-		return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+		return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 	}
 
-	function handleEventClick(event: CalendarEvent, e: MouseEvent) {
+	function formatDateShort(dateStr: string | undefined): string {
+		if (!dateStr) return 'Not set'
+		const date = new Date(dateStr + 'T00:00:00')
+		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+	}
+
+	async function handleEventClick(event: CalendarEvent, e: MouseEvent) {
 		e.preventDefault()
 		e.stopPropagation()
 		selectedEvent = event
+		showDrawer = true
+		loadingDetails = true
+		fullEventDetails = null
 
-		const rect = (e.target as HTMLElement).getBoundingClientRect()
-		const calendarRect = (e.target as HTMLElement).closest('.card')?.getBoundingClientRect()
-
-		if (calendarRect) {
-			popupPosition = {
-				x: Math.min(rect.left - calendarRect.left, calendarRect.width - 280),
-				y: rect.bottom - calendarRect.top + 8
+		try {
+			const details = await eventsStore.getById(event.id)
+			if (details) {
+				const enhanced = eventsStore.enhanceEvents([details])
+				fullEventDetails = enhanced[0]
 			}
+		} catch (err) {
+			console.error('Failed to load event details:', err)
+		} finally {
+			loadingDetails = false
 		}
-		showPopup = true
 	}
 
 	function handleDayClick(dateKey: string, e: MouseEvent) {
 		if ((e.target as HTMLElement).closest('.event-item')) return
-		closePopup()
 		goto(`/events?action=new&date=${dateKey}`)
 	}
 
 	function handleTimeSlotClick(dateKey: string, hour: number, e: MouseEvent) {
 		if ((e.target as HTMLElement).closest('.event-item')) return
-		closePopup()
 		const timeStr = `${String(hour).padStart(2, '0')}:00`
 		goto(`/events?action=new&date=${dateKey}&time=${timeStr}`)
 	}
 
-	function closePopup() {
-		showPopup = false
+	function closeDrawer() {
+		showDrawer = false
 		selectedEvent = null
+		fullEventDetails = null
 	}
 
-	function viewEvent() {
+	function viewFullEvent() {
 		if (selectedEvent) {
 			goto(`/events?id=${selectedEvent.id}`)
 		}
@@ -263,7 +268,6 @@
 		}
 	}
 
-	// Scroll to 8am on mount
 	$effect(() => {
 		if (view === 'week' && weekViewRef) {
 			const firstHourIndex = visibleHours.indexOf(defaultStartHour)
@@ -278,10 +282,7 @@
 	const currentYear = $derived(currentDate.getFullYear())
 	const currentMonth = $derived(currentDate.getMonth())
 	const visibleHours = $derived(getVisibleHours(weekDays))
-	const eventHoursSet = $derived(getWeekEventHours(weekDays))
 </script>
-
-<svelte:window onclick={closePopup} />
 
 <div class="card bg-base-100 shadow-sm border border-base-300 relative">
 	<div class="card-body p-4">
@@ -298,14 +299,14 @@
 					<button
 						class="btn btn-sm join-item"
 						class:btn-active={view === 'week'}
-						onclick={() => { view = 'week'; closePopup() }}
+						onclick={() => { view = 'week' }}
 					>
 						Week
 					</button>
 					<button
 						class="btn btn-sm join-item"
 						class:btn-active={view === 'month'}
-						onclick={() => { view = 'month'; closePopup() }}
+						onclick={() => { view = 'month' }}
 					>
 						Month
 					</button>
@@ -407,7 +408,6 @@
 						{#each weekDays as day}
 							{@const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())}
 							{@const hourEvents = getEventsForDateAndHour(dateKey, hour)}
-							{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
 
 							<div
 								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30"
@@ -417,7 +417,7 @@
 							>
 								{#each hourEvents as event}
 									<button
-										class="event-item block w-full text-left text-xs p-1 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5"
+										class="event-item block w-full text-left text-xs p-1.5 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5"
 										onclick={(e) => handleEventClick(event, e)}
 									>
 										{#if event.start_time}
@@ -457,50 +457,238 @@
 			</div>
 		</div>
 	</div>
+</div>
 
-	<!-- Event Popup -->
-	{#if showPopup && selectedEvent}
-		<div
-			class="absolute z-50 w-72 bg-base-100 rounded-lg shadow-xl border border-base-300 p-4"
-			style="left: {popupPosition.x}px; top: {popupPosition.y}px;"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-label="Event details"
-		>
-			<div class="flex items-start justify-between mb-3">
-				<div class="flex-1 min-w-0">
-					<h3 class="font-bold text-base truncate">{selectedEvent.title}</h3>
-					<p class="text-sm text-base-content/60">{formatDateDisplay(selectedEvent.date)}</p>
+<!-- Right Drawer for Event Details -->
+{#if showDrawer}
+	<!-- Backdrop -->
+	<div
+		class="fixed inset-0 bg-black/50 z-40"
+		onclick={closeDrawer}
+		role="button"
+		tabindex="-1"
+		aria-label="Close drawer"
+	></div>
+
+	<!-- Drawer -->
+	<div class="fixed right-0 top-0 h-full w-full max-w-lg bg-base-100 shadow-2xl z-50 flex flex-col transform transition-transform duration-300">
+		<!-- Drawer Header -->
+		<div class="flex-none flex items-center justify-between p-4 border-b border-base-300">
+			<h2 class="text-xl font-bold">Event Details</h2>
+			<button class="btn btn-ghost btn-sm btn-circle" onclick={closeDrawer} aria-label="Close">
+				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+		</div>
+
+		<!-- Drawer Content -->
+		<div class="flex-1 overflow-y-auto p-4">
+			{#if loadingDetails}
+				<div class="flex items-center justify-center h-32">
+					<span class="loading loading-spinner loading-lg"></span>
 				</div>
-				<button class="btn btn-ghost btn-xs btn-circle" onclick={closePopup} aria-label="Close">
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-					</svg>
-				</button>
-			</div>
+			{:else if fullEventDetails}
+				<!-- Event Title & Status -->
+				<div class="mb-6">
+					<h3 class="text-2xl font-bold mb-2">{fullEventDetails.title}</h3>
+					<span class="badge {getStatusBadgeColor(fullEventDetails.status || '')} badge-lg">
+						{fullEventDetails.status || 'Unknown'}
+					</span>
+				</div>
 
-			<div class="space-y-2 mb-4">
-				{#if selectedEvent.start_time}
-					<div class="flex items-center gap-2 text-sm">
-						<svg class="w-4 h-4 text-base-content/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-						</svg>
-						<span>{formatTime(selectedEvent.start_time)}{selectedEvent.end_time ? ` - ${formatTime(selectedEvent.end_time)}` : ''}</span>
+				<!-- Date & Time Section -->
+				<div class="card bg-base-200/50 mb-4">
+					<div class="card-body p-4">
+						<h4 class="font-semibold text-sm text-base-content/70 mb-3">Date & Time</h4>
+						<div class="grid grid-cols-1 gap-3">
+							<div class="flex items-center gap-3">
+								<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+								<div>
+									<div class="text-sm text-base-content/60">Date</div>
+									<div class="font-medium">{formatDateDisplay(fullEventDetails.date || '')}</div>
+								</div>
+							</div>
+							{#if fullEventDetails.start_time || fullEventDetails.end_time}
+								<div class="flex items-center gap-3">
+									<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									<div>
+										<div class="text-sm text-base-content/60">Time</div>
+										<div class="font-medium">
+											{formatTime(fullEventDetails.start_time || null)}{fullEventDetails.end_time ? ` - ${formatTime(fullEventDetails.end_time)}` : ''}
+										</div>
+									</div>
+								</div>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Venue Section -->
+				{#if fullEventDetails.venue_name}
+					<div class="card bg-base-200/50 mb-4">
+						<div class="card-body p-4">
+							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Venue</h4>
+							<div class="flex items-center gap-3">
+								<svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+								</svg>
+								<div>
+									<div class="font-medium">{fullEventDetails.venue_name}</div>
+									{#if fullEventDetails.venue_address}
+										<div class="text-sm text-base-content/60">{fullEventDetails.venue_address}</div>
+									{/if}
+								</div>
+							</div>
+						</div>
 					</div>
 				{/if}
-				<div class="flex items-center gap-2">
-					<span class="badge badge-sm {getStatusBadgeColor(selectedEvent.status)}">{selectedEvent.status}</span>
-				</div>
-			</div>
 
-			<div class="flex gap-2">
-				<button class="btn btn-primary btn-sm flex-1" onclick={viewEvent}>
-					View
+				<!-- Program Section -->
+				{#if fullEventDetails.program_name}
+					<div class="card bg-base-200/50 mb-4">
+						<div class="card-body p-4">
+							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Program</h4>
+							<div class="flex items-center gap-3">
+								<svg class="w-5 h-5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+								</svg>
+								<div class="font-medium">{fullEventDetails.program_name}</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Partner Section -->
+				{#if fullEventDetails.partner_name}
+					<div class="card bg-base-200/50 mb-4">
+						<div class="card-body p-4">
+							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Partner</h4>
+							<div class="flex items-center gap-3">
+								<svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+								</svg>
+								<div class="font-medium">{fullEventDetails.partner_name}</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Notes Section -->
+				{#if fullEventDetails.notes}
+					<div class="card bg-base-200/50 mb-4">
+						<div class="card-body p-4">
+							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Notes</h4>
+							<p class="text-sm whitespace-pre-wrap">{fullEventDetails.notes}</p>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Artists Section -->
+				{#if fullEventDetails.artists && Array.isArray(fullEventDetails.artists) && fullEventDetails.artists.length > 0}
+					<div class="card bg-base-200/50 mb-4">
+						<div class="card-body p-4">
+							<h4 class="font-semibold text-sm text-base-content/70 mb-3">
+								Assigned Artists ({fullEventDetails.artists.length})
+							</h4>
+							<div class="space-y-2">
+								{#each fullEventDetails.artists as artist}
+									<div class="flex items-center gap-2 p-2 bg-base-100 rounded-lg">
+										<div class="avatar placeholder">
+											<div class="bg-primary text-primary-content rounded-full w-8">
+												<span class="text-xs">{(artist.name || artist.artist_name || 'A').charAt(0)}</span>
+											</div>
+										</div>
+										<span class="text-sm font-medium">{artist.name || artist.artist_name || 'Unknown Artist'}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Event Flyer -->
+				{#if fullEventDetails.digital_flyer_link}
+					<div class="card bg-base-200/50 mb-4">
+						<div class="card-body p-4">
+							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Event Flyer</h4>
+							<img
+								src={fullEventDetails.digital_flyer_link}
+								alt={fullEventDetails.title || 'Event flyer'}
+								class="rounded-lg w-full"
+							/>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Meta Info -->
+				<div class="text-xs text-base-content/50 mt-6 pt-4 border-t border-base-300">
+					<div class="flex justify-between">
+						<span>Created: {formatDateShort(fullEventDetails.created_at)}</span>
+						{#if fullEventDetails.updated_at}
+							<span>Updated: {formatDateShort(fullEventDetails.updated_at)}</span>
+						{/if}
+					</div>
+				</div>
+			{:else if selectedEvent}
+				<!-- Fallback to basic info -->
+				<div class="mb-6">
+					<h3 class="text-2xl font-bold mb-2">{selectedEvent.title}</h3>
+					<span class="badge {getStatusBadgeColor(selectedEvent.status)} badge-lg">
+						{selectedEvent.status}
+					</span>
+				</div>
+				<div class="card bg-base-200/50 mb-4">
+					<div class="card-body p-4">
+						<div class="flex items-center gap-3">
+							<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+							</svg>
+							<div>
+								<div class="text-sm text-base-content/60">Date</div>
+								<div class="font-medium">{formatDateDisplay(selectedEvent.date)}</div>
+							</div>
+						</div>
+						{#if selectedEvent.start_time}
+							<div class="flex items-center gap-3 mt-3">
+								<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+								<div>
+									<div class="text-sm text-base-content/60">Time</div>
+									<div class="font-medium">
+										{formatTime(selectedEvent.start_time)}{selectedEvent.end_time ? ` - ${formatTime(selectedEvent.end_time)}` : ''}
+									</div>
+								</div>
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Drawer Footer -->
+		<div class="flex-none p-4 border-t border-base-300 bg-base-100">
+			<div class="flex gap-3">
+				<button class="btn btn-primary flex-1" onclick={viewFullEvent}>
+					<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+					</svg>
+					View Full Details
 				</button>
-				<button class="btn btn-outline btn-sm flex-1" onclick={editEvent}>
-					Edit
+				<button class="btn btn-outline flex-1" onclick={editEvent}>
+					<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+					</svg>
+					Edit Event
 				</button>
 			</div>
 		</div>
-	{/if}
-</div>
+	</div>
+{/if}
