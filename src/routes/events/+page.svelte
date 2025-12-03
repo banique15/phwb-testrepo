@@ -637,7 +637,7 @@
 							>
 								<input
 									type="checkbox"
-									class="checkbox checkbox-xs checkbox-primary"
+									class="checkbox checkbox-xs border-base-content/30 bg-transparent [--chkbg:theme(colors.primary)] [--chkfg:theme(colors.primary-content)]"
 									checked={selectedEventIds.size > 0 && selectedEventIds.size === filteredEvents.length}
 									indeterminate={selectedEventIds.size > 0 && selectedEventIds.size < filteredEvents.length}
 									readonly
