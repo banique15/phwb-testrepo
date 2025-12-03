@@ -48,6 +48,10 @@
 	// External tab switch for jumping to performers tab
 	let externalActiveTab = $state<string | null>(null)
 
+	// Bulk selection state
+	let selectedEventIds = $state<Set<number>>(new Set())
+	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
+
 	const STORAGE_KEY = 'phwb-selected-event'
 
 	// Track newly created events that need to be merged with server data
