@@ -630,29 +630,26 @@
 			</div>
 		{/if}
 
-		<!-- Legend -->
-		<div class="flex flex-wrap gap-3 mt-4 text-xs">
-			<div class="flex items-center gap-1">
-				<div class="w-3 h-3 rounded bg-primary"></div>
-				<span>Planned</span>
+		<!-- Legend - Programs -->
+		{#if uniquePrograms.length > 0}
+			<div class="flex flex-wrap gap-3 mt-4 text-xs">
+				<span class="text-base-content/50 font-medium">Programs:</span>
+				{#each uniquePrograms as program}
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded {program.color.bg}"></div>
+						<span>{program.name}</span>
+					</div>
+				{/each}
+				<div class="flex items-center gap-1">
+					<div class="w-3 h-3 rounded bg-blue-500"></div>
+					<span class="text-base-content/50">No Program</span>
+				</div>
 			</div>
-			<div class="flex items-center gap-1">
-				<div class="w-3 h-3 rounded bg-success"></div>
-				<span>Confirmed</span>
+		{:else}
+			<div class="flex flex-wrap gap-3 mt-4 text-xs text-base-content/50">
+				<span>No events with programs in this period</span>
 			</div>
-			<div class="flex items-center gap-1">
-				<div class="w-3 h-3 rounded bg-warning"></div>
-				<span>In Progress</span>
-			</div>
-			<div class="flex items-center gap-1">
-				<div class="w-3 h-3 rounded bg-info"></div>
-				<span>Completed</span>
-			</div>
-			<div class="flex items-center gap-1">
-				<div class="w-3 h-3 rounded bg-error"></div>
-				<span>Cancelled</span>
-			</div>
-		</div>
+		{/if}
 	</div>
 </div>
 
