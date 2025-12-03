@@ -6,6 +6,16 @@
 	import { Mail, Phone, MapPin, Users } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
 
+	interface EnsembleMember {
+		artist_id: string
+		role: string | null
+		artist: {
+			id: string
+			full_name: string | null
+			artist_name: string | null
+		}
+	}
+
 	interface EnsembleMembership {
 		id: number
 		role: string | null
@@ -14,6 +24,7 @@
 			name: string
 			ensemble_type: string | null
 		}
+		members?: EnsembleMember[]
 	}
 
 	interface Props {
