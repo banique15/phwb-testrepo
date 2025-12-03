@@ -71,13 +71,26 @@
 	)
 
 	onMount(() => {
-		// Restore selected ensemble from localStorage
-		const ensembleStorageKey = 'phwb-selected-ensemble'
-		const savedEnsembleId = localStorage.getItem(ensembleStorageKey)
-		if (savedEnsembleId && ensembles.length > 0) {
-			const savedEnsemble = ensembles.find(e => String(e.id) === savedEnsembleId)
-			if (savedEnsemble) {
-				selectedEnsemble = savedEnsemble
+		// Check for ID in URL query params first (e.g., from artist profile link)
+		const urlParams = new URLSearchParams(window.location.search)
+		const urlEnsembleId = urlParams.get('id')
+
+		if (urlEnsembleId && ensembles.length > 0) {
+			const ensembleFromUrl = ensembles.find(e => String(e.id) === urlEnsembleId)
+			if (ensembleFromUrl) {
+				selectedEnsemble = ensembleFromUrl
+				// Save to localStorage for consistency
+				localStorage.setItem('phwb-selected-ensemble', urlEnsembleId)
+			}
+		} else {
+			// Restore selected ensemble from localStorage if no URL param
+			const ensembleStorageKey = 'phwb-selected-ensemble'
+			const savedEnsembleId = localStorage.getItem(ensembleStorageKey)
+			if (savedEnsembleId && ensembles.length > 0) {
+				const savedEnsemble = ensembles.find(e => String(e.id) === savedEnsembleId)
+				if (savedEnsemble) {
+					selectedEnsemble = savedEnsemble
+				}
 			}
 		}
 
