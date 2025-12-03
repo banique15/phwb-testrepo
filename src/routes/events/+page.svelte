@@ -44,6 +44,9 @@
 
 	const STORAGE_KEY = 'phwb-selected-event'
 
+	// Track newly created events that need to be merged with server data
+	let newlyCreatedEvents = $state<EnhancedEvent[]>([])
+
 	// Get reactive reference to the store state for updates after mutations
 	let storeState = $state<any>()
 
@@ -52,13 +55,21 @@
 		storeState = state
 	})
 
-	// Use server-loaded data initially, then client-side store updates after mutations
-	// Only use store data if it has actually loaded (items.length > 0 or explicitly set)
-	let events = $derived(
-		storeState?.items !== undefined && storeState.items.length > 0
-			? storeState.items
-			: data.events || []
-	)
+	// Use server-loaded data merged with any newly created events
+	let events = $derived.by(() => {
+		const serverEvents = data.events || []
+
+		// If we have newly created events, merge them with server data
+		if (newlyCreatedEvents.length > 0) {
+			// Get IDs of new events to avoid duplicates
+			const newIds = new Set(newlyCreatedEvents.map(e => e.id))
+			// Filter out any duplicates from server data and prepend new events
+			const filteredServerEvents = serverEvents.filter((e: EnhancedEvent) => !newIds.has(e.id))
+			return [...newlyCreatedEvents, ...filteredServerEvents]
+		}
+
+		return serverEvents
+	})
 
 	// Filter state from server data
 	let currentFilters = $derived(data.filters || {})
