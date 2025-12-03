@@ -13,7 +13,7 @@
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
 	import ArtistHeaderCard from './components/ArtistHeaderCard.svelte'
 	import ArtistTabs from './components/ArtistTabs.svelte'
-	import CreateArtist from './components/modals/CreateArtist.svelte'
+	import ArtistCreateForm from './components/ArtistCreateForm.svelte'
 	import DeleteArtist from './components/modals/DeleteArtist.svelte'
 
 	interface Props {
