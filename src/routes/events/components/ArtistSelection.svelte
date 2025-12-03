@@ -107,10 +107,11 @@
 	})
 
 	// Track the last synced assignments to avoid infinite loops
-	let lastSyncedAssignmentsJson = $state('')
+	let lastSyncedAssignmentsJson = ''
 
 	// Sync assignments when props change (but only when necessary)
-	$effect(() => {
+	// Using $effect.pre to run before render and avoid reading reactive state we're writing to
+	$effect.pre(() => {
 		// Create a stable string representation to compare
 		const assignmentsJson = JSON.stringify(assignments.map(a => a.artist_id).sort())
 
@@ -133,12 +134,8 @@
 
 			localAssignments = updatedAssignments
 
-			// Ensure selectedIds includes all assignment artist_ids
-			const newSelectedIds = new Set(selectedIds)
-			assignments.forEach(assignment => {
-				newSelectedIds.add(assignment.artist_id)
-			})
-			selectedIds = newSelectedIds
+			// Build selectedIds directly from assignments (don't read the current selectedIds)
+			selectedIds = new Set(assignments.map(a => a.artist_id))
 		}
 	})
 
