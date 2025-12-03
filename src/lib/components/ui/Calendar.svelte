@@ -741,3 +741,36 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Right Drawer for Create Event -->
+{#if showCreateDrawer}
+	<!-- Backdrop -->
+	<div
+		class="fixed inset-0 bg-black/50 z-40"
+		onclick={closeCreateDrawer}
+		role="button"
+		tabindex="-1"
+		aria-label="Close drawer"
+	></div>
+
+	<!-- Drawer -->
+	<div class="fixed right-0 top-0 h-full w-full max-w-lg bg-base-100 shadow-2xl z-50 flex flex-col transform transition-transform duration-300">
+		<EventCreateForm
+			initialDate={newEventDate}
+			initialTime={newEventTime}
+			onSuccess={handleCreateSuccess}
+			onCancel={closeCreateDrawer}
+		/>
+	</div>
+{/if}
+
+<style>
+	@keyframes blink {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.3; }
+	}
+
+	:global(.animate-blink) {
+		animation: blink 0.5s ease-in-out 6;
+	}
+</style>
