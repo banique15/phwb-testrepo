@@ -146,7 +146,9 @@
 				totalRecords: totalRecords,
 				averagePayPerArtist: reportData.length > 0 ? totalPayroll / reportData.length : 0,
 				averageHoursPerArtist: reportData.length > 0 ? totalHours / reportData.length : 0,
-				dateRange: `${formatDate(startDate)} - ${formatDate(endDate)}`
+				dateRange: `${formatDate(startDate)} - ${formatDate(endDate)}`,
+				linkedRecords: totalLinkedRecords,
+				unlinkedRecords: totalUnlinkedRecords
 			}
 			
 		} catch (err) {
