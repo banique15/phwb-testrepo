@@ -170,6 +170,32 @@
 					</div>
 				</div>
 
+				<!-- Ensembles Row -->
+				{#if ensembles.length > 0 || loadingEnsembles}
+					<div>
+						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
+							<Users class="w-3 h-3" /> Ensembles
+						</span>
+						{#if loadingEnsembles}
+							<span class="text-sm text-base-content/50">Loading...</span>
+						{:else}
+							<div class="flex flex-wrap gap-2 mt-1">
+								{#each ensembles as membership}
+									<a
+										href="/ensembles?id={membership.ensemble.id}"
+										class="badge badge-outline badge-sm hover:badge-primary transition-colors"
+									>
+										{membership.ensemble.name}
+										{#if membership.role}
+											<span class="opacity-60 ml-1">({membership.role})</span>
+										{/if}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+
 				<!-- Genres and Instruments Row -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<div>
