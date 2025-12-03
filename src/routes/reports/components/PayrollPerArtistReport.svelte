@@ -49,7 +49,7 @@
 				.from('phwb_payroll')
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name, email),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, public_first_name, public_last_name, email),
 					venues:venue_id(id, name)
 				`)
 				.gte('event_date', startDate)
