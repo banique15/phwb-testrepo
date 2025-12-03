@@ -82,9 +82,9 @@
 					/>
 				</div>
 
-				<!-- Contact Info Grid -->
-				<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-					<div>
+				<!-- Contact Info Row -->
+				<div class="flex flex-wrap gap-x-6 gap-y-2">
+					<div class="min-w-[180px]">
 						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
 							<Mail class="w-3 h-3" /> Email
 						</span>
@@ -97,7 +97,7 @@
 							formatDisplay={(val) => val || 'Not set'}
 						/>
 					</div>
-					<div>
+					<div class="min-w-[140px]">
 						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
 							<Phone class="w-3 h-3" /> Phone
 						</span>
@@ -110,7 +110,7 @@
 							formatDisplay={(val) => val || 'Not set'}
 						/>
 					</div>
-					<div>
+					<div class="min-w-[140px]">
 						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
 							<MapPin class="w-3 h-3" /> Location
 						</span>
