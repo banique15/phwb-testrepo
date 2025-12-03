@@ -53,6 +53,7 @@
 	async function loadArtistEnsembles(artistId: string) {
 		loadingEnsembles = true
 		try {
+			// First get the ensembles this artist belongs to
 			const { data, error } = await supabase
 				.from('phwb_ensemble_members')
 				.select(`
@@ -64,7 +65,26 @@
 				.eq('is_active', true)
 
 			if (!error && data) {
-				ensembles = data as unknown as EnsembleMembership[]
+				const memberships = data as unknown as EnsembleMembership[]
+
+				// For each ensemble, fetch all members
+				for (const membership of memberships) {
+					if (membership.ensemble?.id) {
+						const { data: members } = await supabase
+							.from('phwb_ensemble_members')
+							.select(`
+								artist_id,
+								role,
+								artist:phwb_artists(id, full_name, artist_name)
+							`)
+							.eq('ensemble_id', membership.ensemble.id)
+							.eq('is_active', true)
+
+						membership.members = (members || []) as unknown as EnsembleMember[]
+					}
+				}
+
+				ensembles = memberships
 			}
 		} catch (err) {
 			console.error('Failed to load artist ensembles:', err)
