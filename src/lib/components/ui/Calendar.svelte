@@ -978,6 +978,18 @@
 	</div>
 {/if}
 
+<!-- Toast Notification -->
+{#if showToast}
+	<div class="toast toast-top toast-center z-[60]">
+		<div class="alert alert-success py-2 px-4">
+			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+			</svg>
+			<span class="text-sm">{toastMessage}</span>
+		</div>
+	</div>
+{/if}
+
 <style>
 	@keyframes blink {
 		0%, 100% { opacity: 1; }
