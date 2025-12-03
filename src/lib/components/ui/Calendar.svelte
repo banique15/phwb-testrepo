@@ -11,6 +11,8 @@
 		start_time: string | null
 		end_time: string | null
 		status: string
+		program_id: number | null
+		program_name: string | null
 	}
 
 	interface Props {
