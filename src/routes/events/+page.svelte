@@ -101,6 +101,26 @@
 		// Only run once when we have events and haven't restored yet
 		if (browser && !hasRestoredSelection && data.events && data.events.length > 0) {
 			hasRestoredSelection = true
+
+			// URL parameters take priority over localStorage
+			const urlId = $page.url.searchParams.get('id')
+			const shouldEdit = $page.url.searchParams.get('edit') === 'true'
+
+			if (urlId) {
+				const urlEvent = data.events.find((e: EnhancedEvent) => e.id === Number(urlId))
+				if (urlEvent) {
+					selectedEvent = urlEvent
+					// Open edit modal if edit=true
+					if (shouldEdit) {
+						showEditModal = true
+					}
+					// Clear URL params after handling
+					goto('/events', { replaceState: true, keepFocus: true })
+					return
+				}
+			}
+
+			// Fall back to localStorage if no URL param
 			const savedId = localStorage.getItem(STORAGE_KEY)
 			if (savedId && !selectedEvent) {
 				const savedEvent = data.events.find((e: EnhancedEvent) => e.id === Number(savedId))
