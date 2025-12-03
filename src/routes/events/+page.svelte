@@ -705,6 +705,31 @@
 									readonly
 								/>
 							</button>
+							<div class="dropdown dropdown-end">
+								<button
+									tabindex="0"
+									class="btn btn-xs border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
+									title="Sort events"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+									</svg>
+									<span class="hidden sm:inline ml-1">{sortOptions.find(o => o.value === sortBy)?.label || 'Sort'}</span>
+								</button>
+								<ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 border border-base-300 rounded-box w-48 mt-1">
+									{#each sortOptions as option}
+										<li>
+											<button
+												class="text-sm"
+												class:active={sortBy === option.value}
+												onclick={() => { sortBy = option.value; (document.activeElement as HTMLElement)?.blur() }}
+											>
+												{option.label}
+											</button>
+										</li>
+									{/each}
+								</ul>
+							</div>
 							<button
 								class="btn btn-xs border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
 								onclick={toggleViewMode}
