@@ -20,6 +20,7 @@
 		{ id: 'professional', label: 'Professional', icon: Briefcase },
 		{ id: 'biography', label: 'Biography', icon: FileText },
 		{ id: 'social', label: 'Social', icon: Globe },
+		{ id: 'photos', label: 'Photos', icon: Image },
 		{ id: 'history', label: 'History', icon: ScrollText },
 		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
