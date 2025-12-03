@@ -588,8 +588,8 @@
 								</svg>
 								<div>
 									<div class="font-medium">{fullEventDetails.venue_name}</div>
-									{#if fullEventDetails.venue_address}
-										<div class="text-sm text-base-content/60">{fullEventDetails.venue_address}</div>
+									{#if fullEventDetails.venue_object?.address}
+										<div class="text-sm text-base-content/60">{fullEventDetails.venue_object.address}</div>
 									{/if}
 								</div>
 							</div>
