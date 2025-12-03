@@ -59,7 +59,7 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 			supabase.from('profiles').select('full_name').eq('id', locals.session.user.id).single(),
 			supabase
 				.from('phwb_events')
-				.select('id, title, date, start_time, end_time, status, program_id, program:phwb_programs!left(title)')
+				.select('id, title, date, start_time, end_time, status, program, program_rel:phwb_programs!left(title)')
 				.gte('date', startDate)
 				.lte('date', endDate)
 				.order('date', { ascending: true })
