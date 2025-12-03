@@ -1,8 +1,20 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
 	import type { Artist } from '$lib/schemas/artist'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
-	import { Mail, Phone, MapPin } from 'lucide-svelte'
+	import { Mail, Phone, MapPin, Users } from 'lucide-svelte'
+	import { supabase } from '$lib/supabase'
+
+	interface EnsembleMembership {
+		id: number
+		role: string | null
+		ensemble: {
+			id: number
+			name: string
+			ensemble_type: string | null
+		}
+	}
 
 	interface Props {
 		artist: Artist
@@ -17,6 +29,38 @@
 	}: Props = $props()
 
 	let isEditingProfilePhotoUrl = $state(false)
+	let ensembles = $state<EnsembleMembership[]>([])
+	let loadingEnsembles = $state(false)
+
+	// Load ensembles when artist changes
+	$effect(() => {
+		if (artist?.id) {
+			loadArtistEnsembles(artist.id)
+		}
+	})
+
+	async function loadArtistEnsembles(artistId: string) {
+		loadingEnsembles = true
+		try {
+			const { data, error } = await supabase
+				.from('phwb_ensemble_members')
+				.select(`
+					id,
+					role,
+					ensemble:phwb_ensembles(id, name, ensemble_type)
+				`)
+				.eq('artist_id', artistId)
+				.eq('is_active', true)
+
+			if (!error && data) {
+				ensembles = data as unknown as EnsembleMembership[]
+			}
+		} catch (err) {
+			console.error('Failed to load artist ensembles:', err)
+		} finally {
+			loadingEnsembles = false
+		}
+	}
 
 	function formatDate(dateStr: string | undefined) {
 		if (!dateStr) return 'Not specified'
