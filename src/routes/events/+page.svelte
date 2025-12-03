@@ -630,6 +630,11 @@
 								on:dateToChange={handleDateToChange}
 								on:clearFilters={handleClearFilters}
 							/>
+							{#if filteredEvents.length !== events.length}
+								<div class="text-xs text-base-content/60 mt-2">
+									Showing {filteredEvents.length} of {events.length} events
+								</div>
+							{/if}
 						{/snippet}
 						{#snippet children(props)}
 							{#if showCreateForm}
