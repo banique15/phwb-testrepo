@@ -422,6 +422,19 @@
 								</div>
 							</div>
 
+							<!-- Status Badges -->
+							<div class="flex flex-wrap gap-1 mb-2">
+								{#if artist.position_status === 'terminated'}
+									<span class="badge badge-xs badge-error">Terminated</span>
+								{/if}
+								{#if artist.employment_status}
+									<span class="badge badge-xs {artist.employment_status === 'W2' ? 'badge-info' : 'badge-warning'}">{artist.employment_status}</span>
+								{/if}
+								{#if artist.job_title}
+									<span class="badge badge-xs badge-ghost">{getJobTitleLabel(artist.job_title)}</span>
+								{/if}
+							</div>
+
 							<!-- Skills & Tags -->
 							<div class="flex flex-wrap gap-1.5 mt-auto">
 								{#if artist.can_be_soloist}
