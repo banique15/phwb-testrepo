@@ -99,7 +99,7 @@
 	}
 
 	onMount(async () => {
-		await Promise.all([loadVenues(), loadArtists()])
+		await Promise.all([loadVenues(), loadArtists(), loadPrograms()])
 	})
 
 	async function loadVenues() {
