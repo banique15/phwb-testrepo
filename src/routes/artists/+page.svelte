@@ -408,6 +408,7 @@
 					detailEmptyTitle="Select an artist"
 					detailEmptyMessage="Choose an artist from the list to view their full profile"
 					storageKey="phwb-selected-artist"
+					forceShowChildren={showCreateForm}
 					on:search={handleSearch}
 					on:select={handleSelectArtist}
 				>
