@@ -631,20 +631,20 @@
 					>
 						{#snippet masterActions()}
 							<button
-								class="btn btn-ghost btn-xs"
+								class="btn btn-ghost btn-xs hover:bg-base-200"
 								onclick={toggleSelectAll}
 								title={selectedEventIds.size === filteredEvents.length ? "Deselect all" : "Select all"}
 							>
 								<input
 									type="checkbox"
-									class="checkbox checkbox-xs"
+									class="checkbox checkbox-xs checkbox-primary"
 									checked={selectedEventIds.size > 0 && selectedEventIds.size === filteredEvents.length}
 									indeterminate={selectedEventIds.size > 0 && selectedEventIds.size < filteredEvents.length}
 									readonly
 								/>
 							</button>
 							<button
-								class="btn btn-outline btn-xs"
+								class="btn btn-xs border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
 								onclick={toggleViewMode}
 								title="Switch to Calendar View"
 							>
