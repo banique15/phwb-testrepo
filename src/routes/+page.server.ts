@@ -74,8 +74,8 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 			start_time: event.start_time,
 			end_time: event.end_time,
 			status: event.status,
-			program_id: event.program_id,
-			program_name: event.program?.title || null
+			program_id: event.program,
+			program_name: event.program_rel?.title || null
 		}))
 		const totalTime = performance.now() - startTime
 
