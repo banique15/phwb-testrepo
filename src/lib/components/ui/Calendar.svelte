@@ -509,11 +509,11 @@
 </div>
 
 <!-- Right Drawer for Event Details -->
-{#if showDrawer}
+{#if showViewDrawer}
 	<!-- Backdrop -->
 	<div
 		class="fixed inset-0 bg-black/50 z-40"
-		onclick={closeDrawer}
+		onclick={closeViewDrawer}
 		role="button"
 		tabindex="-1"
 		aria-label="Close drawer"
@@ -524,7 +524,7 @@
 		<!-- Drawer Header -->
 		<div class="flex-none flex items-center justify-between p-4 border-b border-base-300">
 			<h2 class="text-xl font-bold">Event Details</h2>
-			<button class="btn btn-ghost btn-sm btn-circle" onclick={closeDrawer} aria-label="Close">
+			<button class="btn btn-ghost btn-sm btn-circle" onclick={closeViewDrawer} aria-label="Close">
 				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 				</svg>
