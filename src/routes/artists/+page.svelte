@@ -379,6 +379,20 @@
 											<span class="label-text text-sm">Sight reads</span>
 										</label>
 									</div>
+
+									<div class="divider my-1"></div>
+
+									<div class="form-control">
+										<label class="label cursor-pointer justify-start gap-2 py-1">
+											<input
+												type="checkbox"
+												class="checkbox checkbox-sm checkbox-primary"
+												bind:checked={artistFilters.hasEnsemble}
+											/>
+											<span class="label-text text-sm font-medium">In an ensemble</span>
+										</label>
+										<p class="text-xs opacity-60 ml-6">Only show artists who belong to an ensemble</p>
+									</div>
 								</div>
 							</div>
 						</div>
