@@ -40,13 +40,13 @@
 </script>
 
 <div class="card bg-base-100 shadow-none mb-4">
-	<div class="card-body p-3">
-		<div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+	<div class="card-body p-4">
+		<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 			<!-- Left Side: Basic Information (2 columns on large screens) -->
-			<div class="lg:col-span-2 space-y-2">
-				<!-- Name, Artist Name, and Email Row -->
-				<div class="space-y-1">
-					<div>
+			<div class="lg:col-span-2 space-y-3">
+				<!-- Name Row -->
+				<div class="flex items-start justify-between gap-2">
+					<div class="flex-1">
 						<InlineEditableField
 							value={artist.full_name || (artist.legal_first_name && artist.legal_last_name ? `${artist.legal_first_name} ${artist.legal_last_name}` : artist.legal_first_name || artist.artist_name)}
 							field="full_name"
@@ -58,26 +58,7 @@
 							displayClass="text-2xl font-bold"
 						/>
 					</div>
-					<div class="flex items-center gap-3 flex-wrap">
-						<InlineEditableField
-							value={artist.artist_name}
-							field="artist_name"
-							type="text"
-							placeholder="Enter artist name"
-							maxLength={200}
-							onSave={(value) => onUpdateField('artist_name', value)}
-							formatDisplay={(val) => val || ''}
-						/>
-						<div class="flex items-center gap-1.5">
-							<Mail class="w-4 h-4 opacity-60" />
-							<InlineEditableField
-								value={artist.email}
-								field="email"
-								type="text"
-								placeholder="Enter email"
-								onSave={(value) => onUpdateField('email', value)}
-							/>
-						</div>
+					<div class="flex items-center gap-1 flex-shrink-0 pt-1">
 						{#if artist.can_be_soloist}
 							<span class="badge badge-accent badge-sm">Soloist</span>
 						{/if}
@@ -87,20 +68,52 @@
 					</div>
 				</div>
 
-				<!-- Phone and Location Row -->
-				<div class="flex items-center gap-4 flex-wrap">
-					<div class="flex items-center gap-1.5">
-						<Phone class="w-4 h-4 opacity-60" />
+				<!-- Artist Name Row -->
+				<div>
+					<span class="text-xs text-base-content/50 uppercase tracking-wide">Artist Name</span>
+					<InlineEditableField
+						value={artist.artist_name}
+						field="artist_name"
+						type="text"
+						placeholder="Enter artist/stage name"
+						maxLength={200}
+						onSave={(value) => onUpdateField('artist_name', value)}
+						formatDisplay={(val) => val || 'Not set'}
+					/>
+				</div>
+
+				<!-- Contact Info Grid -->
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+					<div>
+						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
+							<Mail class="w-3 h-3" /> Email
+						</span>
+						<InlineEditableField
+							value={artist.email}
+							field="email"
+							type="text"
+							placeholder="Enter email"
+							onSave={(value) => onUpdateField('email', value)}
+							formatDisplay={(val) => val || 'Not set'}
+						/>
+					</div>
+					<div>
+						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
+							<Phone class="w-3 h-3" /> Phone
+						</span>
 						<InlineEditableField
 							value={artist.phone}
 							field="phone"
 							type="phone"
 							placeholder="(555) 123-4567"
 							onSave={(value) => onUpdateField('phone', value)}
+							formatDisplay={(val) => val || 'Not set'}
 						/>
 					</div>
-					<div class="flex items-center gap-1.5">
-						<MapPin class="w-4 h-4 opacity-60" />
+					<div>
+						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
+							<MapPin class="w-3 h-3" /> Location
+						</span>
 						<InlineEditableField
 							value={artist.location}
 							field="location"
@@ -108,12 +121,13 @@
 							placeholder="Enter location"
 							maxLength={200}
 							onSave={(value) => onUpdateField('location', value)}
+							formatDisplay={(val) => val || 'Not set'}
 						/>
 					</div>
 				</div>
 
 				<!-- Genres and Instruments Row -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<div>
 						<InlineEditableMultiSelect
 							value={artist.genres || []}
@@ -151,16 +165,16 @@
 				</div>
 
 				<!-- Quick Stats -->
-				<div class="flex items-center gap-4 pt-1 border-t border-base-300">
+				<div class="flex items-center gap-6 pt-2 border-t border-base-200 text-sm">
 					{#if eventsCount > 0}
-						<div class="stat stat-compact p-0">
-							<div class="stat-title text-xs">Events</div>
-							<div class="stat-value text-base">{eventsCount}</div>
+						<div>
+							<span class="text-base-content/50">Events:</span>
+							<span class="font-medium ml-1">{eventsCount}</span>
 						</div>
 					{/if}
-					<div class="stat stat-compact p-0">
-						<div class="stat-title text-xs">Created</div>
-						<div class="stat-value text-xs">{formatDate(artist.created_at)}</div>
+					<div>
+						<span class="text-base-content/50">Created:</span>
+						<span class="font-medium ml-1">{formatDate(artist.created_at)}</span>
 					</div>
 				</div>
 			</div>
