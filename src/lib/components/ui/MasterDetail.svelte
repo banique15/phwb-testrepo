@@ -301,7 +301,27 @@
 										{#if getItemDetail}
 											{@const detail = getItemDetail(item)}
 											{#if detail}
-												<div class="badge badge-sm flex-none" class:badge-outline={selectedItem?.id !== item.id} class:badge-primary={selectedItem?.id === item.id}>
+												{@const statusLower = detail.toLowerCase()}
+												<div
+													class="badge badge-sm flex-none text-[10px] font-normal opacity-80"
+													class:bg-warning/20={statusLower === 'planned'}
+													class:text-warning={statusLower === 'planned'}
+													class:border-warning/30={statusLower === 'planned'}
+													class:bg-success/20={statusLower === 'confirmed'}
+													class:text-success={statusLower === 'confirmed'}
+													class:border-success/30={statusLower === 'confirmed'}
+													class:bg-info/20={statusLower === 'in_progress'}
+													class:text-info={statusLower === 'in_progress'}
+													class:border-info/30={statusLower === 'in_progress'}
+													class:bg-base-300/50={statusLower === 'completed'}
+													class:text-base-content/60={statusLower === 'completed'}
+													class:border-base-300={statusLower === 'completed'}
+													class:bg-error/20={statusLower === 'cancelled'}
+													class:text-error={statusLower === 'cancelled'}
+													class:border-error/30={statusLower === 'cancelled'}
+													class:bg-base-200={!['planned', 'confirmed', 'in_progress', 'completed', 'cancelled'].includes(statusLower)}
+													class:text-base-content/50={!['planned', 'confirmed', 'in_progress', 'completed', 'cancelled'].includes(statusLower)}
+												>
 													{detail}
 												</div>
 											{/if}

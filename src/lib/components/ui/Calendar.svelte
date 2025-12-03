@@ -624,21 +624,21 @@
 				{/if}
 
 				<!-- Artists Section -->
-				{#if fullEventDetails.artists && Array.isArray(fullEventDetails.artists) && fullEventDetails.artists.length > 0}
+				{#if fullEventDetails.artist_assignments && fullEventDetails.artist_assignments.length > 0}
 					<div class="card bg-base-200/50 mb-4">
 						<div class="card-body p-4">
 							<h4 class="font-semibold text-sm text-base-content/70 mb-3">
-								Assigned Artists ({fullEventDetails.artists.length})
+								Assigned Artists ({fullEventDetails.artist_assignments.length})
 							</h4>
 							<div class="space-y-2">
-								{#each fullEventDetails.artists as artist}
+								{#each fullEventDetails.artist_assignments as artist}
 									<div class="flex items-center gap-2 p-2 bg-base-100 rounded-lg">
 										<div class="avatar placeholder">
 											<div class="bg-primary text-primary-content rounded-full w-8">
-												<span class="text-xs">{(artist.name || artist.artist_name || 'A').charAt(0)}</span>
+												<span class="text-xs">{(artist.artist_name || 'A').charAt(0)}</span>
 											</div>
 										</div>
-										<span class="text-sm font-medium">{artist.name || artist.artist_name || 'Unknown Artist'}</span>
+										<span class="text-sm font-medium">{artist.artist_name || 'Unknown Artist'}</span>
 									</div>
 								{/each}
 							</div>
