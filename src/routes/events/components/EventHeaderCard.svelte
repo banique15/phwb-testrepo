@@ -159,10 +159,15 @@
 				<!-- Quick Stats -->
 				<div class="flex items-center gap-3 pt-2 border-t border-base-300">
 					{#if artistsCount > 0}
-						<div class="stat stat-compact p-0">
+						<button
+							class="stat stat-compact p-0 text-left hover:bg-base-200 rounded transition-colors cursor-pointer {onArtistCountClick ? 'hover:text-primary' : ''}"
+							onclick={() => onArtistCountClick?.()}
+							disabled={!onArtistCountClick}
+							title={onArtistCountClick ? 'Click to view performers' : undefined}
+						>
 							<div class="stat-title text-xs">Artists</div>
 							<div class="stat-value text-lg">{artistsCount}</div>
-						</div>
+						</button>
 					{/if}
 					<div class="stat stat-compact p-0">
 						<div class="stat-title text-xs">Created</div>
