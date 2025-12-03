@@ -17,9 +17,10 @@
 		selectedLocationId: number | null
 		onSelectLocation: (locationId: number | null) => void
 		onDelete: () => void
+		onAddLocation?: () => void
 	}
 
-	let { facility, locations, selectedLocationId, onSelectLocation, onDelete }: Props = $props()
+	let { facility, locations, selectedLocationId, onSelectLocation, onDelete, onAddLocation }: Props = $props()
 
 	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
 		{ id: 'calendar', label: 'Calendar', icon: Calendar },
