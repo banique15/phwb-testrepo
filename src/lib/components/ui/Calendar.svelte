@@ -377,7 +377,7 @@
 		<!-- Week View with Time Grid -->
 		{#if view === 'week'}
 			<!-- Day headers -->
-			<div class="grid grid-cols-[60px_repeat(7,1fr)] gap-px bg-base-300 rounded-t-lg overflow-hidden">
+			<div class="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] gap-px bg-base-300 rounded-t-lg overflow-hidden">
 				<div class="bg-base-200 p-2"></div>
 				{#each weekDays as day, i}
 					{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
@@ -393,7 +393,7 @@
 				bind:this={weekViewRef}
 				class="max-h-[500px] overflow-y-auto border-x border-b border-base-300 rounded-b-lg"
 			>
-				<div class="grid grid-cols-[60px_repeat(7,1fr)] gap-px bg-base-300">
+				<div class="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] gap-px bg-base-300">
 					{#each visibleHours as hour}
 						{@const hasEvents = hasEventsAtHour(weekDays, hour)}
 						{@const rowHeight = hasEvents ? 'min-h-16' : 'min-h-8'}
