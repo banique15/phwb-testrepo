@@ -37,7 +37,7 @@ export const payrollSchema = z.object({
 	// Source tracking fields
 	created_by: z.string().max(50, 'Created by must be less than 50 characters').optional(),
 	creation_method: z.enum(['manual', 'event-automation']).optional(),
-	source_event_id: z.string().uuid('Invalid event ID').optional(),
+	source_event_id: z.number().optional(), // References phwb_events.id (number type)
 })
 
 export const createPayrollSchema = payrollSchema.omit({
