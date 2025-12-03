@@ -1,7 +1,13 @@
 <!doctype html>
-<html lang="en" data-theme="sfh">
+<html lang="en">
 	<head>
 		<meta charset="utf-8" />
+		<script>
+			(function() {
+				const theme = localStorage.getItem('phwb-theme');
+				document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'sfh');
+			})();
+		</script>
 		<title>Public Health & Wellbeing</title>
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
