@@ -16,6 +16,7 @@
 	import CalendarView from './components/CalendarView.svelte'
 	import EventHeaderCard from './components/EventHeaderCard.svelte'
 	import EventTabs from './components/EventTabs.svelte'
+	import EventCreateForm from './components/EventCreateForm.svelte'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
 	import { Calendar } from 'lucide-svelte'
