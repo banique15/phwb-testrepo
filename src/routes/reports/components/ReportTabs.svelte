@@ -63,17 +63,9 @@
 		{:else if activeTab === 'monthly-payroll'}
 			<MonthlyPayrollReport />
 		{:else if activeTab === 'performance-summary'}
-			<div class="text-center py-12">
-				<Theater class="w-16 h-16 mx-auto text-base-content/70" />
-				<p class="mt-4 text-lg">Performance Summary Report</p>
-				<p class="text-sm opacity-60">Coming soon - Database schema for programs relation needs to be designed</p>
-			</div>
+			<PerformanceSummaryReport />
 		{:else if activeTab === 'financial-overview'}
-			<div class="text-center py-12">
-				<DollarSign class="w-16 h-16 mx-auto text-base-content/70" />
-				<p class="mt-4 text-lg">Financial Overview Report</p>
-				<p class="text-sm opacity-60">Coming soon - Revenue, expenses, and profit analysis</p>
-			</div>
+			<FinancialOverviewReport />
 		{/if}
 	</div>
 </div>
