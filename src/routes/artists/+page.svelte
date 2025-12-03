@@ -123,6 +123,26 @@
 			result = result.filter(artist => artist.id && artistsWithEnsembles.has(artist.id))
 		}
 
+		// Apply sorting
+		result = result.sort((a, b) => {
+			switch (sortBy) {
+				case 'name-asc':
+					return (a.full_name || a.artist_name || '').localeCompare(b.full_name || b.artist_name || '')
+				case 'name-desc':
+					return (b.full_name || b.artist_name || '').localeCompare(a.full_name || a.artist_name || '')
+				case 'first-name-asc':
+					return (a.legal_first_name || a.full_name || '').localeCompare(b.legal_first_name || b.full_name || '')
+				case 'last-name-asc':
+					return (a.legal_last_name || '').localeCompare(b.legal_last_name || '')
+				case 'artist-name-asc':
+					return (a.artist_name || a.full_name || '').localeCompare(b.artist_name || b.full_name || '')
+				case 'recent':
+					return (b.created_at || '').localeCompare(a.created_at || '')
+				default:
+					return 0
+			}
+		})
+
 		return result
 	})
 
