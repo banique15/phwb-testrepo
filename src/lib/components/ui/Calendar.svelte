@@ -381,9 +381,9 @@
 				<div class="bg-base-200 p-2"></div>
 				{#each weekDays as day, i}
 					{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
-					<div class="bg-base-200 p-2 text-center">
+					<div class="bg-base-200 p-2 text-center {isCurrentDay ? 'bg-base-300/50' : ''}">
 						<div class="text-xs font-semibold text-base-content/70">{daysOfWeek[i]}</div>
-						<div class="text-lg font-bold {isCurrentDay ? 'bg-primary text-primary-content rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}">{day.getDate()}</div>
+						<div class="text-lg font-bold {isCurrentDay ? 'text-primary' : ''}">{day.getDate()}</div>
 					</div>
 				{/each}
 			</div>
