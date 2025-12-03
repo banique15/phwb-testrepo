@@ -473,7 +473,8 @@
 														canBeSoloist: null,
 														sightReads: null,
 														hideIncomplete: false,
-														hasEnsemble: false
+														hasEnsemble: false,
+														employmentStatus: null
 													}
 												}}
 											>
