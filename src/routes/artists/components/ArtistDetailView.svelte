@@ -482,6 +482,123 @@
 				</div>
 			</div>
 
+			<!-- Employment Information Section -->
+			<div class="space-y-4">
+				<h3 class="text-lg font-semibold border-b border-base-300 pb-2">Employment Information</h3>
+
+				<div class="grid grid-cols-2 gap-4">
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Position Status</span>
+						</label>
+						{#if isEditing}
+							<select
+								class="select select-sm select-bordered"
+								bind:value={editData.position_status}
+							>
+								<option value="">Select status</option>
+								<option value="active">Active</option>
+								<option value="terminated">Terminated</option>
+								<option value="on_leave">On Leave</option>
+							</select>
+						{:else}
+							<p class="text-sm">
+								{#if artist.position_status === 'active'}
+									<span class="badge badge-success badge-sm">Active</span>
+								{:else if artist.position_status === 'terminated'}
+									<span class="badge badge-error badge-sm">Terminated</span>
+								{:else if artist.position_status === 'on_leave'}
+									<span class="badge badge-warning badge-sm">On Leave</span>
+								{:else}
+									-
+								{/if}
+							</p>
+						{/if}
+					</div>
+
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Job Title</span>
+						</label>
+						{#if isEditing}
+							<input
+								type="text"
+								class="input input-sm input-bordered"
+								bind:value={editData.job_title}
+							/>
+						{:else}
+							<p class="text-sm">{artist.job_title || '-'}</p>
+						{/if}
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 gap-4">
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Hire Date</span>
+						</label>
+						{#if isEditing}
+							<input
+								type="date"
+								class="input input-sm input-bordered"
+								bind:value={editData.hire_date}
+							/>
+						{:else}
+							<p class="text-sm">{formatDate(artist.hire_date)}</p>
+						{/if}
+					</div>
+
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Termination Date</span>
+						</label>
+						{#if isEditing}
+							<input
+								type="date"
+								class="input input-sm input-bordered"
+								bind:value={editData.termination_date}
+							/>
+						{:else}
+							<p class="text-sm">{formatDate(artist.termination_date)}</p>
+						{/if}
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 gap-4">
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Associate ID</span>
+						</label>
+						<p class="text-sm font-mono text-base-content/70">{artist.associate_id || '-'}</p>
+					</div>
+
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Worker Category</span>
+						</label>
+						<p class="text-sm">{artist.worker_category || '-'}</p>
+					</div>
+				</div>
+
+				{#if artist.llc_name}
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">LLC / Company Name</span>
+						</label>
+						<p class="text-sm">{artist.llc_name}</p>
+					</div>
+				{/if}
+
+				{#if artist.ensembles_text}
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-xs font-semibold">Ensembles</span>
+						</label>
+						<p class="text-sm">{artist.ensembles_text}</p>
+					</div>
+				{/if}
+			</div>
+
 			<!-- Bio Section -->
 			<div class="space-y-4">
 				<h3 class="text-lg font-semibold border-b border-base-300 pb-2">Biography</h3>
