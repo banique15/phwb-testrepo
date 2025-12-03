@@ -261,10 +261,10 @@
 						{/if}
 						<div class="flex-1 min-w-0 text-left">
 							<div class="text-sm font-medium truncate">
-								{$authStore.email}
+								{profile?.full_name || $authStore.email}
 							</div>
 							<div class="text-xs text-base-content/60 truncate">
-								Admin
+								{profile?.full_name ? $authStore.email : 'Admin'}
 							</div>
 						</div>
 						<svg
