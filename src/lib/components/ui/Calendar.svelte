@@ -636,23 +636,21 @@
 		{/if}
 
 		<!-- Legend - Programs -->
-		{#if uniquePrograms.length > 0}
+		{#if uniquePrograms.length > 0 || hasEventsWithoutProgram}
 			<div class="flex flex-wrap gap-3 mt-4 text-xs">
-				<span class="text-base-content/50 font-medium">Programs:</span>
+				<span class="text-base-content/50 font-medium">Legend:</span>
 				{#each uniquePrograms as program}
 					<div class="flex items-center gap-1">
 						<div class="w-3 h-3 rounded {program.color.bg}"></div>
 						<span>{program.name}</span>
 					</div>
 				{/each}
-				<div class="flex items-center gap-1">
-					<div class="w-3 h-3 rounded bg-blue-500"></div>
-					<span class="text-base-content/50">No Program</span>
-				</div>
-			</div>
-		{:else}
-			<div class="flex flex-wrap gap-3 mt-4 text-xs text-base-content/50">
-				<span>No events with programs in this period</span>
+				{#if hasEventsWithoutProgram}
+					<div class="flex items-center gap-1">
+						<div class="w-3 h-3 rounded bg-blue-500"></div>
+						<span class="text-base-content/50">No Program</span>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
