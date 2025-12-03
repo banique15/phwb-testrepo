@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Lightbulb } from 'lucide-svelte'
+	import { Lightbulb, HelpCircle } from 'lucide-svelte'
 	import { eventsStore } from '$lib/stores/events'
 	import { venuesStore } from '$lib/stores/venues'
 	import { artistsStore } from '$lib/stores/artists'
@@ -8,6 +8,8 @@
 	import type { Artist } from '$lib/schemas/artist'
 	import { supabase } from '$lib/supabase'
 	import type { EnhancedEvent } from '$lib/stores/events'
+	import 'driver.js/dist/driver.css'
+	import { startCreateEventTour } from '$lib/tours/createEventTour'
 
 	interface Props {
 		open?: boolean
