@@ -556,6 +556,7 @@
 												event={selectedEvent}
 												artistsCount={eventArtistsCount}
 												onUpdateField={updateEventField}
+												onArtistCountClick={handleArtistCountClick}
 											/>
 
 											<!-- Tabs Section -->
@@ -563,6 +564,7 @@
 												event={selectedEvent}
 												onUpdateField={updateEventField}
 												onDelete={openDeleteModal}
+												{externalActiveTab}
 											/>
 										</div>
 									</div>
