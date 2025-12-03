@@ -240,10 +240,9 @@
 		fullEventDetails = null
 
 		try {
-			const details = await eventsStore.getById(event.id)
+			const details = await eventsStore.enhanced.getById(event.id)
 			if (details) {
-				const enhanced = eventsStore.enhanceEvents([details])
-				fullEventDetails = enhanced[0]
+				fullEventDetails = details
 			}
 		} catch (err) {
 			console.error('Failed to load event details:', err)
