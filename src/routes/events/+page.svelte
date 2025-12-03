@@ -362,7 +362,7 @@
 				case 'title-desc':
 					return (b.title || '').localeCompare(a.title || '')
 				case 'updated':
-					return (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || '')
+					return (b.created_at || '').localeCompare(a.created_at || '')
 				case 'status':
 					const statusOrder = ['in_progress', 'confirmed', 'planned', 'completed', 'cancelled']
 					const aIndex = statusOrder.indexOf(a.status || '')
