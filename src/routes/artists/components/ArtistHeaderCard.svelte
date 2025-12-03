@@ -403,53 +403,69 @@
 
 			<!-- Right Side: Profile Photo (1 column on large screens) -->
 			<div class="lg:col-span-1">
+				<input
+					bind:this={fileInput}
+					type="file"
+					accept="image/jpeg,image/png,image/webp,image/gif"
+					class="hidden"
+					onchange={handleFileSelect}
+				/>
 				<div class="space-y-1.5">
 					{#if artist.profile_photo}
 						{#key `${artist.id}-${artist.profile_photo}`}
 							<div class="rounded-lg overflow-hidden border border-base-300 relative group">
-								<img 
-									src={artist.profile_photo} 
-									alt={getDisplayName()} 
+								<img
+									src={artist.profile_photo}
+									alt={getDisplayName()}
 									class="w-full h-auto object-cover max-h-32"
 									onerror={(e) => {
 										(e.target as HTMLImageElement).style.display = 'none'
 									}}
 								/>
-								{#if !isEditingProfilePhotoUrl}
-									<div class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-										<button
-											type="button"
-											class="btn btn-xs btn-ghost bg-base-100/80 backdrop-blur-sm"
-											onclick={() => isEditingProfilePhotoUrl = true}
-											title="Edit profile photo URL"
-										>
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-											</svg>
-										</button>
-									</div>
-								{/if}
+								<div class="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<button
+										type="button"
+										class="btn btn-xs btn-ghost bg-base-100/80 backdrop-blur-sm"
+										onclick={() => fileInput?.click()}
+										title="Upload new photo"
+									>
+										<Upload class="h-3 w-3" />
+									</button>
+									<button
+										type="button"
+										class="btn btn-xs btn-ghost bg-base-100/80 backdrop-blur-sm text-error"
+										onclick={removeProfilePhoto}
+										title="Remove photo"
+									>
+										<X class="h-3 w-3" />
+									</button>
+								</div>
 							</div>
 						{/key}
 					{:else}
-						<div class="rounded-lg border-2 border-dashed border-base-300 bg-base-200 flex items-center justify-center h-24">
-							<div class="text-center text-base-content/50">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-							</div>
+						<!-- Upload area when no photo -->
+						<div
+							class="rounded-lg border-2 border-dashed bg-base-200 flex items-center justify-center h-28 cursor-pointer transition-colors {dragOver ? 'border-primary bg-primary/5' : 'border-base-300 hover:border-primary/50'}"
+							ondragover={handleDragOver}
+							ondragleave={handleDragLeave}
+							ondrop={handleDrop}
+							role="button"
+							tabindex="0"
+							onclick={() => fileInput?.click()}
+							onkeydown={(e) => e.key === 'Enter' && fileInput?.click()}
+						>
+							{#if uploadingPhoto}
+								<div class="text-center">
+									<Loader2 class="h-6 w-6 mx-auto animate-spin text-primary" />
+									<p class="text-xs mt-1">Uploading...</p>
+								</div>
+							{:else}
+								<div class="text-center text-base-content/50">
+									<Upload class="h-6 w-6 mx-auto" />
+									<p class="text-xs mt-1">Click or drag to upload</p>
+								</div>
+							{/if}
 						</div>
-					{/if}
-					{#if !artist.profile_photo || isEditingProfilePhotoUrl}
-						<InlineEditableField
-							value={artist.profile_photo}
-							field="profile_photo"
-							type="url"
-							placeholder="Enter image URL"
-							label="Profile Photo URL"
-							onSave={handleProfilePhotoUrlSave}
-							onCancel={() => isEditingProfilePhotoUrl = false}
-						/>
 					{/if}
 				</div>
 			</div>
