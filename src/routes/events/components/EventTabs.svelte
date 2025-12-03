@@ -105,6 +105,15 @@
 					<p class="text-base opacity-70">No performers assigned</p>
 				{/if}
 			</div>
+		{:else if activeTab === 'payroll'}
+			<div class="space-y-4">
+				<h3 class="text-lg font-semibold border-b pb-2">Linked Payroll</h3>
+				{#if event.id}
+					<EventPayrollLink eventId={event.id} />
+				{:else}
+					<p class="text-base opacity-70">Save the event to view linked payroll</p>
+				{/if}
+			</div>
 		{:else if activeTab === 'notes'}
 			<div class="space-y-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Notes</h3>
