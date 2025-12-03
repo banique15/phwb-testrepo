@@ -1,19 +1,49 @@
-import { browser } from '$app/environment'
+import { browser } from '$app/environment';
 
-// Single theme configuration for Sing for Hope
-const SFH_THEME = 'sfh'
+type Theme = 'sfh' | 'dark';
 
-// Initialize theme on app load
-if (browser) {
-	// Clear any old theme data from localStorage
-	localStorage.removeItem('phwb-theme')
-	
-	// Force apply the sfh theme
-	document.documentElement.setAttribute('data-theme', SFH_THEME)
-	
-	// Also remove any old theme classes that might be lingering
-	document.documentElement.className = document.documentElement.className
-		.split(' ')
-		.filter(cls => !cls.includes('theme-') && !cls.includes('dark') && !cls.includes('light'))
-		.join(' ')
+const STORAGE_KEY = 'phwb-theme';
+const DEFAULT_THEME: Theme = 'sfh';
+
+function createThemeStore() {
+	let theme = $state<Theme>(DEFAULT_THEME);
+
+	function applyTheme(newTheme: Theme) {
+		if (browser) {
+			document.documentElement.setAttribute('data-theme', newTheme);
+			localStorage.setItem(STORAGE_KEY, newTheme);
+		}
+		theme = newTheme;
+	}
+
+	function initialize() {
+		if (browser) {
+			const saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
+			const initialTheme = saved === 'dark' ? 'dark' : DEFAULT_THEME;
+			applyTheme(initialTheme);
+		}
+	}
+
+	function toggle() {
+		const newTheme: Theme = theme === 'sfh' ? 'dark' : 'sfh';
+		applyTheme(newTheme);
+	}
+
+	function setTheme(newTheme: Theme) {
+		applyTheme(newTheme);
+	}
+
+	return {
+		get theme() {
+			return theme;
+		},
+		get isDark() {
+			return theme === 'dark';
+		},
+		initialize,
+		toggle,
+		setTheme
+	};
 }
+
+export const themeStore = createThemeStore();
