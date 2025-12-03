@@ -134,6 +134,22 @@
 		}
 	}
 
+	async function loadPrograms() {
+		try {
+			const { data, error: supabaseError } = await supabase
+				.from('phwb_programs')
+				.select('*')
+				.order('title')
+
+			if (supabaseError) throw supabaseError
+			programs = data || []
+		} catch (err) {
+			console.error('Failed to load programs:', err)
+		} finally {
+			loadingPrograms = false
+		}
+	}
+
 	let filteredVenues = $derived.by(() => {
 		if (!venueSearchTerm.trim()) return venues
 		const searchLower = venueSearchTerm.toLowerCase()
