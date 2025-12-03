@@ -340,6 +340,9 @@
 		return result
 	})
 
+	// Derive selected events from filtered events (must be after filteredEvents is defined)
+	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
+
 	// Recalculate statistics based on filtered events
 	let filteredStatistics = $derived.by(() => {
 		return {
