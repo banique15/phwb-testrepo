@@ -473,7 +473,15 @@
 	function handleCreateFormCancel() {
 		showCreateForm = false
 	}
-	
+
+	function handleArtistCountClick() {
+		// Switch to performers tab - need to use a unique value to trigger the effect
+		externalActiveTab = null
+		setTimeout(() => {
+			externalActiveTab = 'performers'
+		}, 0)
+	}
+
 	// Real-time subscription management
 	let realtimeSubscription: any
 
