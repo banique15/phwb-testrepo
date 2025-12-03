@@ -122,6 +122,7 @@
 	}
 
 	async function handleSelectEvent(event: CustomEvent<{ item: EnhancedEvent }>) {
+		showCreateForm = false
 		await selectEvent(event.detail.item)
 	}
 
