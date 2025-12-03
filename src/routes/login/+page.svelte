@@ -51,7 +51,7 @@
 				{isSignUp ? 'Sign Up' : 'Sign In'}
 			</h2>
 			
-			<form on:submit|preventDefault={handleSubmit} class="space-y-4">
+			<form onsubmit={(e) => { e.preventDefault(); handleSubmit() }} class="space-y-4">
 				<div class="form-control">
 					<label class="label" for="email">
 						<span class="label-text">Email</span>
