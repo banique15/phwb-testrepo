@@ -767,3 +767,11 @@
 		/>
 	{/await}
 {/if}
+
+<!-- Bulk Actions Toolbar -->
+<EventsBulkActions
+	selectedCount={selectedEventIds.size}
+	{selectedEvents}
+	onClearSelection={clearSelection}
+	on:bulkAction={handleBulkAction}
+/>
