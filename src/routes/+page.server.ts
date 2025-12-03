@@ -42,18 +42,30 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 		return count || 0
 	}
 
+	// Get date range for calendar (3 months before and after)
+	const today = new Date()
+	const startDate = new Date(today.getFullYear(), today.getMonth() - 2, 1).toISOString().split('T')[0]
+	const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0).toISOString().split('T')[0]
+
 	try {
-		const [artists, events, partners, facilities, locations, profileResult] = await Promise.all([
+		const [artists, events, partners, facilities, locations, profileResult, eventsResult] = await Promise.all([
 			fetchCount('phwb_artists'),
 			fetchCount('phwb_events'),
 			fetchCount('phwb_partners'),
 			fetchCount('phwb_facilities'),
 			fetchCount('phwb_locations'),
-			supabase.from('profiles').select('full_name').eq('id', locals.session.user.id).single()
+			supabase.from('profiles').select('full_name').eq('id', locals.session.user.id).single(),
+			supabase
+				.from('phwb_events')
+				.select('id, title, date, start_time, end_time, status')
+				.gte('date', startDate)
+				.lte('date', endDate)
+				.order('date', { ascending: true })
 		])
 
 		const stats: DashboardStats = { artists, events, partners, facilities, locations }
 		const firstName = profileResult.data?.full_name?.split(' ')[0] || null
+		const calendarEvents: CalendarEvent[] = eventsResult.data || []
 		const totalTime = performance.now() - startTime
 
 		setHeaders({
@@ -61,7 +73,7 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 			'X-Data-Source': 'dashboard'
 		})
 
-		return { stats, firstName }
+		return { stats, firstName, calendarEvents }
 	} catch (err) {
 		const totalTime = performance.now() - startTime
 		console.error('Dashboard load error:', err)
