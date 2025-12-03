@@ -84,11 +84,11 @@
 	}
 
 	function getEventsForDate(date: string): CalendarEvent[] {
-		return events.filter(e => e.date === date)
+		return allEvents.filter(e => e.date === date)
 	}
 
 	function getEventsForDateAndHour(date: string, hour: number): CalendarEvent[] {
-		return events.filter(e => {
+		return allEvents.filter(e => {
 			if (e.date !== date) return false
 			if (!e.start_time) return hour === 9
 			const eventHour = parseInt(e.start_time.split(':')[0])
