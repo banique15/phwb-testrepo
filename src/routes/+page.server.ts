@@ -34,15 +34,17 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 	}
 
 	try {
-		const [artists, events, partners, facilities, locations] = await Promise.all([
+		const [artists, events, partners, facilities, locations, profileResult] = await Promise.all([
 			fetchCount('phwb_artists'),
 			fetchCount('phwb_events'),
 			fetchCount('phwb_partners'),
 			fetchCount('phwb_facilities'),
-			fetchCount('phwb_locations')
+			fetchCount('phwb_locations'),
+			supabase.from('profiles').select('full_name').eq('id', locals.session.user.id).single()
 		])
 
 		const stats: DashboardStats = { artists, events, partners, facilities, locations }
+		const firstName = profileResult.data?.full_name?.split(' ')[0] || null
 		const totalTime = performance.now() - startTime
 
 		setHeaders({
@@ -50,7 +52,7 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 			'X-Data-Source': 'dashboard'
 		})
 
-		return { stats }
+		return { stats, firstName }
 	} catch (err) {
 		const totalTime = performance.now() - startTime
 		console.error('Dashboard load error:', err)
