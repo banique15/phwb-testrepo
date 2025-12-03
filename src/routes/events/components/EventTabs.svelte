@@ -21,6 +21,7 @@
 		{ id: 'schedule', label: 'Schedule', icon: Calendar },
 		{ id: 'requirements', label: 'Requirements', icon: ClipboardList },
 		{ id: 'performers', label: 'Performers', icon: Theater },
+		{ id: 'payroll', label: 'Payroll', icon: DollarSign },
 		{ id: 'notes', label: 'Notes', icon: FileText },
 		{ id: 'history', label: 'History', icon: ScrollText },
 		{ id: 'settings', label: 'Settings', icon: Settings }
