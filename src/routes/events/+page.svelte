@@ -190,6 +190,64 @@
 		})
 	}
 
+	function formatDateWithRelative(dateStr: string | undefined): string {
+		if (!dateStr) return 'No date specified'
+
+		const date = new Date(dateStr)
+		const today = new Date()
+		today.setHours(0, 0, 0, 0)
+		date.setHours(0, 0, 0, 0)
+
+		// Format date as "Dec 3, 2025"
+		const formattedDate = date.toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		})
+
+		// Calculate difference in days
+		const diffTime = date.getTime() - today.getTime()
+		const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+		let relativeText: string
+
+		if (diffDays === 0) {
+			relativeText = 'Today'
+		} else if (diffDays === 1) {
+			relativeText = 'Tomorrow'
+		} else if (diffDays === -1) {
+			relativeText = 'Yesterday'
+		} else if (diffDays > 1 && diffDays <= 7) {
+			relativeText = `In ${diffDays} days`
+		} else if (diffDays > 7 && diffDays <= 14) {
+			relativeText = 'Next week'
+		} else if (diffDays > 14 && diffDays <= 30) {
+			relativeText = `In ${Math.round(diffDays / 7)} weeks`
+		} else if (diffDays > 30 && diffDays <= 60) {
+			relativeText = 'Next month'
+		} else if (diffDays > 60 && diffDays <= 365) {
+			const months = Math.round(diffDays / 30)
+			relativeText = `In ${months} months`
+		} else if (diffDays > 365) {
+			relativeText = 'Over a year away'
+		} else if (diffDays < -1 && diffDays >= -7) {
+			relativeText = `${Math.abs(diffDays)} days ago`
+		} else if (diffDays < -7 && diffDays >= -14) {
+			relativeText = 'Last week'
+		} else if (diffDays < -14 && diffDays >= -30) {
+			relativeText = `${Math.round(Math.abs(diffDays) / 7)} weeks ago`
+		} else if (diffDays < -30 && diffDays >= -60) {
+			relativeText = 'Last month'
+		} else if (diffDays < -60 && diffDays >= -365) {
+			const months = Math.round(Math.abs(diffDays) / 30)
+			relativeText = `${months} months ago`
+		} else {
+			relativeText = 'Over a year ago'
+		}
+
+		return `${formattedDate} · ${relativeText}`
+	}
+
 	function formatTime(timeStr: string | undefined) {
 		if (!timeStr) return 'Not specified'
 		return timeStr.slice(0, 5) // Remove seconds
