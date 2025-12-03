@@ -88,32 +88,47 @@
 			let totalHours = 0
 			let totalRecords = 0
 			
+			let totalLinkedRecords = 0
+			let totalUnlinkedRecords = 0
+
 			data?.forEach(record => {
 				const artistId = record.artist_id || 'unknown'
-				const artist = record.artists || { 
-					id: artistId, 
+				const artist = record.artists || {
+					id: artistId,
 					full_name: 'Unknown Artist',
 					legal_first_name: '',
 					legal_last_name: '',
 					email: ''
 				}
-				
+
 				if (!artistGroups.has(artistId)) {
 					artistGroups.set(artistId, {
 						artist,
 						records: [],
 						totalHours: 0,
 						totalPay: 0,
-						recordCount: 0
+						recordCount: 0,
+						linkedToEvents: 0,
+						unlinkedRecords: 0
 					})
 				}
-				
+
 				const group = artistGroups.get(artistId)!
 				group.records.push(record)
 				group.totalHours += record.hours || 0
 				group.totalPay += record.total_pay || (record.hours || 0) * (record.rate || 0) + (record.additional_pay || 0)
 				group.recordCount++
-				
+
+				// Track event linkage
+				const isLinked = record.event_id || record.source_event_id
+				if (isLinked) {
+					group.linkedToEvents++
+					totalLinkedRecords++
+				} else {
+					group.unlinkedRecords++
+					totalUnlinkedRecords++
+				}
+
 				totalPayroll += group.totalPay
 				totalHours += record.hours || 0
 				totalRecords++
