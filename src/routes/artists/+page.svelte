@@ -62,8 +62,13 @@
 	// Track event counts per artist
 	let artistEventCounts = $state<Map<string, { upcoming: number; past: number; total: number }>>(new Map())
 
-	// Use derived state to avoid infinite loops
-	let artists = $derived(data.artists)
+	// Reactive artists list - initialized from server data, updated via realtime
+	let artists = $state<Artist[]>(data.artists)
+
+	// Keep artists in sync with server data on navigation
+	$effect(() => {
+		artists = data.artists
+	})
 
 	// Filter artists based on search and filters
 	let filteredArtists = $derived.by(() => {
