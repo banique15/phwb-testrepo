@@ -28,7 +28,7 @@
 					<div>
 						<h1 class="text-xl sm:text-2xl font-bold text-base-content leading-tight">Dashboard</h1>
 						<p class="text-sm text-base-content/60">
-							Welcome back, <span class="font-medium">{$authStore?.email}</span>
+							Welcome back{#if data.firstName}, <span class="font-medium">{data.firstName}</span>{/if}
 						</p>
 					</div>
 					<div class="text-xs sm:text-sm text-base-content/50">
