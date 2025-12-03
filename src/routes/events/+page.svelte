@@ -132,7 +132,7 @@
 	}
 
 	function getEventSubtitle(item: any): string {
-		return formatDate(item.date)
+		return formatDateWithRelative(item.date)
 	}
 
 	function getEventDetail(item: any): string {
