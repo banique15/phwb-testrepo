@@ -729,22 +729,67 @@
 					</div>
 				{/if}
 
-				<!-- Artists Section -->
+				<!-- Assigned Artists Section -->
 				{#if fullEventDetails.artist_assignments && fullEventDetails.artist_assignments.length > 0}
 					<div class="card bg-base-200/50 mb-4">
 						<div class="card-body p-4">
 							<h4 class="font-semibold text-sm text-base-content/70 mb-3">
 								Assigned Artists ({fullEventDetails.artist_assignments.length})
 							</h4>
-							<div class="space-y-2">
-								{#each fullEventDetails.artist_assignments as artist}
-									<div class="flex items-center gap-2 p-2 bg-base-100 rounded-lg">
-										<div class="avatar placeholder">
-											<div class="bg-primary text-primary-content rounded-full w-8">
-												<span class="text-xs">{(artist.artist_name || 'A').charAt(0)}</span>
+							<div class="space-y-3">
+								{#each fullEventDetails.artist_assignments as artist, i}
+									{@const artistData = fullEventDetails.artist_details?.[i] || enhancedLookup.getArtist(artist.artist_id)}
+									<div class="bg-base-100 rounded-lg p-3">
+										<div class="flex items-start gap-3">
+											<!-- Profile Photo -->
+											<div class="avatar flex-shrink-0">
+												<div class="w-12 h-12 rounded-full">
+													{#if artistData?.profile_photo}
+														<img src={artistData.profile_photo} alt={artist.artist_name} class="object-cover" />
+													{:else}
+														<div class="bg-primary text-primary-content w-full h-full flex items-center justify-center">
+															<span class="text-lg font-semibold">{getArtistInitials(artist.artist_name || 'A')}</span>
+														</div>
+													{/if}
+												</div>
+											</div>
+
+											<!-- Artist Info -->
+											<div class="flex-1 min-w-0">
+												<div class="font-semibold">{artist.artist_name || 'Unknown Artist'}</div>
+												{#if artist.role && artist.role !== 'performer'}
+													<div class="text-xs text-base-content/60 capitalize">{artist.role}</div>
+												{/if}
+
+												<!-- Contact Actions -->
+												{#if artistData?.phone || artistData?.email}
+													<div class="flex flex-wrap gap-1 mt-2">
+														{#if artistData.phone}
+															<button
+																class="btn btn-xs btn-ghost gap-1"
+																onclick={() => copyToClipboard(artistData.phone!, 'Phone')}
+															>
+																<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+																</svg>
+																Copy Phone
+															</button>
+														{/if}
+														{#if artistData.email}
+															<button
+																class="btn btn-xs btn-ghost gap-1"
+																onclick={() => copyToClipboard(artistData.email!, 'Email')}
+															>
+																<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+																</svg>
+																Copy Email
+															</button>
+														{/if}
+													</div>
+												{/if}
 											</div>
 										</div>
-										<span class="text-sm font-medium">{artist.artist_name || 'Unknown Artist'}</span>
 									</div>
 								{/each}
 							</div>
