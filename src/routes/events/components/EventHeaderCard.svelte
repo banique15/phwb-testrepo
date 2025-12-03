@@ -8,12 +8,14 @@
 		event: EnhancedEvent
 		artistsCount?: number
 		onUpdateField: (field: string, value: any) => Promise<void>
+		onArtistCountClick?: () => void
 	}
 
 	let {
 		event,
 		artistsCount = 0,
-		onUpdateField
+		onUpdateField,
+		onArtistCountClick
 	}: Props = $props()
 
 	function formatDate(dateStr: string | undefined) {
