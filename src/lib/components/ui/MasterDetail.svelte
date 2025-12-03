@@ -294,17 +294,22 @@
 									tabindex="0"
 									onkeydown={(e) => e.key === 'Enter' && handleSelect(item)}
 								>
-									<div class="font-medium text-sm truncate">
-										{getItemTitle(item)}
+									<div class="flex items-start justify-between gap-2">
+										<div class="font-medium text-sm truncate flex-1 min-w-0">
+											{getItemTitle(item)}
+										</div>
+										{#if getItemDetail}
+											{@const detail = getItemDetail(item)}
+											{#if detail}
+												<div class="badge badge-sm flex-none" class:badge-outline={selectedItem?.id !== item.id} class:badge-primary={selectedItem?.id === item.id}>
+													{detail}
+												</div>
+											{/if}
+										{/if}
 									</div>
 									{#if getItemSubtitle}
 										<div class="text-xs mt-1 truncate" class:opacity-70={selectedItem?.id !== item.id} class:opacity-90={selectedItem?.id === item.id}>
 											{getItemSubtitle(item)}
-										</div>
-									{/if}
-									{#if getItemDetail}
-										<div class="text-xs mt-1 line-clamp-2" class:opacity-50={selectedItem?.id !== item.id} class:opacity-75={selectedItem?.id === item.id}>
-											{getItemDetail(item)}
 										</div>
 									{/if}
 								</div>
