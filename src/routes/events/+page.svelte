@@ -38,6 +38,7 @@
 
 	// Modal states
 	let showCreateModal = $state(false)
+	let showCreateForm = $state(false)
 	let showEditModal = $state(false)
 	let showDeleteModal = $state(false)
 	
