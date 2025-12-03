@@ -613,8 +613,9 @@
 							>
 								{#each hourEvents as event}
 									<button
-										class="event-item block w-full text-left text-xs p-1.5 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5 {blinkingEventId === event.id ? 'animate-blink' : ''}"
+										class="event-item block w-full text-left text-xs p-1.5 rounded {getProgramColor(event.program_id)} hover:opacity-80 transition-opacity mb-0.5 {blinkingEventId === event.id ? 'animate-blink' : ''}"
 										onclick={(e) => handleEventClick(event, e)}
+										title="{event.program_name || 'No program'}"
 									>
 										{#if event.start_time}
 											<div class="text-[10px] opacity-80">{formatTime(event.start_time)}{#if event.end_time} - {formatTime(event.end_time)}{/if}</div>
