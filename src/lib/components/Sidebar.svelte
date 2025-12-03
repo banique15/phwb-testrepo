@@ -262,6 +262,9 @@
 						</li>
 						<li><hr class="my-1" /></li>
 						<li>
+							<a href="/account" onclick={handleNavClick}>Account Settings</a>
+						</li>
+						<li>
 							<button onclick={() => themeStore.toggle()}>
 								{themeStore.isDark ? 'Light Mode' : 'Dark Mode'}
 							</button>
