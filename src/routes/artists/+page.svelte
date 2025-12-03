@@ -216,6 +216,9 @@
 		// Load ensemble membership data for filtering
 		loadArtistsWithEnsembles()
 
+		// Load event counts for all artists
+		loadArtistEventCounts()
+
 		// Restore selected artist from localStorage on initial client-side mount
 		const artistStorageKey = 'phwb-selected-artist'
 		const savedArtistId = localStorage.getItem(artistStorageKey)
