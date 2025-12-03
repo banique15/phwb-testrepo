@@ -329,7 +329,9 @@
 				date: createdEvent.date || '',
 				start_time: createdEvent.start_time || null,
 				end_time: createdEvent.end_time || null,
-				status: createdEvent.status || 'planned'
+				status: createdEvent.status || 'planned',
+				program_id: createdEvent.program_id || null,
+				program_name: createdEvent.program_name || null
 			}
 			localEvents = [newCalendarEvent, ...localEvents]
 
