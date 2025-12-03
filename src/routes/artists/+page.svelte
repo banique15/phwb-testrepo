@@ -313,17 +313,23 @@
 		searchQuery = event.detail.value
 	}
 
-	function openCreateModal() {
-		isCreateArtistModalOpen = true
+	function openCreateForm() {
+		selectedArtist = null
+		showCreateForm = true
 	}
 
-	async function handleArtistCreated(event: CustomEvent<{ artist: any }>) {
-		selectedArtist = event.detail.artist
-		isCreateArtistModalOpen = false
-		if (selectedArtist?.id) {
-			await loadArtistEventsCount(selectedArtist.id)
+	async function handleCreateFormSuccess(artist: Artist) {
+		showCreateForm = false
+		selectedArtist = artist
+		if (artist?.id) {
+			await loadArtistEventsCount(artist.id)
 		}
-		console.log('Artist created successfully:', event.detail.artist.full_name)
+		// Refresh the list to include the new artist
+		await invalidateAll()
+	}
+
+	function handleCreateFormCancel() {
+		showCreateForm = false
 	}
 
 	async function handleDeleteArtist() {
