@@ -70,12 +70,16 @@
 	let programs = $derived(data.lookupData?.programs || [])
 	let partners = $derived(data.lookupData?.partners || [])
 
-	// Watch for store changes to restore selection
+	// Restore selection from localStorage on mount (only once)
+	let hasRestoredSelection = $state(false)
+
 	$effect(() => {
-		if (browser && events.length > 0) {
+		// Only run once when we have events and haven't restored yet
+		if (browser && !hasRestoredSelection && data.events && data.events.length > 0) {
+			hasRestoredSelection = true
 			const savedId = localStorage.getItem(STORAGE_KEY)
 			if (savedId && !selectedEvent) {
-				const savedEvent = events.find((e: EnhancedEvent) => e.id === Number(savedId))
+				const savedEvent = data.events.find((e: EnhancedEvent) => e.id === Number(savedId))
 				if (savedEvent) {
 					selectedEvent = savedEvent
 				}
