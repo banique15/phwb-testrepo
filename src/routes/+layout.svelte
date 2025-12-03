@@ -4,6 +4,7 @@
 	import { authStore } from '$lib/auth';
 	import { page } from '$app/stores';
 	import { sidebarStore } from '$lib/stores/sidebar';
+	import { themeStore } from '$lib/stores/theme';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import ErrorDisplay from '$lib/components/ui/ErrorDisplay.svelte';
@@ -13,6 +14,7 @@
 
 	onMount(() => {
 		authStore.initialize();
+		themeStore.initialize();
 	});
 
 	const isLoginPage = $derived($page.url.pathname === '/login');
