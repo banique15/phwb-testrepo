@@ -430,6 +430,19 @@
 			</div>
 		</div>
 		
+		<!-- Event Linkage Info -->
+		{#if summary.unlinkedRecords > 0}
+			<div class="alert alert-info">
+				<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				<span>
+					<strong>Event Linkage:</strong> {summary.linkedRecords} records linked to events, {summary.unlinkedRecords} unlinked.
+					Linked records can be traced back to specific events for detailed analysis.
+				</span>
+			</div>
+		{/if}
+
 		<!-- Report Table -->
 		<div class="card bg-base-100 border border-base-300">
 			<div class="card-body p-0">
@@ -437,12 +450,13 @@
 					<table class="table table-zebra">
 						<thead>
 							<tr>
-								<th class="w-1/4">Artist Name</th>
-								<th class="w-1/4">Email</th>
-								<th class="w-1/8">Total Hours</th>
-								<th class="w-1/8">Total Pay</th>
-								<th class="w-1/8">Records</th>
-								<th class="w-1/8">Avg per Record</th>
+								<th>Artist Name</th>
+								<th>Email</th>
+								<th>Total Hours</th>
+								<th>Total Pay</th>
+								<th>Records</th>
+								<th>Event Linked</th>
+								<th>Avg per Record</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -467,6 +481,15 @@
 									</td>
 									<td>
 										<div class="badge badge-outline">{item.recordCount}</div>
+									</td>
+									<td>
+										{#if item.linkedToEvents === item.recordCount}
+											<div class="badge badge-success badge-sm">{item.linkedToEvents}/{item.recordCount}</div>
+										{:else if item.linkedToEvents > 0}
+											<div class="badge badge-warning badge-sm">{item.linkedToEvents}/{item.recordCount}</div>
+										{:else}
+											<div class="badge badge-ghost badge-sm">0/{item.recordCount}</div>
+										{/if}
 									</td>
 									<td>
 										<div class="font-mono">{formatCurrency(item.totalPay / item.recordCount)}</div>
