@@ -569,11 +569,102 @@
 		</div>
 	</div>
 
+	<!-- Employment Information Section -->
+	<div class="card bg-base-100 shadow-sm">
+		<div class="card-body">
+			<h3 class="card-title text-lg mb-4">Employment Information</h3>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<FormField
+					label="Position Status"
+					type="select"
+					value={formData.position_status || ''}
+					error={formErrors.position_status}
+					options={positionStatusOptions}
+					disabled={disabled || loading}
+					onchange={(value) => handleFieldChange('position_status', value)}
+					helpText="Current employment status"
+				/>
+
+				<FormField
+					label="Job Title"
+					type="select"
+					value={formData.job_title || ''}
+					error={formErrors.job_title}
+					options={jobTitleOptions}
+					disabled={disabled || loading}
+					onchange={(value) => handleFieldChange('job_title', value)}
+					helpText="Role classification"
+				/>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<FormField
+					label="Hire Date"
+					type="date"
+					value={formData.hire_date || ''}
+					error={formErrors.hire_date}
+					disabled={disabled || loading}
+					onchange={(value) => handleFieldChange('hire_date', value)}
+					helpText="Date when artist started with organization"
+				/>
+
+				<FormField
+					label="Termination Date"
+					type="date"
+					value={formData.termination_date || ''}
+					error={formErrors.termination_date}
+					disabled={disabled || loading}
+					onchange={(value) => handleFieldChange('termination_date', value)}
+					helpText="Date of termination (if applicable)"
+				/>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<FormField
+					label="Associate ID"
+					type="text"
+					value={formData.associate_id || ''}
+					error={formErrors.associate_id}
+					placeholder="e.g., VYWWIIH9H"
+					disabled={disabled || loading}
+					onchange={(value) => handleFieldChange('associate_id', value)}
+					helpText="HR system reference ID (read-only after import)"
+				/>
+
+				<FormField
+					label="LLC / Company Name"
+					type="text"
+					value={formData.llc_name || ''}
+					error={formErrors.llc_name}
+					placeholder="Company name for 1099 contractors"
+					disabled={disabled || loading}
+					onchange={(value) => handleFieldChange('llc_name', value)}
+					helpText="Business name for 1099 contractors"
+				/>
+			</div>
+
+			<div class="form-control">
+				<label class="label cursor-pointer justify-start gap-3">
+					<input
+						type="checkbox"
+						class="checkbox checkbox-primary"
+						checked={formData.onboarding_complete || false}
+						disabled={disabled || loading}
+						onchange={(e) => handleFieldChange('onboarding_complete', e.currentTarget.checked)}
+					/>
+					<span class="label-text">Onboarding Complete</span>
+				</label>
+				<p class="text-xs text-base-content/60 ml-8">Check if artist has completed all onboarding requirements</p>
+			</div>
+		</div>
+	</div>
+
 	<!-- Administrative Information Section -->
 	<div class="card bg-base-100 shadow-sm">
 		<div class="card-body">
 			<h3 class="card-title text-lg mb-4">Administrative Information</h3>
-			
+
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 				<FormField
 					label="Social Security Number"
