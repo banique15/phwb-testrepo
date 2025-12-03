@@ -235,7 +235,7 @@
 		e.preventDefault()
 		e.stopPropagation()
 		selectedEvent = event
-		showDrawer = true
+		showViewDrawer = true
 		loadingDetails = true
 		fullEventDetails = null
 
@@ -254,19 +254,55 @@
 
 	function handleDayClick(dateKey: string, e: MouseEvent) {
 		if ((e.target as HTMLElement).closest('.event-item')) return
-		goto(`/events?action=new&date=${dateKey}`)
+		newEventDate = dateKey
+		newEventTime = ''
+		showCreateDrawer = true
 	}
 
 	function handleTimeSlotClick(dateKey: string, hour: number, e: MouseEvent) {
 		if ((e.target as HTMLElement).closest('.event-item')) return
-		const timeStr = `${String(hour).padStart(2, '0')}:00`
-		goto(`/events?action=new&date=${dateKey}&time=${timeStr}`)
+		newEventDate = dateKey
+		newEventTime = `${String(hour).padStart(2, '0')}:00`
+		showCreateDrawer = true
 	}
 
-	function closeDrawer() {
-		showDrawer = false
+	function closeViewDrawer() {
+		showViewDrawer = false
 		selectedEvent = null
 		fullEventDetails = null
+	}
+
+	function closeCreateDrawer() {
+		showCreateDrawer = false
+		newEventDate = ''
+		newEventTime = ''
+	}
+
+	function handleCreateSuccess(createdEvent?: EnhancedEvent) {
+		if (createdEvent) {
+			// Add to local events
+			const newCalendarEvent: CalendarEvent = {
+				id: createdEvent.id!,
+				title: createdEvent.title || 'New Event',
+				date: createdEvent.date || '',
+				start_time: createdEvent.start_time || null,
+				end_time: createdEvent.end_time || null,
+				status: createdEvent.status || 'planned'
+			}
+			localEvents = [newCalendarEvent, ...localEvents]
+
+			// Navigate to the event's date/week
+			if (createdEvent.date) {
+				currentDate = new Date(createdEvent.date + 'T00:00:00')
+			}
+
+			// Trigger blink animation
+			blinkingEventId = createdEvent.id!
+			setTimeout(() => {
+				blinkingEventId = null
+			}, 3000)
+		}
+		closeCreateDrawer()
 	}
 
 	function viewFullEvent() {
