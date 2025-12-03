@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte'
 	import type { Venue } from '$lib/schemas/venue'
 	import type { Artist } from '$lib/schemas/artist'
+	import type { Program } from '$lib/schemas/program'
 	import { supabase } from '$lib/supabase'
 	import type { EnhancedEvent } from '$lib/stores/events'
 	import 'driver.js/dist/driver.css'
