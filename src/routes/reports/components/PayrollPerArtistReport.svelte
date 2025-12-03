@@ -95,9 +95,22 @@
 				const artistId = record.artist_id || 'unknown'
 				// Handle both possible relationship names from Supabase
 				const artistData = record.artists || record.phwb_artists
-				const artist = artistData || {
+
+				// Construct artist display name from available fields
+				let displayName = 'Unknown Artist'
+				if (artistData) {
+					displayName = artistData.full_name
+						|| `${artistData.legal_first_name || ''} ${artistData.legal_last_name || ''}`.trim()
+						|| `${artistData.public_first_name || ''} ${artistData.public_last_name || ''}`.trim()
+						|| 'Unknown Artist'
+				}
+
+				const artist = artistData ? {
+					...artistData,
+					full_name: displayName
+				} : {
 					id: artistId,
-					full_name: 'Unknown Artist',
+					full_name: displayName,
 					legal_first_name: '',
 					legal_last_name: '',
 					email: ''
