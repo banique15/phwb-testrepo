@@ -135,7 +135,12 @@
 
 		// Employment status filter
 		if (artistFilters.employmentStatus) {
-			result = result.filter(artist => artist.employment_status === artistFilters.employmentStatus)
+			if (artistFilters.employmentStatus === 'Employee') {
+				// Employee includes those with status set to Employee OR not set
+				result = result.filter(artist => artist.employment_status === 'Employee' || !artist.employment_status)
+			} else {
+				result = result.filter(artist => artist.employment_status === artistFilters.employmentStatus)
+			}
 		}
 
 		// Apply sorting
