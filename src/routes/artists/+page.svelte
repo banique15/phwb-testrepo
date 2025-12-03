@@ -133,6 +133,11 @@
 			result = result.filter(artist => artist.id && artistsWithEnsembles.has(artist.id))
 		}
 
+		// Employment status filter
+		if (artistFilters.employmentStatus) {
+			result = result.filter(artist => artist.employment_status === artistFilters.employmentStatus)
+		}
+
 		// Apply sorting
 		result = result.sort((a, b) => {
 			switch (sortBy) {
