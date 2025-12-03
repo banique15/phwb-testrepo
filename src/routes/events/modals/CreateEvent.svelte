@@ -360,6 +360,24 @@
 			return () => document.removeEventListener('click', handleClick)
 		}
 	})
+
+	// Tour functionality
+	let tourInstance: ReturnType<typeof startCreateEventTour> | null = null
+
+	function startTour() {
+		// Small delay to ensure modal is fully rendered
+		setTimeout(() => {
+			tourInstance = startCreateEventTour()
+		}, 100)
+	}
+
+	// Cleanup tour when modal closes
+	$effect(() => {
+		if (!open && tourInstance) {
+			tourInstance.destroy()
+			tourInstance = null
+		}
+	})
 </script>
 
 <dialog
