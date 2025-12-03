@@ -331,10 +331,10 @@
 	>
 		<div class="card bg-base-100 shadow-none h-full flex flex-col min-h-0">
 			<div class="card-body p-4 flex flex-col h-full min-h-0">
-				{#if selectedItem}
+				{#if selectedItem || forceShowChildren}
 					<div class="overflow-y-auto h-full min-h-0">
 						{#if children}
-							{@render children({ item: selectedItem })}
+							{@render children({ item: selectedItem as any })}
 						{/if}
 					</div>
 				{:else}
