@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
 	import { eventsStore, type EnhancedEvent } from '$lib/stores/events'
+	import EventCreateForm from '../../../routes/events/components/EventCreateForm.svelte'
 
 	type CalendarEvent = {
 		id: number
@@ -17,15 +18,27 @@
 
 	let { events }: Props = $props()
 
+	// Local events state (for newly created events)
+	let localEvents = $state<CalendarEvent[]>([])
+	let allEvents = $derived([...localEvents, ...events])
+
 	let currentDate = $state(new Date())
 	let view = $state<'month' | 'week'>('week')
 	let weekViewRef = $state<HTMLDivElement | null>(null)
 
-	// Drawer state
-	let showDrawer = $state(false)
+	// View Drawer state
+	let showViewDrawer = $state(false)
 	let selectedEvent = $state<CalendarEvent | null>(null)
 	let fullEventDetails = $state<EnhancedEvent | null>(null)
 	let loadingDetails = $state(false)
+
+	// Create Drawer state
+	let showCreateDrawer = $state(false)
+	let newEventDate = $state('')
+	let newEventTime = $state('')
+
+	// Blink animation state
+	let blinkingEventId = $state<number | null>(null)
 
 	const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 	const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
