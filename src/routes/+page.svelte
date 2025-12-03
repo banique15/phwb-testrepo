@@ -113,6 +113,9 @@
 					</div>
 				</div>
 
+				<!-- Calendar -->
+				<Calendar events={data.calendarEvents} />
+
 				<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 					<div class="card bg-base-100 shadow-depth-1 border border-base-300">
 						<div class="card-body p-4">
