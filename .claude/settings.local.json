@@ -25,7 +25,8 @@
       "Bash(bun dev)",
       "Bash(bun add:*)",
       "Bash(lsof:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "WebFetch(domain:driverjs.com)"
     ]
   },
   "enableAllProjectMcpServers": true,
