@@ -651,36 +651,23 @@
 					</span>
 				</div>
 
-				<!-- Date & Time Section -->
-				<div class="card bg-base-200/50 mb-4">
-					<div class="card-body p-4">
-						<h4 class="font-semibold text-sm text-base-content/70 mb-3">Date & Time</h4>
-						<div class="grid grid-cols-1 gap-3">
-							<div class="flex items-center gap-3">
-								<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-								<div>
-									<div class="text-sm text-base-content/60">Date</div>
-									<div class="font-medium">{formatDateDisplay(fullEventDetails.date || '')}</div>
-								</div>
-							</div>
-							{#if fullEventDetails.start_time || fullEventDetails.end_time}
-								<div class="flex items-center gap-3">
-									<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-									</svg>
-									<div>
-										<div class="text-sm text-base-content/60">Time</div>
-										<div class="font-medium">
-											{formatTime(fullEventDetails.start_time || null)}{fullEventDetails.end_time ? ` - ${formatTime(fullEventDetails.end_time)}` : ''}
-										</div>
-									</div>
+				<!-- Compact Date & Time Card -->
+				{#if fullEventDetails.date}
+					<div class="flex items-center gap-4 p-4 bg-base-200/50 rounded-xl mb-4">
+						<div class="flex-shrink-0 w-14 h-14 bg-primary/10 rounded-xl flex flex-col items-center justify-center">
+							<span class="text-xs font-bold text-primary">{getMonthAbbrev(fullEventDetails.date)}</span>
+							<span class="text-xl font-bold text-primary">{getDayNumber(fullEventDetails.date)}</span>
+						</div>
+						<div>
+							<div class="font-semibold">{getDayOfWeek(fullEventDetails.date)}</div>
+							{#if fullEventDetails.start_time}
+								<div class="text-sm text-base-content/60">
+									{formatTime(fullEventDetails.start_time)}{fullEventDetails.end_time ? ` - ${formatTime(fullEventDetails.end_time)}` : ''}
 								</div>
 							{/if}
 						</div>
 					</div>
-				</div>
+				{/if}
 
 				<!-- Venue Section -->
 				{#if fullEventDetails.venue_name}
