@@ -201,26 +201,61 @@
 					</div>
 				</div>
 
-				<!-- Ensembles Row -->
+				<!-- Ensembles Section -->
 				{#if ensembles.length > 0 || loadingEnsembles}
-					<div>
+					<div class="space-y-2">
 						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
 							<Users class="w-3 h-3" /> Ensembles
 						</span>
 						{#if loadingEnsembles}
-							<span class="text-sm text-base-content/50">Loading...</span>
+							<div class="flex items-center gap-2 text-sm text-base-content/50">
+								<span class="loading loading-spinner loading-xs"></span>
+								Loading ensembles...
+							</div>
 						{:else}
-							<div class="flex flex-wrap gap-2 mt-1">
+							<div class="flex flex-wrap gap-3">
 								{#each ensembles as membership}
-									<a
-										href="/ensembles?id={membership.ensemble.id}"
-										class="badge badge-outline badge-sm hover:badge-primary transition-colors"
-									>
-										{membership.ensemble.name}
-										{#if membership.role}
-											<span class="opacity-60 ml-1">({membership.role})</span>
-										{/if}
-									</a>
+									<div class="card bg-base-200 shadow-sm">
+										<div class="card-body p-3">
+											<div class="flex items-center justify-between gap-4">
+												<div>
+													<a
+														href="/ensembles?id={membership.ensemble.id}"
+														class="font-medium hover:text-primary transition-colors"
+													>
+														{membership.ensemble.name}
+													</a>
+													{#if membership.ensemble.ensemble_type}
+														<span class="text-xs text-base-content/50 ml-2">({membership.ensemble.ensemble_type})</span>
+													{/if}
+													{#if membership.role}
+														<div class="text-xs text-primary mt-0.5">Your role: {membership.role}</div>
+													{/if}
+												</div>
+											</div>
+											{#if membership.members && membership.members.length > 0}
+												<div class="mt-2 pt-2 border-t border-base-300">
+													<div class="text-xs text-base-content/50 mb-1">Members ({membership.members.length})</div>
+													<div class="flex flex-wrap gap-1">
+														{#each membership.members as member}
+															{@const isCurrentArtist = member.artist_id === artist.id}
+															{@const displayName = member.artist?.full_name || member.artist?.artist_name || 'Unknown'}
+															<a
+																href="/artists?id={member.artist_id}"
+																class="badge badge-sm {isCurrentArtist ? 'badge-primary' : 'badge-ghost'} hover:badge-primary transition-colors"
+																title={member.role ? `${displayName} - ${member.role}` : displayName}
+															>
+																{displayName}
+																{#if member.role}
+																	<span class="opacity-60 ml-1 text-[10px]">({member.role})</span>
+																{/if}
+															</a>
+														{/each}
+													</div>
+												</div>
+											{/if}
+										</div>
+									</div>
 								{/each}
 							</div>
 						{/if}
