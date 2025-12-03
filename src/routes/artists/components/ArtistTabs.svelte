@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Artist } from '$lib/schemas/artist'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { User, Briefcase, FileText, Globe, ScrollText, Settings } from 'lucide-svelte'
+	import { User, Briefcase, FileText, Globe, ScrollText, Settings, Image } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
 	import PerformanceHistory from '$lib/components/PerformanceHistory.svelte'
