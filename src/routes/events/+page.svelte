@@ -216,17 +216,41 @@
 		return new Date(dateStr) < new Date()
 	}
 
-	// Client-side filter state
+	// Client-side filter state - initialized from URL params with fallback to server data
 	let clientFilters = $state({
-		search: currentFilters.search || '',
-		status: currentFilters.status || '',
-		venue: currentFilters.venue || '',
-		program: currentFilters.program || '',
-		partner: currentFilters.partner || '',
-		dateFilter: currentFilters.dateFilter || '',
-		dateFrom: currentFilters.dateFrom || '',
-		dateTo: currentFilters.dateTo || ''
+		search: $page.url.searchParams.get('search') || currentFilters.search || '',
+		status: $page.url.searchParams.get('status') || currentFilters.status || '',
+		venue: $page.url.searchParams.get('venue') || currentFilters.venue || '',
+		program: $page.url.searchParams.get('program') || currentFilters.program || '',
+		partner: $page.url.searchParams.get('partner') || currentFilters.partner || '',
+		dateFilter: $page.url.searchParams.get('dateFilter') || currentFilters.dateFilter || '',
+		dateFrom: $page.url.searchParams.get('dateFrom') || currentFilters.dateFrom || '',
+		dateTo: $page.url.searchParams.get('dateTo') || currentFilters.dateTo || ''
 	})
+
+	// Debounce timer for search
+	let searchDebounceTimer: ReturnType<typeof setTimeout>
+
+	// Sync filters to URL for bookmarking/sharing
+	async function syncFiltersToUrl() {
+		if (!browser) return
+
+		const params = new URLSearchParams()
+		if (clientFilters.search) params.set('search', clientFilters.search)
+		if (clientFilters.status) params.set('status', clientFilters.status)
+		if (clientFilters.venue) params.set('venue', clientFilters.venue)
+		if (clientFilters.program) params.set('program', clientFilters.program)
+		if (clientFilters.partner) params.set('partner', clientFilters.partner)
+		if (clientFilters.dateFilter) params.set('dateFilter', clientFilters.dateFilter)
+		if (clientFilters.dateFrom) params.set('dateFrom', clientFilters.dateFrom)
+		if (clientFilters.dateTo) params.set('dateTo', clientFilters.dateTo)
+
+		await goto(params.toString() ? `?${params}` : '?', {
+			keepFocus: true,
+			replaceState: true,
+			noScroll: true
+		})
+	}
 
 	// Client-side filtered events
 	let filteredEvents = $derived.by(() => {
