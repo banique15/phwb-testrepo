@@ -67,7 +67,16 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 
 		const stats: DashboardStats = { artists, events, partners, facilities, locations }
 		const firstName = profileResult.data?.full_name?.split(' ')[0] || null
-		const calendarEvents: CalendarEvent[] = eventsResult.data || []
+		const calendarEvents: CalendarEvent[] = (eventsResult.data || []).map((event: any) => ({
+			id: event.id,
+			title: event.title,
+			date: event.date,
+			start_time: event.start_time,
+			end_time: event.end_time,
+			status: event.status,
+			program_id: event.program_id,
+			program_name: event.program?.title || null
+		}))
 		const totalTime = performance.now() - startTime
 
 		setHeaders({
