@@ -32,6 +32,19 @@
 	// Search state
 	let searchQuery = $state('')
 
+	// Sort state
+	type SortOption = 'name-asc' | 'name-desc' | 'artist-name-asc' | 'first-name-asc' | 'last-name-asc' | 'recent'
+	let sortBy = $state<SortOption>('name-asc')
+
+	const sortOptions: { value: SortOption; label: string }[] = [
+		{ value: 'name-asc', label: 'Name (A-Z)' },
+		{ value: 'name-desc', label: 'Name (Z-A)' },
+		{ value: 'first-name-asc', label: 'First Name (A-Z)' },
+		{ value: 'last-name-asc', label: 'Last Name (A-Z)' },
+		{ value: 'artist-name-asc', label: 'Artist Name (A-Z)' },
+		{ value: 'recent', label: 'Recently Added' }
+	]
+
 	// Artist filter state
 	let artistFilters = $state({
 		genres: [] as string[],
