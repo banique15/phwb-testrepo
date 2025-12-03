@@ -68,4 +68,5 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 
 export type DashboardPageData = {
 	stats: DashboardStats
+	firstName: string | null
 }
