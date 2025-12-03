@@ -556,23 +556,30 @@
 						</button>
 					{/snippet}
 					{#snippet children(props)}
-						{@const artist = props.item as Artist}
-						{#if artist}
-							<div class="overflow-y-auto h-full space-y-4">
-								<!-- Header Card -->
-								<ArtistHeaderCard
-									{artist}
-									eventsCount={artistEventsCount}
-									onUpdateField={updateArtistField}
-								/>
+						{#if showCreateForm}
+							<ArtistCreateForm
+								onSuccess={handleCreateFormSuccess}
+								onCancel={handleCreateFormCancel}
+							/>
+						{:else}
+							{@const artist = props.item as Artist}
+							{#if artist}
+								<div class="overflow-y-auto h-full space-y-4">
+									<!-- Header Card -->
+									<ArtistHeaderCard
+										{artist}
+										eventsCount={artistEventsCount}
+										onUpdateField={updateArtistField}
+									/>
 
-								<!-- Tabs Section -->
-								<ArtistTabs
-									{artist}
-									onUpdateField={updateArtistField}
-									onDelete={openDeleteArtist}
-								/>
-							</div>
+									<!-- Tabs Section -->
+									<ArtistTabs
+										{artist}
+										onUpdateField={updateArtistField}
+										onDelete={openDeleteArtist}
+									/>
+								</div>
+							{/if}
 						{/if}
 					{/snippet}
 				</MasterDetail>
