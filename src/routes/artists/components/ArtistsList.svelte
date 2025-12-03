@@ -102,6 +102,16 @@
 			result = result.filter(artist => artist.sightreads === filters.sightReads)
 		}
 
+		// Position status filter
+		if (filters.positionStatus !== 'all') {
+			result = result.filter(artist => artist.position_status === filters.positionStatus)
+		}
+
+		// Employment type filter
+		if (filters.employmentType !== 'all') {
+			result = result.filter(artist => artist.employment_status === filters.employmentType)
+		}
+
 		return result
 	})
 
