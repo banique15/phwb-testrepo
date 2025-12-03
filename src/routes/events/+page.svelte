@@ -47,14 +47,6 @@
 	// Track newly created events that need to be merged with server data
 	let newlyCreatedEvents = $state<EnhancedEvent[]>([])
 
-	// Get reactive reference to the store state for updates after mutations
-	let storeState = $state<any>()
-
-	// Subscribe to store changes for real-time updates
-	eventsStore.enhanced.subscribe(state => {
-		storeState = state
-	})
-
 	// Use server-loaded data merged with any newly created events
 	let events = $derived.by(() => {
 		const serverEvents = data.events || []
