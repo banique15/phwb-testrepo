@@ -44,10 +44,13 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 		musician_count_max: searchParams.get('musician_count_max') ? parseInt(searchParams.get('musician_count_max')!) : undefined,
 	}
 
+	// Check if a specific event ID is requested (from dashboard calendar, etc.)
+	const requestedEventId = searchParams.get('id') ? parseInt(searchParams.get('id')!) : null
+
 	try {
 		// Start timing individual operations
 		const fetchStartTime = performance.now()
-		
+
 		// Build query with filters using unified filter utility
 		let query = supabase
 			.from('phwb_events')
@@ -69,6 +72,20 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 		if (fetchError) {
 			console.error('Events fetch error:', fetchError)
 			throw error(500, `Failed to fetch events: ${fetchError.message}`)
+		}
+
+		// If a specific event was requested and it's not in the results, fetch it separately
+		let requestedEvent: Event | null = null
+		if (requestedEventId && events && !events.find((e: Event) => e.id === requestedEventId)) {
+			const { data: singleEvent } = await supabase
+				.from('phwb_events')
+				.select('*')
+				.eq('id', requestedEventId)
+				.single()
+
+			if (singleEvent) {
+				requestedEvent = singleEvent
+			}
 		}
 
 		const fetchTime = performance.now() - fetchStartTime
