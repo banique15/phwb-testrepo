@@ -53,7 +53,8 @@
 		canBeSoloist: null as boolean | null,
 		sightReads: null as boolean | null,
 		hideIncomplete: false as boolean,
-		hasEnsemble: false as boolean
+		hasEnsemble: false as boolean,
+		employmentStatus: null as string | null
 	})
 
 	// Track artist IDs that belong to ensembles
