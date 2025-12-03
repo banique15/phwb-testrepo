@@ -18,6 +18,7 @@
 
 	let currentDate = $state(new Date())
 	let view = $state<'month' | 'week'>('week')
+	let weekViewRef = $state<HTMLDivElement | null>(null)
 
 	// Popup state
 	let selectedEvent = $state<CalendarEvent | null>(null)
@@ -27,6 +28,11 @@
 	const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 	const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
 		'July', 'August', 'September', 'October', 'November', 'December']
+
+	// Hours for the week view (0-23)
+	const allHours = Array.from({ length: 24 }, (_, i) => i)
+	const defaultStartHour = 8
+	const defaultEndHour = 20
 
 	function getMonthDays(date: Date) {
 		const year = date.getFullYear()
@@ -68,8 +74,74 @@
 		return events.filter(e => e.date === date)
 	}
 
+	function getEventsForDateAndHour(date: string, hour: number): CalendarEvent[] {
+		return events.filter(e => {
+			if (e.date !== date) return false
+			if (!e.start_time) return hour === 9 // Default events without time to 9am
+			const eventHour = parseInt(e.start_time.split(':')[0])
+			return eventHour === hour
+		})
+	}
+
 	function formatDateKey(year: number, month: number, day: number): string {
 		return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+	}
+
+	function getWeekEventHours(weekDays: Date[]): Set<number> {
+		const hours = new Set<number>()
+		weekDays.forEach(day => {
+			const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())
+			const dayEvents = getEventsForDate(dateKey)
+			dayEvents.forEach(event => {
+				if (event.start_time) {
+					const startHour = parseInt(event.start_time.split(':')[0])
+					hours.add(startHour)
+					if (event.end_time) {
+						const endHour = parseInt(event.end_time.split(':')[0])
+						for (let h = startHour; h <= endHour; h++) {
+							hours.add(h)
+						}
+					}
+				} else {
+					hours.add(9) // Default hour for events without time
+				}
+			})
+		})
+		return hours
+	}
+
+	function getVisibleHours(weekDays: Date[]): number[] {
+		const eventHours = getWeekEventHours(weekDays)
+		const visible: number[] = []
+
+		for (let h = 0; h < 24; h++) {
+			const inDefaultRange = h >= defaultStartHour && h <= defaultEndHour
+			const hasEvent = eventHours.has(h)
+
+			if (inDefaultRange || hasEvent) {
+				visible.push(h)
+			}
+		}
+
+		// Ensure continuous range by filling gaps
+		if (visible.length > 0) {
+			const min = Math.min(...visible)
+			const max = Math.max(...visible)
+			const filled: number[] = []
+			for (let h = min; h <= max; h++) {
+				filled.push(h)
+			}
+			return filled
+		}
+
+		return visible
+	}
+
+	function hasEventsAtHour(weekDays: Date[], hour: number): boolean {
+		return weekDays.some(day => {
+			const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())
+			return getEventsForDateAndHour(dateKey, hour).length > 0
+		})
 	}
 
 	function prevPeriod() {
@@ -133,6 +205,12 @@
 		return `${hour12}:${minutes}${ampm}`
 	}
 
+	function formatHour(hour: number): string {
+		const ampm = hour >= 12 ? 'PM' : 'AM'
+		const hour12 = hour % 12 || 12
+		return `${hour12} ${ampm}`
+	}
+
 	function formatDateDisplay(dateStr: string): string {
 		const date = new Date(dateStr + 'T00:00:00')
 		return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -161,6 +239,13 @@
 		goto(`/events?action=new&date=${dateKey}`)
 	}
 
+	function handleTimeSlotClick(dateKey: string, hour: number, e: MouseEvent) {
+		if ((e.target as HTMLElement).closest('.event-item')) return
+		closePopup()
+		const timeStr = `${String(hour).padStart(2, '0')}:00`
+		goto(`/events?action=new&date=${dateKey}&time=${timeStr}`)
+	}
+
 	function closePopup() {
 		showPopup = false
 		selectedEvent = null
@@ -178,10 +263,22 @@
 		}
 	}
 
+	// Scroll to 8am on mount
+	$effect(() => {
+		if (view === 'week' && weekViewRef) {
+			const firstHourIndex = visibleHours.indexOf(defaultStartHour)
+			if (firstHourIndex > 0) {
+				weekViewRef.scrollTop = 0
+			}
+		}
+	})
+
 	const monthDays = $derived(getMonthDays(currentDate))
 	const weekDays = $derived(getWeekDays(currentDate))
 	const currentYear = $derived(currentDate.getFullYear())
 	const currentMonth = $derived(currentDate.getMonth())
+	const visibleHours = $derived(getVisibleHours(weekDays))
+	const eventHoursSet = $derived(getWeekEventHours(weekDays))
 </script>
 
 <svelte:window onclick={closePopup} />
@@ -277,48 +374,61 @@
 			</div>
 		{/if}
 
-		<!-- Week View -->
+		<!-- Week View with Time Grid -->
 		{#if view === 'week'}
-			<div class="grid grid-cols-7 gap-px bg-base-300 rounded-lg overflow-hidden">
+			<!-- Day headers -->
+			<div class="grid grid-cols-[60px_repeat(7,1fr)] gap-px bg-base-300 rounded-t-lg overflow-hidden">
+				<div class="bg-base-200 p-2"></div>
 				{#each weekDays as day, i}
 					{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
 					<div class="bg-base-200 p-2 text-center">
 						<div class="text-xs font-semibold text-base-content/70">{daysOfWeek[i]}</div>
-						<div class="text-lg font-bold {isCurrentDay ? 'text-primary' : ''}">{day.getDate()}</div>
+						<div class="text-lg font-bold {isCurrentDay ? 'bg-primary text-primary-content rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}">{day.getDate()}</div>
 					</div>
 				{/each}
+			</div>
 
-				{#each weekDays as day}
-					{@const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())}
-					{@const dayEvents = getEventsForDate(dateKey)}
-					{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
+			<!-- Time grid -->
+			<div
+				bind:this={weekViewRef}
+				class="max-h-[500px] overflow-y-auto border-x border-b border-base-300 rounded-b-lg"
+			>
+				<div class="grid grid-cols-[60px_repeat(7,1fr)] gap-px bg-base-300">
+					{#each visibleHours as hour}
+						{@const hasEvents = hasEventsAtHour(weekDays, hour)}
+						{@const rowHeight = hasEvents ? 'min-h-16' : 'min-h-8'}
 
-					<div
-						class="bg-base-100 min-h-48 p-2 cursor-pointer hover:bg-base-200/50 {isCurrentDay ? 'ring-2 ring-primary ring-inset' : ''}"
-						onclick={(e) => handleDayClick(dateKey, e)}
-						role="button"
-						tabindex="0"
-					>
-						<div class="space-y-1">
-							{#each dayEvents as event}
-								<button
-									class="event-item block w-full text-left text-xs p-2 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity"
-									onclick={(e) => handleEventClick(event, e)}
-								>
-									{#if event.start_time}
-										<div class="font-semibold">{formatTime(event.start_time)}{event.end_time ? ` - ${formatTime(event.end_time)}` : ''}</div>
-									{/if}
-									<div class="truncate">{event.title}</div>
-								</button>
-							{/each}
-							{#if dayEvents.length === 0}
-								<div class="text-xs text-base-content/30 text-center py-4 pointer-events-none">
-									Click to add event
-								</div>
-							{/if}
+						<!-- Time label -->
+						<div class="bg-base-100 {rowHeight} flex items-start justify-end pr-2 pt-1">
+							<span class="text-xs text-base-content/50">{formatHour(hour)}</span>
 						</div>
-					</div>
-				{/each}
+
+						<!-- Day cells for this hour -->
+						{#each weekDays as day}
+							{@const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())}
+							{@const hourEvents = getEventsForDateAndHour(dateKey, hour)}
+							{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
+
+							<div
+								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30 {isCurrentDay ? 'bg-primary/5' : ''}"
+								onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
+								role="button"
+								tabindex="0"
+							>
+								{#each hourEvents as event}
+									<button
+										class="event-item block w-full text-left text-xs p-1 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5"
+										onclick={(e) => handleEventClick(event, e)}
+									>
+										<div class="font-semibold truncate">
+											{#if event.start_time}{formatTime(event.start_time)} {/if}{event.title}
+										</div>
+									</button>
+								{/each}
+							</div>
+						{/each}
+					{/each}
+				</div>
 			</div>
 		{/if}
 
