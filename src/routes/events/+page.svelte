@@ -37,6 +37,19 @@
 	// View mode state
 	let viewMode = $state<'list' | 'calendar'>('list')
 
+	// Sort state
+	type SortOption = 'date-desc' | 'date-asc' | 'title-asc' | 'title-desc' | 'updated' | 'status'
+	let sortBy = $state<SortOption>('date-desc')
+
+	const sortOptions: { value: SortOption; label: string }[] = [
+		{ value: 'date-desc', label: 'Date (Newest)' },
+		{ value: 'date-asc', label: 'Date (Oldest)' },
+		{ value: 'title-asc', label: 'Title (A-Z)' },
+		{ value: 'title-desc', label: 'Title (Z-A)' },
+		{ value: 'updated', label: 'Recently Updated' },
+		{ value: 'status', label: 'Status' }
+	]
+
 	// Modal states
 	let showCreateModal = $state(false)
 	let showCreateForm = $state(false)
