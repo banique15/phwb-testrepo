@@ -46,6 +46,9 @@
 	let isEditingProfilePhotoUrl = $state(false)
 	let ensembles = $state<EnsembleMembership[]>([])
 	let loadingEnsembles = $state(false)
+	let uploadingPhoto = $state(false)
+	let dragOver = $state(false)
+	let fileInput: HTMLInputElement
 
 	// Load ensembles when artist changes
 	$effect(() => {
