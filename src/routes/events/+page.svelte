@@ -541,6 +541,7 @@
 						detailEmptyTitle="Select an event"
 						detailEmptyMessage="Choose an event from the list to view its full information"
 						storageKey={STORAGE_KEY}
+						forceShowChildren={showCreateForm}
 						on:search={handleSearch}
 						on:select={handleSelectEvent}
 					>
