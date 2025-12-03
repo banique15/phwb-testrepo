@@ -119,6 +119,85 @@
 		isEditingProfilePhotoUrl = false
 	}
 
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault()
+		dragOver = true
+	}
+
+	function handleDragLeave(e: DragEvent) {
+		e.preventDefault()
+		dragOver = false
+	}
+
+	async function handleDrop(e: DragEvent) {
+		e.preventDefault()
+		dragOver = false
+		const files = e.dataTransfer?.files
+		if (files && files.length > 0) {
+			await uploadProfilePhoto(files[0])
+		}
+	}
+
+	function handleFileSelect(e: Event) {
+		const input = e.target as HTMLInputElement
+		if (input.files && input.files.length > 0) {
+			uploadProfilePhoto(input.files[0])
+		}
+	}
+
+	async function uploadProfilePhoto(file: File) {
+		if (!artist.id) return
+
+		// Validate file
+		if (!ALLOWED_TYPES.includes(file.type)) {
+			alert(`Invalid file type. Allowed: ${ALLOWED_TYPES.map(t => t.split('/')[1]).join(', ')}`)
+			return
+		}
+		if (file.size > MAX_FILE_SIZE) {
+			alert(`File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
+			return
+		}
+
+		uploadingPhoto = true
+		try {
+			// Generate unique storage path
+			const ext = file.name.split('.').pop() || 'jpg'
+			const timestamp = Date.now()
+			const random = Math.random().toString(36).substring(2, 8)
+			const storagePath = `${artist.id}/profile-${timestamp}-${random}.${ext}`
+
+			// Upload to Supabase Storage
+			const { error: uploadError } = await supabase.storage
+				.from(BUCKET_NAME)
+				.upload(storagePath, file, {
+					cacheControl: '3600',
+					upsert: false
+				})
+
+			if (uploadError) throw uploadError
+
+			// Get public URL
+			const { data: urlData } = supabase.storage
+				.from(BUCKET_NAME)
+				.getPublicUrl(storagePath)
+
+			// Update artist with new photo URL
+			await onUpdateField('profile_photo', urlData.publicUrl)
+			isEditingProfilePhotoUrl = false
+		} catch (error) {
+			console.error('Upload failed:', error)
+			alert('Failed to upload photo. Please try again.')
+		} finally {
+			uploadingPhoto = false
+			if (fileInput) fileInput.value = ''
+		}
+	}
+
+	async function removeProfilePhoto() {
+		if (!confirm('Remove profile photo?')) return
+		await onUpdateField('profile_photo', null)
+	}
+
 </script>
 
 <div class="card bg-base-100 shadow-none mb-4">
