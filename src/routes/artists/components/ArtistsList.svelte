@@ -265,6 +265,86 @@
 						<span class="label-text text-xs">Sight reads</span>
 					</label>
 				</div>
+
+				<div class="divider my-1"></div>
+
+				<!-- Position Status Filter -->
+				<div class="form-control">
+					<label class="label py-1">
+						<span class="label-text text-xs font-medium">Position Status</span>
+					</label>
+					<div class="flex gap-2">
+						<label class="label cursor-pointer justify-start gap-1 py-0">
+							<input
+								type="radio"
+								name="positionStatus"
+								class="radio radio-xs"
+								checked={filters.positionStatus === 'all'}
+								onchange={() => filters.positionStatus = 'all'}
+							/>
+							<span class="label-text text-xs">All</span>
+						</label>
+						<label class="label cursor-pointer justify-start gap-1 py-0">
+							<input
+								type="radio"
+								name="positionStatus"
+								class="radio radio-xs radio-success"
+								checked={filters.positionStatus === 'active'}
+								onchange={() => filters.positionStatus = 'active'}
+							/>
+							<span class="label-text text-xs">Active</span>
+						</label>
+						<label class="label cursor-pointer justify-start gap-1 py-0">
+							<input
+								type="radio"
+								name="positionStatus"
+								class="radio radio-xs radio-error"
+								checked={filters.positionStatus === 'terminated'}
+								onchange={() => filters.positionStatus = 'terminated'}
+							/>
+							<span class="label-text text-xs">Terminated</span>
+						</label>
+					</div>
+				</div>
+
+				<!-- Employment Type Filter -->
+				<div class="form-control">
+					<label class="label py-1">
+						<span class="label-text text-xs font-medium">Employment Type</span>
+					</label>
+					<div class="flex gap-2">
+						<label class="label cursor-pointer justify-start gap-1 py-0">
+							<input
+								type="radio"
+								name="employmentType"
+								class="radio radio-xs"
+								checked={filters.employmentType === 'all'}
+								onchange={() => filters.employmentType = 'all'}
+							/>
+							<span class="label-text text-xs">All</span>
+						</label>
+						<label class="label cursor-pointer justify-start gap-1 py-0">
+							<input
+								type="radio"
+								name="employmentType"
+								class="radio radio-xs radio-info"
+								checked={filters.employmentType === 'W2'}
+								onchange={() => filters.employmentType = 'W2'}
+							/>
+							<span class="label-text text-xs">W2</span>
+						</label>
+						<label class="label cursor-pointer justify-start gap-1 py-0">
+							<input
+								type="radio"
+								name="employmentType"
+								class="radio radio-xs radio-warning"
+								checked={filters.employmentType === '1099'}
+								onchange={() => filters.employmentType = '1099'}
+							/>
+							<span class="label-text text-xs">1099</span>
+						</label>
+					</div>
+				</div>
 			</div>
 		{/if}
 	</div>
