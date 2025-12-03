@@ -386,14 +386,25 @@
 	onclick={handleBackdropClick}
 >
 	<div class="modal-box w-11/12 max-w-4xl max-h-[90vh]">
-		<div class="flex items-center justify-between mb-6">
+		<div class="flex items-center justify-between mb-6" data-tour="modal-header">
 			<h3 class="font-bold text-lg">Create New Event</h3>
-			<button
-				class="btn btn-sm btn-circle btn-ghost"
-				onclick={handleClose}
-			>
-				✕
-			</button>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					onclick={startTour}
+					title="Take a guided tour"
+				>
+					<HelpCircle class="w-4 h-4" />
+					Tour
+				</button>
+				<button
+					class="btn btn-sm btn-circle btn-ghost"
+					onclick={handleClose}
+				>
+					✕
+				</button>
+			</div>
 		</div>
 
 		{#if error}
