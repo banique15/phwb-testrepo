@@ -26,10 +26,9 @@
 			<div class="sticky top-0 z-30 flex-none px-4 py-2 bg-base-100 border-b border-base-200 shadow-sm">
 				<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 					<div>
-						<h1 class="text-xl sm:text-2xl font-bold text-base-content leading-tight">Dashboard</h1>
-						<p class="text-sm text-base-content/60">
-							Welcome back{#if data.firstName}, <span class="font-medium">{data.firstName}</span>{/if}
-						</p>
+						<h1 class="text-xl sm:text-2xl font-bold text-base-content leading-tight">
+							Welcome back{#if data.firstName}, {data.firstName}{/if}
+						</h1>
 					</div>
 					<div class="text-xs sm:text-sm text-base-content/50">
 						{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
