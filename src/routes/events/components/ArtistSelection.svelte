@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { Search, Users, FileText } from 'lucide-svelte'
+	import { Search, Users, FileText, Music } from 'lucide-svelte'
 	import { artistsStore } from '$lib/stores/artists'
 	import { supabase } from '$lib/supabase'
 	import { onMount } from 'svelte'
 	import type { Artist } from '$lib/schemas/artist'
+	import type { Ensemble } from '$lib/schemas/ensemble'
 
 	interface ArtistAssignment {
 		artist_id: string
