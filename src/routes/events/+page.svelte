@@ -346,25 +346,34 @@
 		}
 	})
 
-	// Filter event handlers - update client-side state only
+	// Filter event handlers - update client-side state and sync to URL
 	function handleSearch(event: CustomEvent<{ value: string }>) {
 		clientFilters.search = event.detail.value
+		// Debounce URL sync for search to avoid excessive history entries
+		clearTimeout(searchDebounceTimer)
+		searchDebounceTimer = setTimeout(() => {
+			syncFiltersToUrl()
+		}, 300)
 	}
 
 	function handleStatusChange(event: CustomEvent<{ value: string }>) {
 		clientFilters.status = event.detail.value
+		syncFiltersToUrl()
 	}
 
 	function handleVenueChange(event: CustomEvent<{ value: string }>) {
 		clientFilters.venue = event.detail.value
+		syncFiltersToUrl()
 	}
 
 	function handleProgramChange(event: CustomEvent<{ value: string }>) {
 		clientFilters.program = event.detail.value
+		syncFiltersToUrl()
 	}
 
 	function handlePartnerChange(event: CustomEvent<{ value: string }>) {
 		clientFilters.partner = event.detail.value
+		syncFiltersToUrl()
 	}
 
 	function handleDateFilterChange(event: CustomEvent<{ value: string }>) {
@@ -374,14 +383,17 @@
 			clientFilters.dateFrom = ''
 			clientFilters.dateTo = ''
 		}
+		syncFiltersToUrl()
 	}
 
 	function handleDateFromChange(event: CustomEvent<{ value: string }>) {
 		clientFilters.dateFrom = event.detail.value
+		syncFiltersToUrl()
 	}
 
 	function handleDateToChange(event: CustomEvent<{ value: string }>) {
 		clientFilters.dateTo = event.detail.value
+		syncFiltersToUrl()
 	}
 
 	function handleClearFilters() {
@@ -393,6 +405,7 @@
 		clientFilters.dateFilter = ''
 		clientFilters.dateFrom = ''
 		clientFilters.dateTo = ''
+		syncFiltersToUrl()
 	}
 
 	// View mode handlers
