@@ -830,11 +830,14 @@
 
 	
 				<!-- Notes Section -->
-				{#if fullEventDetails.notes}
+				{@const notesText = typeof fullEventDetails.notes === 'string'
+					? fullEventDetails.notes
+					: fullEventDetails.notes?.description || ''}
+				{#if notesText}
 					<div class="card bg-base-200/50 mb-4">
 						<div class="card-body p-4">
 							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Notes</h4>
-							<p class="text-sm whitespace-pre-wrap">{fullEventDetails.notes}</p>
+							<p class="text-sm whitespace-pre-wrap">{notesText}</p>
 						</div>
 					</div>
 				{/if}
