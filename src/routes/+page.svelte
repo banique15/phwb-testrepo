@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { authStore } from '$lib/auth'
 	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
+	import Calendar from '$lib/components/ui/Calendar.svelte'
 	import type { DashboardPageData } from './+page.server'
 
 	interface Props {
