@@ -716,6 +716,7 @@
 									{selectedLocationId}
 									onSelectLocation={handleSelectLocationContext}
 									onDelete={openDeleteFacilityModal}
+									onAddLocation={openCreateLocationModal}
 								/>
 							</div>
 						{/if}
