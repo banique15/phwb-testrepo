@@ -11,9 +11,10 @@
 		event: EnhancedEvent
 		onUpdateField: (field: string, value: any) => Promise<void>
 		onDelete: () => void
+		externalActiveTab?: string | null
 	}
 
-	let { event, onUpdateField, onDelete }: Props = $props()
+	let { event, onUpdateField, onDelete, externalActiveTab = null }: Props = $props()
 
 	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
 		{ id: 'schedule', label: 'Schedule', icon: Calendar },
@@ -27,6 +28,13 @@
 	let activeTab = $state<string>(
 		(typeof window !== 'undefined' ? localStorage.getItem('phwb-event-active-tab') : null) || 'schedule'
 	)
+
+	// Watch for external tab changes
+	$effect(() => {
+		if (externalActiveTab && tabs.some(t => t.id === externalActiveTab)) {
+			activeTab = externalActiveTab
+		}
+	})
 
 	function setActiveTab(tabId: string) {
 		activeTab = tabId
