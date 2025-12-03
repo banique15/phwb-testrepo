@@ -359,6 +359,29 @@
 				</label>
 			</div>
 
+			<!-- Program -->
+			<div class="form-control" data-tour="program-selector">
+				<label class="label">
+					<span class="label-text">Program <span class="text-error">*</span></span>
+				</label>
+				<select
+					bind:value={programId}
+					class="select select-bordered select-sm"
+					disabled={submitting || loadingPrograms}
+					required
+				>
+					<option value={null}>Select a program...</option>
+					{#each programs as program}
+						<option value={program.id}>{program.title}</option>
+					{/each}
+				</select>
+				{#if loadingPrograms}
+					<label class="label">
+						<span class="label-text-alt">Loading programs...</span>
+					</label>
+				{/if}
+			</div>
+
 			<!-- Venue -->
 			<div class="form-control relative venue-dropdown-container" data-tour="venue-selector">
 				<label class="label">
