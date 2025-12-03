@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
+	import { invalidateAll } from '$app/navigation'
 	import { User } from 'lucide-svelte'
 	import { artistsStore, updateArtist } from '$lib/stores/artists'
 	import type { Artist } from '$lib/schemas/artist'
