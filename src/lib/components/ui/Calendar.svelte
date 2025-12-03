@@ -753,10 +753,10 @@
 						<div class="card-body p-4">
 							<div class="flex items-center justify-between mb-3">
 								<h4 class="font-semibold text-sm text-base-content/70">Program</h4>
-								{#if fullEventDetails.program_id}
+								{#if fullEventDetails.program}
 									<div class="flex gap-1">
 										<a
-											href="/programs?id={fullEventDetails.program_id}"
+											href="/programs?id={fullEventDetails.program}"
 											class="btn btn-xs btn-ghost gap-1"
 											title="Open program"
 										>
@@ -767,7 +767,7 @@
 											View
 										</a>
 										<a
-											href="/programs?id={fullEventDetails.program_id}"
+											href="/programs?id={fullEventDetails.program}"
 											target="_blank"
 											rel="noopener noreferrer"
 											class="btn btn-xs btn-ghost gap-1"
