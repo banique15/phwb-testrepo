@@ -449,14 +449,15 @@
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 							<div class="form-control">
 								<label class="label">
-									<span class="label-text">Employment Status</span>
+									<span class="label-text">Employment Status <span class="text-error">*</span></span>
 								</label>
 								<select
 									class="select select-bordered {formErrors.employment_status ? 'select-error' : ''}"
 									value={formData.employment_status || ''}
 									onchange={(e) => handleInputChange('employment_status', e.currentTarget.value)}
+									required
 								>
-									<option value="">Select employment status</option>
+									<option value="" disabled>Select employment status</option>
 									<option value="Employee">Employee/W2</option>
 									<option value="1099">LLC/1099</option>
 									<option value="Trial">Trial</option>
