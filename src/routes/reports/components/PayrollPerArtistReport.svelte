@@ -79,7 +79,9 @@
 				records: Payroll[],
 				totalHours: number,
 				totalPay: number,
-				recordCount: number
+				recordCount: number,
+				linkedToEvents: number,
+				unlinkedRecords: number
 			}>()
 			
 			let totalPayroll = 0
