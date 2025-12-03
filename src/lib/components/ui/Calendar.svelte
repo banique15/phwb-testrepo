@@ -420,9 +420,10 @@
 										class="event-item block w-full text-left text-xs p-1 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5"
 										onclick={(e) => handleEventClick(event, e)}
 									>
-										<div class="font-semibold">
-											{#if event.start_time}{formatTime(event.start_time)} {/if}{event.title}
-										</div>
+										{#if event.start_time}
+											<div class="text-[10px] opacity-80">{formatTime(event.start_time)}{#if event.end_time} - {formatTime(event.end_time)}{/if}</div>
+										{/if}
+										<div class="font-semibold leading-tight">{event.title}</div>
 									</button>
 								{/each}
 							</div>
