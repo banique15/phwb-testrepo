@@ -190,13 +190,15 @@
 		})
 	}
 
-	function formatDateWithRelative(dateStr: string | undefined): string {
+	function formatDateWithRelative(dateStr: string | undefined, startTime?: string, endTime?: string): string {
 		if (!dateStr) return 'No date specified'
 
 		const date = new Date(dateStr)
 		const today = new Date()
+		const now = new Date()
 		today.setHours(0, 0, 0, 0)
-		date.setHours(0, 0, 0, 0)
+		const dateOnly = new Date(date)
+		dateOnly.setHours(0, 0, 0, 0)
 
 		// Format date as "Dec 3, 2025"
 		const formattedDate = date.toLocaleDateString('en-US', {
@@ -206,7 +208,7 @@
 		})
 
 		// Calculate difference in days
-		const diffTime = date.getTime() - today.getTime()
+		const diffTime = dateOnly.getTime() - today.getTime()
 		const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
 
 		let relativeText: string
@@ -245,7 +247,58 @@
 			relativeText = 'Over a year ago'
 		}
 
-		return `${formattedDate} · ${relativeText}`
+		// Format time range
+		let timeStr = ''
+		if (startTime) {
+			const formatTimeShort = (t: string) => {
+				const [hours, minutes] = t.split(':').map(Number)
+				const period = hours >= 12 ? 'pm' : 'am'
+				const hour12 = hours % 12 || 12
+				return minutes === 0 ? `${hour12}${period}` : `${hour12}:${minutes.toString().padStart(2, '0')}${period}`
+			}
+
+			timeStr = formatTimeShort(startTime)
+			if (endTime) {
+				timeStr += `-${formatTimeShort(endTime)}`
+			}
+		}
+
+		// Calculate relative time for today's events
+		let timeRelative = ''
+		if (diffDays === 0 && startTime) {
+			const [startHours, startMinutes] = startTime.split(':').map(Number)
+			const eventStart = new Date(date)
+			eventStart.setHours(startHours, startMinutes, 0, 0)
+
+			const diffMs = eventStart.getTime() - now.getTime()
+			const diffMins = Math.round(diffMs / (1000 * 60))
+
+			if (diffMins > 0 && diffMins <= 60) {
+				timeRelative = `in ${diffMins} min`
+			} else if (diffMins > 60 && diffMins <= 180) {
+				const hours = Math.round(diffMins / 60)
+				timeRelative = `in ${hours} hr${hours > 1 ? 's' : ''}`
+			} else if (diffMins < 0 && diffMins >= -180) {
+				const minsAgo = Math.abs(diffMins)
+				if (minsAgo <= 60) {
+					timeRelative = `${minsAgo} min ago`
+				} else {
+					const hours = Math.round(minsAgo / 60)
+					timeRelative = `${hours} hr${hours > 1 ? 's' : ''} ago`
+				}
+			}
+		}
+
+		// Build final string
+		let result = `${formattedDate} · ${relativeText}`
+		if (timeStr) {
+			result += ` · ${timeStr}`
+			if (timeRelative) {
+				result += ` (${timeRelative})`
+			}
+		}
+
+		return result
 	}
 
 	function formatTime(timeStr: string | undefined) {
