@@ -7,11 +7,12 @@
 	import type { Venue } from '$lib/schemas/venue'
 	import type { Artist } from '$lib/schemas/artist'
 	import { supabase } from '$lib/supabase'
+	import type { EnhancedEvent } from '$lib/stores/events'
 
 	interface Props {
 		open?: boolean
 		onClose?: () => void
-		onSuccess?: () => void
+		onSuccess?: (createdEvent?: EnhancedEvent) => void
 	}
 
 	let { open = false, onClose, onSuccess }: Props = $props()
