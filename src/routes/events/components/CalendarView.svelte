@@ -11,6 +11,9 @@
 
 	// Calendar state
 	let currentDate = $state(new Date())
+
+	// Expanded date for showing all events popover
+	let expandedDate = $state<string | null>(null)
 	let currentMonth = $derived(currentDate.getMonth())
 	let currentYear = $derived(currentDate.getFullYear())
 
