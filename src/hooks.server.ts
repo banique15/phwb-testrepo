@@ -26,7 +26,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.session = session
 
 	// Public routes that don't require authentication
-	const publicRoutes = ['/login']
+	const publicRoutes = ['/login', '/auth/callback']
 	const isPublicRoute = publicRoutes.some(route =>
 		event.url.pathname === route || event.url.pathname.startsWith(route + '/')
 	)
