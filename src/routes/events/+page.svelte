@@ -377,7 +377,8 @@
 
 	// Modal handlers
 	function openCreateModal() {
-		goto('/events/new')
+		selectedEvent = null
+		showCreateForm = true
 	}
 	
 	function closeCreateModal() {
