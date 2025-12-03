@@ -39,6 +39,9 @@
 			<!-- Scrollable Content -->
 			<div class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 fade-in">
 
+				<!-- Calendar -->
+				<Calendar events={data.calendarEvents} />
+
 				<!-- Summary Stats -->
 				<div>
 					<h2 class="text-lg font-bold text-base-content mb-3">Overview</h2>
@@ -112,9 +115,6 @@
 					</a>
 					</div>
 				</div>
-
-				<!-- Calendar -->
-				<Calendar events={data.calendarEvents} />
 
 				<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 					<div class="card bg-base-100 shadow-depth-1 border border-base-300">
