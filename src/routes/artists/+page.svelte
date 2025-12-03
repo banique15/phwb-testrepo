@@ -560,8 +560,9 @@
 											}}
 										>
 											<option value="">All</option>
-											<option value="Employee">Employee</option>
-											<option value="1099">1099</option>
+											<option value="Employee">Employee/W2</option>
+											<option value="1099">LLC/1099</option>
+											<option value="Trial">Trial</option>
 										</select>
 									</div>
 								</div>
