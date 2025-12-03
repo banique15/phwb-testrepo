@@ -242,6 +242,7 @@
 	})
 
 	async function handleSelectArtist(event: CustomEvent<{ item: Artist }>) {
+		showCreateForm = false
 		selectedArtist = event.detail.item
 		if (selectedArtist?.id) {
 			await loadArtistEventsCount(selectedArtist.id)
