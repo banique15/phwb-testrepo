@@ -361,11 +361,8 @@
 							bind:value={editData.employment_status}
 						>
 							<option value="">Select status</option>
-							<option value="Full-time">Full-time</option>
-							<option value="Part-time">Part-time</option>
-							<option value="Freelance">Freelance</option>
-							<option value="Student">Student</option>
-							<option value="Retired">Retired</option>
+							<option value="Employee">Employee</option>
+							<option value="1099">1099</option>
 						</select>
 					{:else}
 						<p class="text-sm">{artist.employment_status || '-'}</p>

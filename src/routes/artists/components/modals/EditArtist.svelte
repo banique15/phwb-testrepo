@@ -128,13 +128,8 @@
 
 	// Employment status options
 	const employmentStatusOptions = [
-		{ value: 'full-time', label: 'Full-time' },
-		{ value: 'part-time', label: 'Part-time' },
-		{ value: 'contractor', label: 'Contractor' },
-		{ value: 'volunteer', label: 'Volunteer' },
-		{ value: 'student', label: 'Student' },
-		{ value: 'unemployed', label: 'Unemployed' },
-		{ value: 'retired', label: 'Retired' }
+		{ value: 'Employee', label: 'Employee' },
+		{ value: '1099', label: '1099' }
 	]
 
 	// Shirt size options

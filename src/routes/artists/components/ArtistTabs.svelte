@@ -45,11 +45,8 @@
 	}
 
 	const employmentStatusOptions = [
-		{ value: 'Full-time', label: 'Full-time' },
-		{ value: 'Part-time', label: 'Part-time' },
-		{ value: 'Freelance', label: 'Freelance' },
-		{ value: 'Student', label: 'Student' },
-		{ value: 'Retired', label: 'Retired' }
+		{ value: 'Employee', label: 'Employee' },
+		{ value: '1099', label: '1099' }
 	]
 
 	const shirtSizeOptions = [

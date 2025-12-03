@@ -451,18 +451,14 @@
 								<label class="label">
 									<span class="label-text">Employment Status</span>
 								</label>
-								<select 
+								<select
 									class="select select-bordered {formErrors.employment_status ? 'select-error' : ''}"
 									value={formData.employment_status || ''}
 									onchange={(e) => handleInputChange('employment_status', e.currentTarget.value)}
 								>
 									<option value="">Select employment status</option>
-									<option value="Full-time">Full-time</option>
-									<option value="Part-time">Part-time</option>
-									<option value="Freelance">Freelance</option>
-									<option value="Student">Student</option>
-									<option value="Retired">Retired</option>
-									<option value="Unemployed">Unemployed</option>
+									<option value="Employee">Employee</option>
+									<option value="1099">1099</option>
 								</select>
 								{#if formErrors.employment_status}
 									<label class="label">

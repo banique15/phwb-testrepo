@@ -78,14 +78,10 @@
 		{ value: '3XL', label: '3XL' }
 	]
 
-	// Employment status options (you can customize these based on your needs)
+	// Employment status options
 	const employmentStatusOptions = [
-		{ value: 'Full-time', label: 'Full-time' },
-		{ value: 'Part-time', label: 'Part-time' },
-		{ value: 'Freelance', label: 'Freelance' },
-		{ value: 'Student', label: 'Student' },
-		{ value: 'Unemployed', label: 'Unemployed' },
-		{ value: 'Retired', label: 'Retired' }
+		{ value: 'Employee', label: 'Employee' },
+		{ value: '1099', label: '1099' }
 	]
 
 	// Reactive validation state
