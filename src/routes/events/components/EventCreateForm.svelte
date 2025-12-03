@@ -199,6 +199,11 @@
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault()
 
+		if (!programId) {
+			error = 'Please select a program'
+			return
+		}
+
 		if (!venueId) {
 			error = 'Please select a venue'
 			return
@@ -209,6 +214,7 @@
 
 		try {
 			const venue = venues.find(v => v.id === venueId)
+			const program = programs.find(p => p.id === programId)
 			let finalTitle = title.trim()
 
 			if (!finalTitle) {
@@ -250,6 +256,7 @@
 				...(endTime && { end_time: endTime }),
 				status,
 				venue: venueId,
+				program_id: programId,
 				notes: '',
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
@@ -257,6 +264,10 @@
 			}
 
 			const createdEvent = await eventsStore.create(eventData)
+			// Add program_name to the returned event for calendar display
+			if (createdEvent) {
+				(createdEvent as any).program_name = program?.title || null
+			}
 			onSuccess?.(createdEvent)
 
 		} catch (err) {
