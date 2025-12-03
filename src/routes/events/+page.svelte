@@ -37,6 +37,21 @@
 	// View mode state
 	let viewMode = $state<'list' | 'calendar'>('list')
 
+	// Sort state
+	type SortOption = 'upcoming' | 'recent' | 'title-asc' | 'title-desc' | 'status' | 'venue' | 'program' | 'created'
+	let sortBy = $state<SortOption>('upcoming')
+
+	const sortOptions: { value: SortOption; label: string }[] = [
+		{ value: 'upcoming', label: 'Upcoming First' },
+		{ value: 'recent', label: 'Most Recent First' },
+		{ value: 'status', label: 'By Status' },
+		{ value: 'venue', label: 'By Venue' },
+		{ value: 'program', label: 'By Program' },
+		{ value: 'title-asc', label: 'Title (A-Z)' },
+		{ value: 'title-desc', label: 'Title (Z-A)' },
+		{ value: 'created', label: 'Recently Created' }
+	]
+
 	// Modal states
 	let showCreateModal = $state(false)
 	let showCreateForm = $state(false)
