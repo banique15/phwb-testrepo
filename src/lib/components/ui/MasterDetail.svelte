@@ -66,6 +66,7 @@
 		storageKey,
 		responsive = true,
 		showMasterOnMobile = true,
+		forceShowChildren = false,
 		filters,
 		masterActions,
 		children
