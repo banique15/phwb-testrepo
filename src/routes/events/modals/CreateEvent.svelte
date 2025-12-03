@@ -285,8 +285,8 @@
 			const eventData = {
 				title: finalTitle,
 				date,
-				start_time: startTime || null,
-				end_time: endTime || null,
+				...(startTime && { start_time: startTime }),
+				...(endTime && { end_time: endTime }),
 				status,
 				venue: venueId,
 				notes: '',
