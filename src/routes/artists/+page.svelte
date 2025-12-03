@@ -540,6 +540,25 @@
 										</label>
 										<p class="text-xs opacity-60 ml-6">Only show artists who belong to an ensemble</p>
 									</div>
+
+									<div class="divider my-1"></div>
+
+									<div class="form-control">
+										<label class="label py-1">
+											<span class="label-text text-sm font-medium">Employment Status</span>
+										</label>
+										<select
+											class="select select-sm select-bordered w-full"
+											value={artistFilters.employmentStatus || ''}
+											onchange={(e) => {
+												artistFilters.employmentStatus = e.currentTarget.value || null
+											}}
+										>
+											<option value="">All</option>
+											<option value="Employee">Employee</option>
+											<option value="1099">1099</option>
+										</select>
+									</div>
 								</div>
 							</div>
 						</div>
