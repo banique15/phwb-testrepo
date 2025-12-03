@@ -422,7 +422,7 @@
 				<h4 class="font-semibold text-base border-b pb-2">Event Information</h4>
 
 				<!-- Event Title (Optional - auto-generated) -->
-				<div class="form-control">
+				<div class="form-control" data-tour="event-title">
 					<label class="label">
 						<span class="label-text">Event Title (Optional)</span>
 					</label>
@@ -443,7 +443,7 @@
 				</div>
 
 				<!-- Venue (Required) -->
-				<div class="form-control relative venue-dropdown-container">
+				<div class="form-control relative venue-dropdown-container" data-tour="venue-selector">
 					<label class="label">
 						<span class="label-text">Venue <span class="text-error">*</span></span>
 					</label>
@@ -520,7 +520,7 @@
 				</div>
 
 				<!-- Date and Times Row -->
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4" data-tour="date-time">
 					<!-- Date (Required) -->
 					<div class="form-control">
 						<label class="label">
@@ -585,7 +585,7 @@
 				<!-- Split Layout: Manual vs AI -->
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<!-- Manual Assignment Option -->
-					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-base-300 bg-base-200/50'}">
+					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-base-300 bg-base-200/50'}" data-tour="manual-assignment">
 						<div class="flex items-start gap-3 mb-3">
 							<input
 								type="radio"
@@ -667,7 +667,7 @@
 					</div>
 
 					<!-- AI Matching Option -->
-					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'ai' ? 'border-secondary bg-secondary/5' : 'border-base-300 bg-base-200/50'}">
+					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'ai' ? 'border-secondary bg-secondary/5' : 'border-base-300 bg-base-200/50'}" data-tour="ai-assignment">
 						<div class="flex items-start gap-3 mb-3">
 							<input
 								type="radio"
@@ -757,7 +757,7 @@
 			</div>
 
 			<!-- Form Actions -->
-			<div class="modal-action">
+			<div class="modal-action" data-tour="form-actions">
 				<button
 					type="button"
 					class="btn btn-ghost"
