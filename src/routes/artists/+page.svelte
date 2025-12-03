@@ -105,6 +105,11 @@
 			result = result.filter(artist => artist.sightreads === artistFilters.sightReads)
 		}
 
+		// Has ensemble filter
+		if (artistFilters.hasEnsemble) {
+			result = result.filter(artist => artist.id && artistsWithEnsembles.has(artist.id))
+		}
+
 		return result
 	})
 
@@ -114,8 +119,21 @@
 		artistFilters.instruments.length > 0 ||
 		artistFilters.canBeSoloist !== null ||
 		artistFilters.sightReads !== null ||
-		artistFilters.hideIncomplete
+		artistFilters.hideIncomplete ||
+		artistFilters.hasEnsemble
 	)
+
+	// Load artist IDs that belong to ensembles
+	async function loadArtistsWithEnsembles() {
+		const { data, error } = await supabase
+			.from('phwb_ensemble_members')
+			.select('artist_id')
+			.eq('is_active', true)
+
+		if (!error && data) {
+			artistsWithEnsembles = new Set(data.map(m => m.artist_id))
+		}
+	}
 
 	onMount(() => {
 		// Restore selected artist from localStorage on initial client-side mount
