@@ -96,12 +96,24 @@
 		// Search filter
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase()
-			result = result.filter(artist =>
-				artist.full_name?.toLowerCase().includes(query) ||
-				artist.artist_name?.toLowerCase().includes(query) ||
-				artist.email?.toLowerCase().includes(query) ||
-				artist.location?.toLowerCase().includes(query)
-			)
+			result = result.filter(artist => {
+				// Search by full_name
+				if (artist.full_name?.toLowerCase().includes(query)) return true
+				// Search by artist_name
+				if (artist.artist_name?.toLowerCase().includes(query)) return true
+				// Search by legal first name
+				if (artist.legal_first_name?.toLowerCase().includes(query)) return true
+				// Search by legal last name
+				if (artist.legal_last_name?.toLowerCase().includes(query)) return true
+				// Search by combined legal name (first + last)
+				const legalFullName = [artist.legal_first_name, artist.legal_last_name].filter(Boolean).join(' ')
+				if (legalFullName.toLowerCase().includes(query)) return true
+				// Search by email
+				if (artist.email?.toLowerCase().includes(query)) return true
+				// Search by location
+				if (artist.location?.toLowerCase().includes(query)) return true
+				return false
+			})
 		}
 
 		// Genres filter
