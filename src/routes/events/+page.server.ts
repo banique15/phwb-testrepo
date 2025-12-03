@@ -204,6 +204,54 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 			return enhanced
 		}) || []
 
+		// If we fetched a requested event separately, enhance and prepend it
+		if (requestedEvent) {
+			const enhancedRequestedEvent: any = { ...requestedEvent }
+
+			// Apply the same enhancement logic
+			if (requestedEvent.venue) {
+				const venue = venues?.find(v => v.id === requestedEvent.venue)
+				enhancedRequestedEvent.venue_name = venue?.name || 'Unknown Venue'
+				enhancedRequestedEvent.venue_object = venue
+			}
+			if (requestedEvent.location_id) {
+				const location = locations?.find(l => l.id === requestedEvent.location_id)
+				if (location) {
+					enhancedRequestedEvent.location_name = location.name
+					enhancedRequestedEvent.location_object = location
+					const facility = facilities?.find(f => f.id === location.facility_id)
+					if (facility) {
+						enhancedRequestedEvent.facility_name = facility.name
+						enhancedRequestedEvent.facility_object = facility
+					}
+				}
+			}
+			if (requestedEvent.program) {
+				const program = programs?.find(p => p.id === requestedEvent.program)
+				enhancedRequestedEvent.program_name = program?.title || 'Unknown Program'
+				enhancedRequestedEvent.program_object = program
+				if (program?.partner) {
+					const partnerObj = partners?.find(pt => pt.id === program.partner)
+					enhancedRequestedEvent.partner_name = partnerObj?.name || 'Unknown Partner'
+					enhancedRequestedEvent.partner_object = partnerObj
+					enhancedRequestedEvent.partner_id = program.partner
+				}
+			}
+			if (requestedEvent.artists && typeof requestedEvent.artists === 'object' && (requestedEvent.artists as any).assignments) {
+				enhancedRequestedEvent.artist_assignments = (requestedEvent.artists as any).assignments.map((assignment: any) => {
+					if (assignment.artist_name) return assignment
+					const artist = artists?.find(a => a.id === assignment.artist_id)
+					return {
+						...assignment,
+						artist_name: artist?.full_name || artist?.legal_first_name || artist?.public_first_name || 'Unknown Artist'
+					}
+				})
+			}
+
+			// Prepend to results so it appears first
+			enhancedEvents = [enhancedRequestedEvent, ...enhancedEvents]
+		}
+
 		// Apply client-side filters that require complex lookups
 
 		// Partner filter (requires program lookup)
