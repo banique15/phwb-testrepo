@@ -50,7 +50,6 @@
 
 	// Bulk selection state
 	let selectedEventIds = $state<Set<number>>(new Set())
-	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
 
 	const STORAGE_KEY = 'phwb-selected-event'
 
