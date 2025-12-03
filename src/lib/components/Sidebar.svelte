@@ -140,28 +140,31 @@
 					class="h-16 w-auto"
 				/>
 			</a>
-			{#if isMobile}
-				<button
-					class="btn btn-ghost btn-sm btn-circle lg:hidden"
-					onclick={closeDrawer}
-					aria-label="Close menu"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
+			<div class="flex items-center gap-1">
+				<ThemeToggle />
+				{#if isMobile}
+					<button
+						class="btn btn-ghost btn-sm btn-circle lg:hidden"
+						onclick={closeDrawer}
+						aria-label="Close menu"
 					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M6 18L18 6M6 6l12 12"
-						/>
-					</svg>
-				</button>
-			{/if}
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-5 w-5"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+					</button>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Navigation -->
@@ -258,6 +261,11 @@
 							>
 						</li>
 						<li><hr class="my-1" /></li>
+						<li>
+							<button onclick={() => themeStore.toggle()}>
+								{themeStore.isDark ? 'Light Mode' : 'Dark Mode'}
+							</button>
+						</li>
 						<li>
 							<button onclick={authStore.signOut}>Logout</button>
 						</li>
