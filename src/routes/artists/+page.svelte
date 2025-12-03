@@ -338,25 +338,44 @@
 
 	// MasterDetail configuration functions for Artists
 	function getArtistTitle(item: any): string {
-		return item.full_name ||
+		const fullName = item.full_name ||
 			   (item.legal_first_name && item.legal_last_name
 				? `${item.legal_first_name} ${item.legal_last_name}`
 				: item.legal_first_name) ||
-			   item.artist_name ||
 			   'No name'
+
+		// Add artist name if different from full name
+		if (item.artist_name && item.artist_name !== fullName) {
+			return `${fullName} — ${item.artist_name}`
+		}
+		return fullName
 	}
 
 	function getArtistSubtitle(item: any): string {
-		return item.artist_name || item.email || ''
+		const parts = []
+
+		// Metro area
+		if (item.metropolitan_hub) {
+			parts.push(item.metropolitan_hub)
+		} else if (item.location) {
+			parts.push(item.location)
+		}
+
+		// Event counts
+		const counts = artistEventCounts.get(item.id)
+		if (counts && counts.total > 0) {
+			const eventParts = []
+			if (counts.upcoming > 0) eventParts.push(`${counts.upcoming} upcoming`)
+			if (counts.past > 0) eventParts.push(`${counts.past} past`)
+			parts.push(`${counts.total} events (${eventParts.join(', ')})`)
+		}
+
+		return parts.join(' · ')
 	}
 
 	function getArtistDetail(item: any): string {
-		const details = []
-		if (item.location) details.push(item.location)
-		if (item.instruments && item.instruments.length > 0) {
-			details.push(item.instruments[0])
-		}
-		return details.join(' • ')
+		// Return empty - we're not using the badge for artists
+		return ''
 	}
 </script>
 
