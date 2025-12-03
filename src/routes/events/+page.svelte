@@ -593,27 +593,34 @@
 							/>
 						{/snippet}
 						{#snippet children(props)}
-							{@const event = props.item as EnhancedEvent}
-							{#if event}
-								<div class="flex flex-col h-full overflow-hidden">
-									<!-- Header Card -->
-									<div class="flex-none">
-										<EventHeaderCard
-											event={event}
-											artistsCount={eventArtistsCount}
-											onUpdateField={updateEventField}
-										/>
-									</div>
+							{#if showCreateForm}
+								<EventCreateForm
+									onSuccess={handleCreateFormSuccess}
+									onCancel={handleCreateFormCancel}
+								/>
+							{:else}
+								{@const event = props.item as EnhancedEvent}
+								{#if event}
+									<div class="flex flex-col h-full overflow-hidden">
+										<!-- Header Card -->
+										<div class="flex-none">
+											<EventHeaderCard
+												event={event}
+												artistsCount={eventArtistsCount}
+												onUpdateField={updateEventField}
+											/>
+										</div>
 
-									<!-- Tabs Section -->
-									<div class="flex-1 min-h-0 overflow-y-auto">
-										<EventTabs
-											event={event}
-											onUpdateField={updateEventField}
-											onDelete={openDeleteModal}
-										/>
+										<!-- Tabs Section -->
+										<div class="flex-1 min-h-0 overflow-y-auto">
+											<EventTabs
+												event={event}
+												onUpdateField={updateEventField}
+												onDelete={openDeleteModal}
+											/>
+										</div>
 									</div>
-								</div>
+								{/if}
 							{/if}
 						{/snippet}
 					</MasterDetail>
