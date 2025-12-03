@@ -31,7 +31,9 @@
 			status: 'all',
 			canBeSoloist: null,
 			sightReads: null,
-			hideIncomplete: false
+			hideIncomplete: false,
+			positionStatus: 'all',
+			employmentType: 'all'
 		})
 	}: Props = $props()
 
