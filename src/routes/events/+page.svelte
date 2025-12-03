@@ -352,6 +352,51 @@
 			}
 		}
 
+		// Apply sorting
+		const today = new Date()
+		today.setHours(0, 0, 0, 0)
+
+		result = [...result].sort((a: EnhancedEvent, b: EnhancedEvent) => {
+			switch (sortBy) {
+				case 'upcoming':
+					// Future events first (sorted by date asc), then past events (sorted by date desc)
+					const aDate = a.date ? new Date(a.date) : new Date(0)
+					const bDate = b.date ? new Date(b.date) : new Date(0)
+					const aIsFuture = aDate >= today
+					const bIsFuture = bDate >= today
+					if (aIsFuture && !bIsFuture) return -1
+					if (!aIsFuture && bIsFuture) return 1
+					if (aIsFuture && bIsFuture) return aDate.getTime() - bDate.getTime()
+					return bDate.getTime() - aDate.getTime()
+				case 'recent':
+					return (b.date || '').localeCompare(a.date || '')
+				case 'title-asc':
+					return (a.title || '').localeCompare(b.title || '')
+				case 'title-desc':
+					return (b.title || '').localeCompare(a.title || '')
+				case 'status':
+					const statusOrder = ['in_progress', 'confirmed', 'planned', 'completed', 'cancelled']
+					const aIndex = statusOrder.indexOf(a.status || '')
+					const bIndex = statusOrder.indexOf(b.status || '')
+					if (aIndex !== bIndex) return aIndex - bIndex
+					return (a.date || '').localeCompare(b.date || '')
+				case 'venue':
+					const aVenue = a.venue_name || ''
+					const bVenue = b.venue_name || ''
+					if (aVenue !== bVenue) return aVenue.localeCompare(bVenue)
+					return (a.date || '').localeCompare(b.date || '')
+				case 'program':
+					const aProgram = a.program_name || ''
+					const bProgram = b.program_name || ''
+					if (aProgram !== bProgram) return aProgram.localeCompare(bProgram)
+					return (a.date || '').localeCompare(b.date || '')
+				case 'created':
+					return (b.created_at || '').localeCompare(a.created_at || '')
+				default:
+					return 0
+			}
+		})
+
 		return result
 	})
 
