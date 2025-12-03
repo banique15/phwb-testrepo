@@ -4,7 +4,7 @@
 	import { onMount } from "svelte";
 	import { authStore } from "$lib/auth";
 	import { sidebarStore } from "$lib/stores/sidebar";
-	import { themeStore } from "$lib/stores/theme";
+	import { themeStore } from "$lib/stores/theme.svelte";
 	import ThemeToggle from "./ThemeToggle.svelte";
 
 	const navItems = [
