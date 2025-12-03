@@ -106,10 +106,18 @@
 		}
 	})
 
+	// Track the last synced assignments to avoid infinite loops
+	let lastSyncedAssignmentsJson = $state('')
+
 	// Sync assignments when props change (but only when necessary)
 	$effect(() => {
-		// Only update if assignments prop actually changed
-		if (assignments !== localAssignments) {
+		// Create a stable string representation to compare
+		const assignmentsJson = JSON.stringify(assignments.map(a => a.artist_id).sort())
+
+		// Only update if the assignments prop actually changed
+		if (assignmentsJson !== lastSyncedAssignmentsJson) {
+			lastSyncedAssignmentsJson = assignmentsJson
+
 			// Ensure assignments have artist names by looking up missing ones
 			const updatedAssignments = assignments.map(assignment => {
 				// If artist_name is missing or empty, look it up from the artists list
@@ -122,27 +130,15 @@
 				}
 				return { ...assignment }
 			})
-			
-			// Only update if there are actual changes
-			const hasChanges = updatedAssignments.some((updated, index) => {
-				const current = localAssignments[index]
-				return !current || current.artist_name !== updated.artist_name
+
+			localAssignments = updatedAssignments
+
+			// Ensure selectedIds includes all assignment artist_ids
+			const newSelectedIds = new Set(selectedIds)
+			assignments.forEach(assignment => {
+				newSelectedIds.add(assignment.artist_id)
 			})
-			
-			if (hasChanges || updatedAssignments.length !== localAssignments.length) {
-				localAssignments = updatedAssignments
-				
-				// Ensure selectedIds includes all assignment artist_ids
-				assignments.forEach(assignment => {
-					selectedIds.add(assignment.artist_id)
-				})
-				selectedIds = new Set(selectedIds)
-				
-				// Only notify parent if there were actual changes
-				if (hasChanges) {
-					onAssignmentsUpdate?.(localAssignments)
-				}
-			}
+			selectedIds = newSelectedIds
 		}
 	})
 
