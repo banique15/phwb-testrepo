@@ -41,6 +41,8 @@
 		responsive?: boolean
 		// Mobile settings
 		showMasterOnMobile?: boolean
+		// Force show children even when no item is selected (for create forms, etc.)
+		forceShowChildren?: boolean
 		// Snippets
 		filters?: Snippet
 		masterActions?: Snippet
