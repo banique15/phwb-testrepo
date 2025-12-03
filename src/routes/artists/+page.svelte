@@ -587,13 +587,6 @@
 		</div>
 	</div>
 
-	<!-- Create Artist Modal -->
-	<CreateArtist
-		open={isCreateArtistModalOpen}
-		on:close={() => isCreateArtistModalOpen = false}
-		on:success={handleArtistCreated}
-	/>
-
 	<!-- Delete Artist Modal -->
 	<DeleteArtist
 		open={isDeleteArtistModalOpen}
