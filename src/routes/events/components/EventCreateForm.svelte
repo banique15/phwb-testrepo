@@ -627,7 +627,7 @@
 				<button
 					type="submit"
 					class="btn btn-primary btn-sm"
-					disabled={submitting || !venueId}
+					disabled={submitting || !venueId || !programId}
 				>
 					{#if submitting}
 						<span class="loading loading-spinner loading-xs"></span>
