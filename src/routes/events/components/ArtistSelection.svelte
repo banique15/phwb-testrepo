@@ -223,6 +223,53 @@
 		onAssignmentsUpdate?.(localAssignments)
 	}
 
+	// Assign all members of an ensemble
+	async function assignEnsemble(ensembleId: string) {
+		assigningEnsemble = ensembleId
+		try {
+			// Fetch active ensemble members with artist data
+			const { data: members, error } = await supabase
+				.from('phwb_ensemble_members')
+				.select('artist_id, role, phwb_artists(id, full_name, artist_name)')
+				.eq('ensemble_id', ensembleId)
+				.eq('is_active', true)
+
+			if (error) {
+				console.error('Failed to fetch ensemble members:', error)
+				return
+			}
+
+			if (members && members.length > 0) {
+				let addedCount = 0
+				members.forEach((member: any) => {
+					if (!selectedIds.has(member.artist_id)) {
+						selectedIds.add(member.artist_id)
+						const artist = member.phwb_artists
+						const newAssignment: ArtistAssignment = {
+							artist_id: member.artist_id,
+							artist_name: artist?.full_name || artist?.artist_name || 'Unknown',
+							role: member.role || 'Ensemble Member',
+							status: 'pending',
+							num_hours: 0,
+							hourly_rate: 0,
+							notes: ''
+						}
+						localAssignments.push(newAssignment)
+						addedCount++
+					}
+				})
+
+				if (addedCount > 0) {
+					selectedIds = new Set(selectedIds)
+					onUpdate?.(Array.from(selectedIds))
+					onAssignmentsUpdate?.(localAssignments)
+				}
+			}
+		} finally {
+			assigningEnsemble = null
+		}
+	}
+
 	// Update assignment details
 	function updateAssignment(artistId: string, field: keyof ArtistAssignment, value: any) {
 		const assignmentIndex = localAssignments.findIndex(a => a.artist_id === artistId)
