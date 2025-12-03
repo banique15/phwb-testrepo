@@ -329,6 +329,66 @@
 		/>
 	</div>
 
+	<!-- Ensemble Selector -->
+	{#if !readonly && ensembles.length > 0}
+		<div class="space-y-2">
+			<button
+				class="btn btn-outline btn-sm gap-2"
+				onclick={() => showEnsembleSelector = !showEnsembleSelector}
+			>
+				<Music class="w-4 h-4" />
+				{showEnsembleSelector ? 'Hide Ensembles' : 'Assign Ensemble'}
+				<svg
+					class="w-4 h-4 transition-transform {showEnsembleSelector ? 'rotate-180' : ''}"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+
+			{#if showEnsembleSelector}
+				<div class="border border-base-300 rounded-lg bg-base-100 p-4">
+					<p class="text-sm text-base-content/70 mb-3">
+						Select an ensemble to add all its members:
+					</p>
+					<div class="space-y-2 max-h-48 overflow-y-auto">
+						{#each ensembles as ensemble}
+							<div class="flex items-center justify-between p-2 hover:bg-base-200 rounded-lg">
+								<div class="flex items-center gap-2">
+									<Music class="w-4 h-4 text-primary" />
+									<div>
+										<span class="font-medium">{ensemble.name}</span>
+										{#if ensemble.ensemble_type}
+											<span class="text-xs text-base-content/60 ml-2">({ensemble.ensemble_type})</span>
+										{/if}
+									</div>
+								</div>
+								<div class="flex items-center gap-2">
+									<span class="badge badge-ghost badge-sm">
+										{ensemble.member_count || 0} members
+									</span>
+									<button
+										class="btn btn-primary btn-xs"
+										onclick={() => assignEnsemble(ensemble.id!)}
+										disabled={assigningEnsemble === ensemble.id || (ensemble.member_count || 0) === 0}
+									>
+										{#if assigningEnsemble === ensemble.id}
+											<span class="loading loading-spinner loading-xs"></span>
+										{:else}
+											Add All
+										{/if}
+									</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Main content area with side-by-side layout -->
 	<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 		<!-- Left Column: Artist Selection -->
