@@ -698,7 +698,7 @@
 											<button
 												class="text-sm"
 												class:active={sortBy === option.value}
-												onclick={() => { sortBy = option.value; document.activeElement?.blur() }}
+												onclick={() => { sortBy = option.value; (document.activeElement as HTMLElement)?.blur() }}
 											>
 												{option.label}
 											</button>
