@@ -140,7 +140,9 @@
 			status: 'all',
 			canBeSoloist: null,
 			sightReads: null,
-			hideIncomplete: false
+			hideIncomplete: false,
+			positionStatus: 'all',
+			employmentType: 'all'
 		}
 	}
 
@@ -150,8 +152,31 @@
 		filters.instruments.length > 0 ||
 		filters.canBeSoloist !== null ||
 		filters.sightReads !== null ||
-		filters.hideIncomplete
+		filters.hideIncomplete ||
+		filters.positionStatus !== 'all' ||
+		filters.employmentType !== 'all'
 	)
+
+	// Helper to get job title display name
+	function getJobTitleLabel(jobTitle: string | undefined | null): string {
+		if (!jobTitle) return ''
+		const titles: Record<string, string> = {
+			'MUSC - MUSICIAN': 'Musician',
+			'ARPRT - ARTIST PARTNER': 'Artist Partner',
+			'ARPTS - ARTIST PARTNERS': 'Artist Partner',
+			'ARTST - ARTIST': 'Artist',
+			'PIAN - PIANIST': 'Pianist',
+			'SLAC - SFH LAB ACCOMPANIST': 'Accompanist',
+			'PRLD - PROGRAM LEADER': 'Program Leader',
+			'PPMG - PROGRAM & PRODUCTION MANAGER': 'Prod Manager',
+			'PRMG - PRODUCTION MANAGER': 'Prod Manager',
+			'CPTR - CAMP TEACHER': 'Camp Teacher',
+			'CPADM - CAMP ADMIN': 'Camp Admin',
+			'PLNO - PROJECT LEADER SFH PIANOS NEW ORLEANS': 'NOLA Lead',
+			'CAAA - CREATIVE AGING ADMIN ASSISTANT': 'CA Admin'
+		}
+		return titles[jobTitle] || jobTitle.split(' - ')[0] || jobTitle
+	}
 </script>
 
 <div class="flex flex-col h-full bg-base-200/30">
