@@ -326,9 +326,11 @@
 		console.log('Artist created successfully:', event.detail.artist.full_name)
 	}
 
-	function handleDeleteArtist() {
+	async function handleDeleteArtist() {
 		selectedArtist = null
 		isDeleteArtistModalOpen = false
+		// Refetch the artists list
+		await invalidateAll()
 	}
 
 	function openDeleteArtist() {
