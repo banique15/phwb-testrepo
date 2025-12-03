@@ -176,13 +176,15 @@
 	}
 	
 	function exportToCSV() {
-		const headers = ['Artist Name', 'Email', 'Total Hours', 'Total Pay', 'Record Count', 'Average Per Record']
+		const headers = ['Artist Name', 'Email', 'Total Hours', 'Total Pay', 'Record Count', 'Event Linked', 'Unlinked', 'Average Per Record']
 		const rows = reportData.map(item => [
 			item.artist.full_name || 'Unknown',
 			item.artist.email || '',
 			item.totalHours.toFixed(2),
 			item.totalPay.toFixed(2),
 			item.recordCount,
+			item.linkedToEvents,
+			item.unlinkedRecords,
 			(item.totalPay / item.recordCount).toFixed(2)
 		])
 		
