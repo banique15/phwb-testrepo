@@ -27,13 +27,16 @@
 	let endTime = $state('')
 	let status = $state('planned')
 	let venueId = $state<number | null>(null)
+	let programId = $state<number | null>(null)
 	let selectedArtistIds = $state<Set<string>>(new Set())
 
 	// Data state
 	let venues = $state<Venue[]>([])
 	let artists = $state<Artist[]>([])
+	let programs = $state<Program[]>([])
 	let loadingVenues = $state(true)
 	let loadingArtists = $state(true)
+	let loadingPrograms = $state(true)
 
 	// UI state
 	let submitting = $state(false)
