@@ -44,6 +44,9 @@
 	
 	let eventArtistsCount = $state(0)
 
+	// External tab switch for jumping to performers tab
+	let externalActiveTab = $state<string | null>(null)
+
 	const STORAGE_KEY = 'phwb-selected-event'
 
 	// Track newly created events that need to be merged with server data
