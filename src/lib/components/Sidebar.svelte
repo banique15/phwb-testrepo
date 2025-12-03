@@ -25,6 +25,25 @@
 	let isDrawerOpen = $state(false);
 	let touchStartX = 0;
 	let touchStartY = 0;
+	let profile = $state<Profile | null>(null);
+
+	// Load user profile when auth state changes
+	$effect(() => {
+		if ($authStore?.id) {
+			loadProfile($authStore.id);
+		} else {
+			profile = null;
+		}
+	});
+
+	async function loadProfile(userId: string) {
+		const { data } = await supabase
+			.from('profiles')
+			.select('*')
+			.eq('id', userId)
+			.single();
+		profile = data;
+	}
 
 	function isActive(href: string): boolean {
 		if (href === "/") {
