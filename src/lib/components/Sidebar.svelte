@@ -5,7 +5,9 @@
 	import { authStore } from "$lib/auth";
 	import { sidebarStore } from "$lib/stores/sidebar";
 	import { themeStore } from "$lib/stores/theme.svelte";
+	import { supabase } from "$lib/supabase";
 	import ThemeToggle from "./ThemeToggle.svelte";
+	import type { Profile } from "$lib/schemas/profile";
 
 	const navItems = [
 		{ name: "Dashboard", href: "/", disabled: false },
