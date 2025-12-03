@@ -300,6 +300,15 @@
 					</div>
 				</div>
 			</div>
+		{:else if activeTab === 'photos'}
+			<div class="space-y-4 p-4">
+				<h3 class="text-lg font-semibold border-b pb-2">Photo Gallery</h3>
+				{#if artist.id}
+					<ArtistPhotoGallery artistId={artist.id} />
+				{:else}
+					<p class="text-sm opacity-70">Save the artist first to add photos</p>
+				{/if}
+			</div>
 		{:else if activeTab === 'history'}
 			<div class="space-y-4 p-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Performance History</h3>
