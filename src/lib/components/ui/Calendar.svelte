@@ -466,7 +466,7 @@
 							>
 								{#each hourEvents as event}
 									<button
-										class="event-item block w-full text-left text-xs p-1.5 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5"
+										class="event-item block w-full text-left text-xs p-1.5 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5 {blinkingEventId === event.id ? 'animate-blink' : ''}"
 										onclick={(e) => handleEventClick(event, e)}
 									>
 										{#if event.start_time}
