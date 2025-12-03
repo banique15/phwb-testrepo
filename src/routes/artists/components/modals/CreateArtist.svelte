@@ -193,6 +193,12 @@
 			return
 		}
 
+		if (!formData.employment_status?.trim()) {
+			formErrors.employment_status = 'Employment status is required'
+			formErrors = { ...formErrors }
+			return
+		}
+
 		isLoading = true
 
 		try {
