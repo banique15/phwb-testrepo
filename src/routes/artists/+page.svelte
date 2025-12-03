@@ -168,7 +168,8 @@
 		artistFilters.canBeSoloist !== null ||
 		artistFilters.sightReads !== null ||
 		artistFilters.hideIncomplete ||
-		artistFilters.hasEnsemble
+		artistFilters.hasEnsemble ||
+		artistFilters.employmentStatus !== null
 	)
 
 	// Load artist IDs that belong to ensembles
