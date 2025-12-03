@@ -115,6 +115,30 @@
 				return 'bg-base-300'
 		}
 	}
+
+	function toggleExpandedDate(date: Date) {
+		const dateStr = formatDateForComparison(date)
+		expandedDate = expandedDate === dateStr ? null : dateStr
+	}
+
+	function selectEventAndClose(event: EnhancedEvent) {
+		onSelectEvent(event)
+		expandedDate = null
+	}
+
+	function handleClickOutside(e: MouseEvent) {
+		const target = e.target as HTMLElement
+		if (!target.closest('.day-popover') && !target.closest('.more-events-btn')) {
+			expandedDate = null
+		}
+	}
+
+	$effect(() => {
+		if (expandedDate) {
+			document.addEventListener('click', handleClickOutside)
+			return () => document.removeEventListener('click', handleClickOutside)
+		}
+	})
 </script>
 
 <div class="h-full flex flex-col">

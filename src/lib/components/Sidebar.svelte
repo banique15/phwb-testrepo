@@ -242,15 +242,23 @@
 						role="button"
 						class="btn btn-ghost w-full justify-start gap-3 p-2 h-auto"
 					>
-						<div class="avatar placeholder">
-							<div
-								class="bg-primary text-primary-content rounded-full w-8"
-							>
-								<span class="text-xs font-bold">
-									{$authStore.email?.charAt(0).toUpperCase()}
-								</span>
+						{#if profile?.avatar_url}
+							<div class="avatar">
+								<div class="w-8 rounded-full">
+									<img src={profile.avatar_url} alt="Avatar" />
+								</div>
 							</div>
-						</div>
+						{:else}
+							<div class="avatar placeholder">
+								<div
+									class="bg-primary text-primary-content rounded-full w-8"
+								>
+									<span class="text-xs font-bold">
+										{(profile?.full_name || $authStore.email)?.charAt(0).toUpperCase()}
+									</span>
+								</div>
+							</div>
+						{/if}
 						<div class="flex-1 min-w-0 text-left">
 							<div class="text-sm font-medium truncate">
 								{$authStore.email}
