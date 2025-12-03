@@ -317,6 +317,111 @@
 		}
 	}
 
+	// Toast state for copy feedback
+	let toastMessage = $state('')
+	let showToast = $state(false)
+
+	function showCopyToast(message: string) {
+		toastMessage = message
+		showToast = true
+		setTimeout(() => {
+			showToast = false
+		}, 2000)
+	}
+
+	// Clipboard helper
+	async function copyToClipboard(text: string, label: string) {
+		try {
+			await navigator.clipboard.writeText(text)
+			showCopyToast(`${label} copied!`)
+		} catch (err) {
+			console.error('Failed to copy:', err)
+		}
+	}
+
+	// Status transition functions
+	let updatingStatus = $state(false)
+
+	async function updateEventStatus(newStatus: 'planned' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled') {
+		if (!selectedEvent || updatingStatus) return
+		updatingStatus = true
+		try {
+			await eventsStore.enhanced.update(selectedEvent.id, { status: newStatus })
+			if (fullEventDetails) {
+				fullEventDetails = { ...fullEventDetails, status: newStatus }
+			}
+			// Update local events list
+			localEvents = localEvents.map(e =>
+				e.id === selectedEvent!.id ? { ...e, status: newStatus } : e
+			)
+			showCopyToast(`Event ${newStatus}`)
+		} catch (err) {
+			console.error('Failed to update status:', err)
+		} finally {
+			updatingStatus = false
+		}
+	}
+
+	// Communication functions
+	function sendReminder() {
+		if (!fullEventDetails?.artist_details) return
+		const emails = fullEventDetails.artist_details
+			.map(a => a.email)
+			.filter(Boolean)
+			.join(', ')
+		if (emails) {
+			copyToClipboard(emails, 'Artist emails')
+		}
+	}
+
+	function shareEvent() {
+		if (!fullEventDetails) return
+		const date = fullEventDetails.date ? formatDateDisplay(fullEventDetails.date) : 'TBD'
+		const time = fullEventDetails.start_time ? formatTime(fullEventDetails.start_time) : ''
+		const endTime = fullEventDetails.end_time ? ` - ${formatTime(fullEventDetails.end_time)}` : ''
+		const facility = fullEventDetails.facility_name || fullEventDetails.venue_name || ''
+		const location = fullEventDetails.location_name || ''
+
+		const summary = [
+			fullEventDetails.title || 'Event',
+			`${date}${time ? ` at ${time}${endTime}` : ''}`,
+			facility + (location ? ` - ${location}` : ''),
+		].filter(Boolean).join('\n')
+
+		copyToClipboard(summary, 'Event details')
+	}
+
+	// Date helpers
+	function isEventUpcoming(dateStr: string | undefined): boolean {
+		if (!dateStr) return false
+		const eventDate = new Date(dateStr + 'T23:59:59')
+		return eventDate >= new Date()
+	}
+
+	function getMonthAbbrev(dateStr: string): string {
+		const date = new Date(dateStr + 'T00:00:00')
+		return date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+	}
+
+	function getDayNumber(dateStr: string): number {
+		const date = new Date(dateStr + 'T00:00:00')
+		return date.getDate()
+	}
+
+	function getDayOfWeek(dateStr: string): string {
+		const date = new Date(dateStr + 'T00:00:00')
+		return date.toLocaleDateString('en-US', { weekday: 'long' })
+	}
+
+	function getArtistInitials(name: string): string {
+		return name
+			.split(' ')
+			.map(n => n.charAt(0))
+			.slice(0, 2)
+			.join('')
+			.toUpperCase()
+	}
+
 	$effect(() => {
 		if (view === 'week' && weekViewRef) {
 			const firstHourIndex = visibleHours.indexOf(defaultStartHour)
