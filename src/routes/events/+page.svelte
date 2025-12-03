@@ -46,7 +46,7 @@
 		{ value: 'date-asc', label: 'Date (Oldest)' },
 		{ value: 'title-asc', label: 'Title (A-Z)' },
 		{ value: 'title-desc', label: 'Title (Z-A)' },
-		{ value: 'updated', label: 'Recently Updated' },
+		{ value: 'updated', label: 'Recently Created' },
 		{ value: 'status', label: 'Status' }
 	]
 
