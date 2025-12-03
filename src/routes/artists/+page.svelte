@@ -171,6 +171,47 @@
 		}
 	}
 
+	// Load event counts for all artists
+	async function loadArtistEventCounts() {
+		const { data: events, error } = await supabase
+			.from('phwb_events')
+			.select('artists, date')
+
+		if (!error && events) {
+			const today = new Date()
+			today.setHours(0, 0, 0, 0)
+			const counts = new Map<string, { upcoming: number; past: number; total: number }>()
+
+			events.forEach(event => {
+				if (!event.artists) return
+
+				// Handle both array format and legacy object format
+				let artistIds: string[] = []
+				if (Array.isArray(event.artists)) {
+					artistIds = event.artists
+				} else if (event.artists.assignments) {
+					artistIds = event.artists.assignments.map((a: any) => a.artist_id)
+				}
+
+				const eventDate = event.date ? new Date(event.date) : null
+				const isUpcoming = eventDate && eventDate >= today
+
+				artistIds.forEach((artistId: string) => {
+					const current = counts.get(artistId) || { upcoming: 0, past: 0, total: 0 }
+					current.total++
+					if (isUpcoming) {
+						current.upcoming++
+					} else {
+						current.past++
+					}
+					counts.set(artistId, current)
+				})
+			})
+
+			artistEventCounts = counts
+		}
+	}
+
 	onMount(() => {
 		// Load ensemble membership data for filtering
 		loadArtistsWithEnsembles()
