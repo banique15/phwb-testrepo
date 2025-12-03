@@ -94,13 +94,27 @@ export const lookupUtils = {
 		return lookup.get(id) || fallback
 	},
 
+	getFacilityName: (id: number | undefined, fallback = 'Unknown Facility') => {
+		if (!id) return fallback
+		const lookup = get(facilityLookup)
+		return lookup.get(id) || fallback
+	},
+
+	getLocationName: (id: number | undefined, fallback = 'Unknown Location') => {
+		if (!id) return fallback
+		const lookup = get(locationLookup)
+		return lookup.get(id) || fallback
+	},
+
 	// Initialize all lookups by fetching data
 	async initialize() {
 		try {
 			await Promise.all([
 				venuesStore.fetchAll(),
 				programsStore.fetchAll(),
-				artistsStore.fetchAll()
+				artistsStore.fetchAll(),
+				facilitiesStore.fetchAll(),
+				locationsStore.fetchAll()
 			])
 		} catch (error) {
 			console.error('Failed to initialize lookup data:', error)
