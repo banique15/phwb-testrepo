@@ -5,6 +5,7 @@
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
 	import PerformanceHistory from '$lib/components/PerformanceHistory.svelte'
+	import ArtistPhotoGallery from './ArtistPhotoGallery.svelte'
 
 	interface Props {
 		artist: Artist
