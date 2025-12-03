@@ -58,6 +58,9 @@
 	// Track artist IDs that belong to ensembles
 	let artistsWithEnsembles = $state<Set<string>>(new Set())
 
+	// Track event counts per artist
+	let artistEventCounts = $state<Map<string, { upcoming: number; past: number; total: number }>>(new Map())
+
 	// Use derived state to avoid infinite loops
 	let artists = $derived(data.artists)
 
