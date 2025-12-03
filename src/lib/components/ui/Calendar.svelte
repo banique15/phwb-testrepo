@@ -549,9 +549,9 @@
 							<div class="space-y-0.5 overflow-y-auto max-h-16">
 								{#each dayEvents.slice(0, 3) as event}
 									<button
-										class="event-item block w-full text-left text-xs px-1 py-0.5 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity {blinkingEventId === event.id ? 'animate-blink' : ''}"
+										class="event-item block w-full text-left text-xs px-1 py-0.5 rounded {getProgramColor(event.program_id)} hover:opacity-80 transition-opacity {blinkingEventId === event.id ? 'animate-blink' : ''}"
 										onclick={(e) => handleEventClick(event, e)}
-										title="{event.title}{event.start_time ? ` at ${formatTime(event.start_time)}` : ''}"
+										title="{event.title}{event.start_time ? ` at ${formatTime(event.start_time)}` : ''}{event.program_name ? ` (${event.program_name})` : ''}"
 									>
 										{#if event.start_time}
 											<span class="font-medium">{formatTime(event.start_time)}</span>
