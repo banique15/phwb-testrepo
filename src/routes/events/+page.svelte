@@ -487,6 +487,34 @@
 		}, 0)
 	}
 
+	// Bulk selection handlers
+	function toggleSelectAll() {
+		if (selectedEventIds.size === filteredEvents.length) {
+			selectedEventIds = new Set()
+		} else {
+			selectedEventIds = new Set(filteredEvents.map(e => e.id!))
+		}
+	}
+
+	function clearSelection() {
+		selectedEventIds = new Set()
+	}
+
+	async function handleBulkAction(event: CustomEvent<{ action: string; eventIds: number[]; newStatus?: string }>) {
+		const { action, eventIds, newStatus } = event.detail
+
+		try {
+			if (action === 'changeStatus' && newStatus) {
+				await eventsStore.enhanced.bulkUpdate(eventIds, { status: newStatus })
+			} else if (action === 'delete') {
+				await eventsStore.enhanced.bulkDelete(eventIds)
+			}
+			clearSelection()
+		} catch (err) {
+			console.error('Bulk action failed:', err)
+		}
+	}
+
 	// Real-time subscription management
 	let realtimeSubscription: any
 
