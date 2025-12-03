@@ -13,14 +13,16 @@
 	interface Props {
 		onSuccess?: (createdEvent?: EnhancedEvent) => void
 		onCancel?: () => void
+		initialDate?: string
+		initialTime?: string
 	}
 
-	let { onSuccess, onCancel }: Props = $props()
+	let { onSuccess, onCancel, initialDate, initialTime }: Props = $props()
 
 	// Form state
 	let title = $state('')
-	let date = $state(new Date().toISOString().split('T')[0])
-	let startTime = $state('')
+	let date = $state(initialDate || new Date().toISOString().split('T')[0])
+	let startTime = $state(initialTime || '')
 	let endTime = $state('')
 	let status = $state('planned')
 	let venueId = $state<number | null>(null)
