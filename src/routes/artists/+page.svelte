@@ -136,6 +136,9 @@
 	}
 
 	onMount(() => {
+		// Load ensemble membership data for filtering
+		loadArtistsWithEnsembles()
+
 		// Restore selected artist from localStorage on initial client-side mount
 		const artistStorageKey = 'phwb-selected-artist'
 		const savedArtistId = localStorage.getItem(artistStorageKey)
@@ -323,7 +326,8 @@
 														instruments: [],
 														canBeSoloist: null,
 														sightReads: null,
-														hideIncomplete: false
+														hideIncomplete: false,
+														hasEnsemble: false
 													}
 												}}
 											>
