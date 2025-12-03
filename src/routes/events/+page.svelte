@@ -337,29 +337,6 @@
 			}
 		}
 
-		// Apply sorting
-		result = [...result].sort((a: EnhancedEvent, b: EnhancedEvent) => {
-			switch (sortBy) {
-				case 'date-desc':
-					return (b.date || '').localeCompare(a.date || '')
-				case 'date-asc':
-					return (a.date || '').localeCompare(b.date || '')
-				case 'title-asc':
-					return (a.title || '').localeCompare(b.title || '')
-				case 'title-desc':
-					return (b.title || '').localeCompare(a.title || '')
-				case 'updated':
-					return (b.created_at || '').localeCompare(a.created_at || '')
-				case 'status':
-					const statusOrder = ['in_progress', 'confirmed', 'planned', 'completed', 'cancelled']
-					const aIndex = statusOrder.indexOf(a.status || '')
-					const bIndex = statusOrder.indexOf(b.status || '')
-					return aIndex - bIndex
-				default:
-					return 0
-			}
-		})
-
 		return result
 	})
 
