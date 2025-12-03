@@ -3,6 +3,8 @@
 	import { User, Calendar, Theater, DollarSign } from 'lucide-svelte'
 	import PayrollPerArtistReport from '../components/PayrollPerArtistReport.svelte'
 	import MonthlyPayrollReport from '../components/MonthlyPayrollReport.svelte'
+	import PerformanceSummaryReport from '../components/PerformanceSummaryReport.svelte'
+	import FinancialOverviewReport from '../components/FinancialOverviewReport.svelte'
 
 	interface Props {
 		selectedReport: string
