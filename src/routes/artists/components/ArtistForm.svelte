@@ -91,9 +91,33 @@
 
 	// Employment status options
 	const employmentStatusOptions = [
-		{ value: 'Employee', label: 'Employee/W2' },
-		{ value: '1099', label: 'LLC/1099' },
+		{ value: 'W2', label: 'W2 Employee' },
+		{ value: '1099', label: '1099 Contractor' },
 		{ value: 'Trial', label: 'Trial' }
+	]
+
+	// Position status options
+	const positionStatusOptions = [
+		{ value: 'active', label: 'Active' },
+		{ value: 'terminated', label: 'Terminated' },
+		{ value: 'on_leave', label: 'On Leave' }
+	]
+
+	// Job title options
+	const jobTitleOptions = [
+		{ value: 'MUSC - MUSICIAN', label: 'Musician' },
+		{ value: 'ARPRT - ARTIST PARTNER', label: 'Artist Partner' },
+		{ value: 'ARPTS - ARTIST PARTNERS', label: 'Artist Partners' },
+		{ value: 'ARTST - ARTIST', label: 'Artist' },
+		{ value: 'PIAN - PIANIST', label: 'Pianist' },
+		{ value: 'SLAC - SFH LAB ACCOMPANIST', label: 'SFH Lab Accompanist' },
+		{ value: 'PRLD - PROGRAM LEADER', label: 'Program Leader' },
+		{ value: 'PPMG - PROGRAM & PRODUCTION MANAGER', label: 'Program & Production Manager' },
+		{ value: 'PRMG - PRODUCTION MANAGER', label: 'Production Manager' },
+		{ value: 'CPTR - CAMP TEACHER', label: 'Camp Teacher' },
+		{ value: 'CPADM - CAMP ADMIN', label: 'Camp Admin' },
+		{ value: 'PLNO - PROJECT LEADER SFH PIANOS NEW ORLEANS', label: 'Project Leader NOLA' },
+		{ value: 'CAAA - CREATIVE AGING ADMIN ASSISTANT', label: 'Creative Aging Admin' }
 	]
 
 	// Reactive validation state
