@@ -150,8 +150,9 @@
 <div class="dropdown dropdown-end">
 	<button
 		tabindex="0"
-		class="btn btn-sm btn-outline"
+		class="btn btn-sm border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
 		class:btn-active={activeFilterCount > 0}
+		class:border-primary={activeFilterCount > 0}
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
