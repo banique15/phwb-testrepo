@@ -238,8 +238,32 @@
 			}
 		}
 
-		// Subscribe to real-time changes
-		artistsStore.subscribeToChanges()
+		// Subscribe to real-time changes with callbacks to update local state
+		artistsStore.subscribeToChanges({
+			onInsert: (payload) => {
+				const newArtist = payload.new as Artist
+				// Add to beginning if not already present
+				if (!artists.some(a => a.id === newArtist.id)) {
+					artists = [newArtist, ...artists]
+				}
+			},
+			onUpdate: (payload) => {
+				const updatedArtist = payload.new as Artist
+				artists = artists.map(a => a.id === updatedArtist.id ? updatedArtist : a)
+				// Also update selectedArtist if it's the one being updated
+				if (selectedArtist?.id === updatedArtist.id) {
+					selectedArtist = updatedArtist
+				}
+			},
+			onDelete: (payload) => {
+				const deletedId = (payload.old as Artist).id
+				artists = artists.filter(a => a.id !== deletedId)
+				// Clear selection if deleted artist was selected
+				if (selectedArtist?.id === deletedId) {
+					selectedArtist = null
+				}
+			}
+		})
 
 		return () => {
 			artistsStore.unsubscribeFromChanges()
