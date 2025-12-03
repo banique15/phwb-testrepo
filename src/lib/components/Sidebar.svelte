@@ -128,7 +128,7 @@
 
 <div class="drawer-side z-40">
 	<label for="drawer-toggle" class="drawer-overlay"></label>
-	<aside class="h-full w-40 bg-base-200 flex flex-col">
+	<aside class="h-full w-48 bg-base-200 flex flex-col">
 		<!-- Header -->
 		<div
 			class="w-full flex items-center justify-between p-4 border-b border-base-300"
@@ -215,7 +215,7 @@
 		<!-- User section -->
 		{#if $authStore}
 			<div class="p-4 border-t border-base-300">
-				<div class="dropdown dropdown-top dropdown-end w-full">
+				<div class="dropdown dropdown-top dropdown-start w-full">
 					<div
 						tabindex="0"
 						role="button"
