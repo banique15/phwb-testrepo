@@ -204,9 +204,47 @@
 								</button>
 							{/each}
 							{#if dayEvents.length > 3}
-								<div class="text-xs text-center opacity-60">
+								<button
+									class="more-events-btn w-full text-xs text-center opacity-60 hover:opacity-100 hover:text-primary cursor-pointer transition-colors"
+									onclick={() => toggleExpandedDate(date)}
+								>
 									+{dayEvents.length - 3} more
-								</div>
+								</button>
+
+								<!-- Popover with all events -->
+								{#if expandedDate === formatDateForComparison(date)}
+									<div class="day-popover absolute z-50 left-0 right-0 top-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg p-2 min-w-48">
+										<div class="flex items-center justify-between mb-2 pb-1 border-b border-base-200">
+											<span class="text-xs font-semibold">
+												{date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+											</span>
+											<button
+												class="btn btn-ghost btn-xs btn-circle"
+												onclick={() => expandedDate = null}
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+												</svg>
+											</button>
+										</div>
+										<div class="space-y-1 max-h-48 overflow-y-auto">
+											{#each dayEvents as event}
+												<button
+													class="w-full text-left text-xs p-1.5 rounded truncate transition-colors hover:opacity-80 {getStatusColor(event.status)} {selectedEvent?.id === event.id ? 'ring-2 ring-offset-1 ring-base-content' : ''}"
+													onclick={() => selectEventAndClose(event)}
+													title={event.title || 'Untitled Event'}
+												>
+													<div class="text-white font-medium truncate">
+														{#if event.start_time}
+															{event.start_time.slice(0, 5)} -
+														{/if}
+														{event.title || 'Untitled'}
+													</div>
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/if}
 							{/if}
 						</div>
 					</div>
