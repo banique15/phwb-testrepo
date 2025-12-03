@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { EnhancedEvent } from '$lib/stores/events'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings } from 'lucide-svelte'
+	import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, DollarSign } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import ScheduleDisplay from './ScheduleDisplay.svelte'
 	import RequirementsDisplay from './RequirementsDisplay.svelte'
 	import EventPerformers from '$lib/components/EventPerformers.svelte'
+	import EventPayrollLink from './EventPayrollLink.svelte'
 
 	interface Props {
 		event: EnhancedEvent
