@@ -747,15 +747,82 @@
 				{/if}
 
 				<!-- Program Section -->
-				{#if fullEventDetails.program_name}
+				{#if fullEventDetails.program_name || fullEventDetails.program_object}
+					{@const program = fullEventDetails.program_object}
 					<div class="card bg-base-200/50 mb-4">
 						<div class="card-body p-4">
-							<h4 class="font-semibold text-sm text-base-content/70 mb-3">Program</h4>
-							<div class="flex items-center gap-3">
-								<svg class="w-5 h-5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<div class="flex items-center justify-between mb-3">
+								<h4 class="font-semibold text-sm text-base-content/70">Program</h4>
+								{#if fullEventDetails.program_id}
+									<div class="flex gap-1">
+										<a
+											href="/programs?id={fullEventDetails.program_id}"
+											class="btn btn-xs btn-ghost gap-1"
+											title="Open program"
+										>
+											<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+											</svg>
+											View
+										</a>
+										<a
+											href="/programs?id={fullEventDetails.program_id}"
+											target="_blank"
+											rel="noopener noreferrer"
+											class="btn btn-xs btn-ghost gap-1"
+											title="Open program in new tab"
+										>
+											<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+											</svg>
+										</a>
+									</div>
+								{/if}
+							</div>
+							<div class="flex items-start gap-3">
+								<svg class="w-5 h-5 text-secondary mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
 								</svg>
-								<div class="font-medium">{fullEventDetails.program_name}</div>
+								<div class="flex-1">
+									<div class="font-medium">{fullEventDetails.program_name || program?.title}</div>
+									{#if program?.description}
+										<p class="text-sm text-base-content/70 mt-1 line-clamp-2">{program.description}</p>
+									{/if}
+									<div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-base-content/60">
+										{#if program?.geo_coverage}
+											<span class="flex items-center gap-1">
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+												</svg>
+												{program.geo_coverage}
+											</span>
+										{/if}
+										{#if program?.programmer}
+											<span class="flex items-center gap-1">
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+												</svg>
+												{program.programmer}
+											</span>
+										{/if}
+										{#if program?.start_date || program?.end_date}
+											<span class="flex items-center gap-1">
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+												</svg>
+												{#if program.start_date && program.end_date}
+													{formatDateShort(program.start_date)} - {formatDateShort(program.end_date)}
+												{:else if program.start_date}
+													From {formatDateShort(program.start_date)}
+												{:else if program.end_date}
+													Until {formatDateShort(program.end_date)}
+												{/if}
+											</span>
+										{/if}
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
