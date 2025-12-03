@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
 	import { eventsStore, type EnhancedEvent } from '$lib/stores/events'
+	import { enhancedLookup } from '$lib/stores/lookup'
 	import EventCreateForm from '../../../routes/events/components/EventCreateForm.svelte'
 
 	type CalendarEvent = {
