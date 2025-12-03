@@ -49,6 +49,7 @@
 		{locations}
 		{selectedLocationId}
 		{onSelectLocation}
+		{onAddLocation}
 	/>
 
 	<!-- Tab Navigation -->
