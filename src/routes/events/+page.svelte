@@ -406,8 +406,13 @@
 		showDeleteModal = false
 	}
 	
-	async function handleModalSuccess() {
-		// No need to manually refresh - real-time subscriptions will handle updates
+	async function handleModalSuccess(createdEvent?: EnhancedEvent) {
+		// If a new event was created, add it to the list and select it
+		if (createdEvent && showCreateModal) {
+			newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
+			await selectEvent(createdEvent)
+		}
+
 		// Clear selection if event was deleted
 		if (showDeleteModal && selectedEvent) {
 			selectedEvent = null
