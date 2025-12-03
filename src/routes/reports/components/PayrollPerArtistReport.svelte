@@ -93,7 +93,9 @@
 
 			data?.forEach(record => {
 				const artistId = record.artist_id || 'unknown'
-				const artist = record.artists || {
+				// Handle both possible relationship names from Supabase
+				const artistData = record.artists || record.phwb_artists
+				const artist = artistData || {
 					id: artistId,
 					full_name: 'Unknown Artist',
 					legal_first_name: '',
@@ -115,8 +117,12 @@
 
 				const group = artistGroups.get(artistId)!
 				group.records.push(record)
-				group.totalHours += record.hours || 0
-				group.totalPay += record.total_pay || (record.hours || 0) * (record.rate || 0) + (record.additional_pay || 0)
+
+				const recordHours = record.hours || 0
+				const recordPay = record.total_pay || (recordHours * (record.rate || 0)) + (record.additional_pay || 0)
+
+				group.totalHours += recordHours
+				group.totalPay += recordPay
 				group.recordCount++
 
 				// Track event linkage
@@ -129,8 +135,9 @@
 					totalUnlinkedRecords++
 				}
 
-				totalPayroll += group.totalPay
-				totalHours += record.hours || 0
+				// Add record's pay to total (not group's cumulative total!)
+				totalPayroll += recordPay
+				totalHours += recordHours
 				totalRecords++
 			})
 			
