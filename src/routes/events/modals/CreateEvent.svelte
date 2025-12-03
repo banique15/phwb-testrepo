@@ -295,13 +295,13 @@
 				})
 			}
 
-			await eventsStore.create(eventData)
+			const createdEvent = await eventsStore.create(eventData)
 
 			// Reset form
 			resetForm()
 
-			// Close modal and notify parent
-			onSuccess?.()
+			// Close modal and notify parent with the created event
+			onSuccess?.(createdEvent)
 			onClose?.()
 
 		} catch (err) {
