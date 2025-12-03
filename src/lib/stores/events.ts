@@ -6,6 +6,9 @@ import { logger } from '$lib/utils/logger'
 import { eventSchema, type Event, type CreateEvent, type UpdateEvent } from '$lib/schemas/event'
 import type { PaginationOptions, StoreState } from '$lib/types'
 import { lookupUtils, enhancedLookup } from './lookup'
+import type { Facility } from '$lib/schemas/facility'
+import type { Location } from '$lib/schemas/location'
+import type { Artist } from '$lib/schemas/artist'
 
 // Enhanced event type with resolved names
 export interface EnhancedEvent extends Event {
@@ -13,6 +16,11 @@ export interface EnhancedEvent extends Event {
 	program_name?: string
 	venue_object?: any
 	program_object?: any
+	// Facility and location data
+	facility_name?: string
+	facility_object?: Facility | null
+	location_name?: string
+	location_object?: Location | null
 	artist_assignments?: {
 		artist_id: string
 		artist_name: string
@@ -21,6 +29,8 @@ export interface EnhancedEvent extends Event {
 		num_hours?: number
 		hourly_rate?: number
 	}[]
+	// Full artist objects for contact info and profile photos
+	artist_details?: Artist[]
 }
 
 // Create base store for standard CRUD operations
