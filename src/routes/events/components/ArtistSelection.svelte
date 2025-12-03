@@ -35,6 +35,12 @@
 	let editingAssignment = $state<string | null>(null) // artist_id being edited
 	let expandedAssignment = $state<string | null>(null) // artist_id of expanded assignment card
 
+	// Ensemble state
+	let ensembles = $state<(Ensemble & { member_count?: number })[]>([])
+	let ensemblesLoading = $state(true)
+	let showEnsembleSelector = $state(false)
+	let assigningEnsemble = $state<string | null>(null) // ensemble_id being assigned
+
 	// Role options
 	const roleOptions = [
 		'Lead Vocalist',
@@ -58,17 +64,17 @@
 		{ value: 'declined', label: 'Declined', class: 'badge-error' }
 	]
 
-	// Load artists on mount
+	// Load artists and ensembles on mount
 	onMount(async () => {
 		try {
 			console.log('ArtistSelection: Starting to load artists...')
-			
+
 			// Use direct Supabase query as a fallback since that's what works in ArtistAssignment
 			const { data: directData, error: directError } = await supabase
 				.from('phwb_artists')
 				.select('*')
 				.order('full_name')
-			
+
 			if (directError) {
 				console.error('ArtistSelection: Direct Supabase query failed:', directError)
 			} else {
@@ -76,10 +82,27 @@
 				artists = directData || []
 				console.log('ArtistSelection: Artists state after assignment:', artists.length)
 			}
+
+			// Load ensembles with member counts
+			const { data: ensembleData, error: ensembleError } = await supabase
+				.from('phwb_ensembles')
+				.select('*, phwb_ensemble_members(count)')
+				.eq('status', 'active')
+				.order('name')
+
+			if (ensembleError) {
+				console.error('ArtistSelection: Failed to load ensembles:', ensembleError)
+			} else {
+				ensembles = (ensembleData || []).map(e => ({
+					...e,
+					member_count: e.phwb_ensemble_members?.[0]?.count || 0
+				}))
+			}
 		} catch (error) {
 			console.error('ArtistSelection: Failed to load artists:', error)
 		} finally {
 			loading = false
+			ensemblesLoading = false
 		}
 	})
 
