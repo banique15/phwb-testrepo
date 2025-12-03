@@ -15,6 +15,8 @@
 			canBeSoloist: boolean | null
 			sightReads: boolean | null
 			hideIncomplete: boolean
+			positionStatus: 'all' | 'active' | 'terminated'
+			employmentType: 'all' | 'W2' | '1099'
 		}
 	}
 
