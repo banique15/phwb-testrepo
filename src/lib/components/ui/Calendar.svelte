@@ -188,6 +188,46 @@
 		return today.getFullYear() === year && today.getMonth() === month && today.getDate() === day
 	}
 
+	// Program color palette - distinctive colors for different programs
+	const programColors = [
+		{ bg: 'bg-blue-500', text: 'text-white', hex: '#3b82f6' },
+		{ bg: 'bg-emerald-500', text: 'text-white', hex: '#10b981' },
+		{ bg: 'bg-violet-500', text: 'text-white', hex: '#8b5cf6' },
+		{ bg: 'bg-amber-500', text: 'text-white', hex: '#f59e0b' },
+		{ bg: 'bg-rose-500', text: 'text-white', hex: '#f43f5e' },
+		{ bg: 'bg-cyan-500', text: 'text-white', hex: '#06b6d4' },
+		{ bg: 'bg-pink-500', text: 'text-white', hex: '#ec4899' },
+		{ bg: 'bg-lime-500', text: 'text-white', hex: '#84cc16' },
+		{ bg: 'bg-orange-500', text: 'text-white', hex: '#f97316' },
+		{ bg: 'bg-teal-500', text: 'text-white', hex: '#14b8a6' },
+	]
+
+	// Get color index for a program (consistent hashing based on program_id)
+	function getProgramColorIndex(programId: number | null): number {
+		if (!programId) return 0
+		return programId % programColors.length
+	}
+
+	function getProgramColor(programId: number | null): string {
+		const color = programColors[getProgramColorIndex(programId)]
+		return `${color.bg} ${color.text}`
+	}
+
+	// Get unique programs from events for the legend
+	let uniquePrograms = $derived.by(() => {
+		const programMap = new Map<number, string>()
+		allEvents.forEach(event => {
+			if (event.program_id && event.program_name) {
+				programMap.set(event.program_id, event.program_name)
+			}
+		})
+		return Array.from(programMap.entries()).map(([id, name]) => ({
+			id,
+			name,
+			color: programColors[getProgramColorIndex(id)]
+		}))
+	})
+
 	function getStatusColor(status: string): string {
 		switch (status) {
 			case 'confirmed': return 'bg-success text-success-content'
