@@ -132,15 +132,11 @@
 	}
 
 	function getEventSubtitle(item: any): string {
-		return formatDateWithRelative(item.date)
+		return formatDateWithRelative(item.date, item.start_time, item.end_time)
 	}
 
 	function getEventDetail(item: any): string {
-		const status = item.status || 'Unknown'
-		const time = item.start_time || item.end_time 
-			? `${formatTime(item.start_time)} - ${formatTime(item.end_time)}`
-			: 'No time specified'
-		return `${status} • ${time}`
+		return item.status || ''
 	}
 
 	async function handleSelectEvent(event: CustomEvent<{ item: EnhancedEvent }>) {
