@@ -312,18 +312,84 @@ export const eventsStore = {
 		async getById(id: number) {
 			try {
 				await lookupUtils.initialize()
-				
+
 				const { data, error } = await supabase
 					.from('phwb_events')
 					.select('*')
 					.eq('id', id)
 					.single()
-				
+
 				if (error) throw error
-				
+
 				return enhanceEvents([data])[0]
 			} catch (error) {
 				errorStore.handleError(error, 'Failed to fetch event')
+				throw error
+			}
+		},
+
+		// Bulk update multiple events
+		async bulkUpdate(ids: number[], updates: UpdateEvent) {
+			enhancedState.update(state => ({ ...state, loading: true, error: null }))
+
+			try {
+				logger.debug('Bulk updating events:', ids, 'with:', updates)
+
+				const { data, error } = await supabase
+					.from('phwb_events')
+					.update(updates)
+					.in('id', ids)
+					.select()
+
+				if (error) throw error
+
+				const enhancedEvents = enhanceEvents(data || [])
+
+				enhancedState.update(state => ({
+					...state,
+					items: state.items.map(event => {
+						const updated = enhancedEvents.find(e => e.id === event.id)
+						return updated || event
+					}),
+					loading: false
+				}))
+
+				return enhancedEvents
+			} catch (error) {
+				logger.error('Bulk update error:', error)
+				const errorId = errorStore.handleError(error, 'Failed to bulk update events')
+				enhancedState.update(state => ({ ...state, loading: false, error: errorId }))
+				throw error
+			}
+		},
+
+		// Bulk delete multiple events
+		async bulkDelete(ids: number[]) {
+			enhancedState.update(state => ({ ...state, loading: true, error: null }))
+
+			try {
+				logger.debug('Bulk deleting events:', ids)
+
+				const { error } = await supabase
+					.from('phwb_events')
+					.delete()
+					.in('id', ids)
+
+				if (error) throw error
+
+				enhancedState.update(state => ({
+					...state,
+					items: state.items.filter(event => !ids.includes(event.id!)),
+					loading: false,
+					pagination: {
+						...state.pagination,
+						total: state.pagination.total - ids.length
+					}
+				}))
+			} catch (error) {
+				logger.error('Bulk delete error:', error)
+				const errorId = errorStore.handleError(error, 'Failed to bulk delete events')
+				enhancedState.update(state => ({ ...state, loading: false, error: errorId }))
 				throw error
 			}
 		},
