@@ -3,8 +3,12 @@
 	import type { Artist } from '$lib/schemas/artist'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
-	import { Mail, Phone, MapPin, Users } from 'lucide-svelte'
+	import { Mail, Phone, MapPin, Users, Upload, Loader2, X } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
+
+	const BUCKET_NAME = 'artist-photos'
+	const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+	const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 	interface EnsembleMember {
 		artist_id: string
