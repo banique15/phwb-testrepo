@@ -26,8 +26,8 @@
 	let clientLoading = $state(false)
 	let artistEventsCount = $state(0)
 
-	// Modal state
-	let isCreateArtistModalOpen = $state(false)
+	// Modal and form state
+	let showCreateForm = $state(false)
 	let isDeleteArtistModalOpen = $state(false)
 
 	// Search state
