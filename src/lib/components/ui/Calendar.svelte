@@ -352,7 +352,7 @@
 							<div class="space-y-0.5 overflow-y-auto max-h-16">
 								{#each dayEvents.slice(0, 3) as event}
 									<button
-										class="event-item block w-full text-left text-xs px-1 py-0.5 rounded truncate {getStatusColor(event.status)} hover:opacity-80 transition-opacity"
+										class="event-item block w-full text-left text-xs px-1 py-0.5 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity"
 										onclick={(e) => handleEventClick(event, e)}
 										title="{event.title}{event.start_time ? ` at ${formatTime(event.start_time)}` : ''}"
 									>
@@ -420,7 +420,7 @@
 										class="event-item block w-full text-left text-xs p-1 rounded {getStatusColor(event.status)} hover:opacity-80 transition-opacity mb-0.5"
 										onclick={(e) => handleEventClick(event, e)}
 									>
-										<div class="font-semibold truncate">
+										<div class="font-semibold">
 											{#if event.start_time}{formatTime(event.start_time)} {/if}{event.title}
 										</div>
 									</button>
