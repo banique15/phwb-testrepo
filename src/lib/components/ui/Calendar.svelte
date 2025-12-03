@@ -410,7 +410,7 @@
 							{@const isCurrentDay = isToday(day.getFullYear(), day.getMonth(), day.getDate())}
 
 							<div
-								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30 {isCurrentDay ? 'bg-base-200/15' : ''}"
+								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30 {isCurrentDay ? 'bg-primary/5' : ''}"
 								onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
 								role="button"
 								tabindex="0"
