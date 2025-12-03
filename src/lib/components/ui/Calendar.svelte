@@ -228,6 +228,9 @@
 		}))
 	})
 
+	// Check if there are events without programs
+	let hasEventsWithoutProgram = $derived(allEvents.some(e => !e.program_id))
+
 	function getStatusColor(status: string): string {
 		switch (status) {
 			case 'confirmed': return 'bg-success text-success-content'
