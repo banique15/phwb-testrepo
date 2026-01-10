@@ -29,8 +29,8 @@
 		status: 'all' as string
 	})
 
-	// Use derived state to avoid infinite loops
-	let ensembles = $derived(data.ensembles)
+	// Start with server data, but allow real-time updates to modify it
+	let ensembles = $state([...data.ensembles])
 
 	// Filter ensembles based on search and filters
 	let filteredEnsembles = $derived.by(() => {
@@ -52,17 +52,6 @@
 		}
 
 		return result
-	})
-
-	// Keep selected ensemble in sync with updated data
-	$effect(() => {
-		if (selectedEnsemble?.id && ensembles.length > 0) {
-			const ensembleId = selectedEnsemble.id
-			const updatedEnsemble = ensembles.find(e => e.id === ensembleId)
-			if (updatedEnsemble && updatedEnsemble !== selectedEnsemble) {
-				selectedEnsemble = updatedEnsemble
-			}
-		}
 	})
 
 	// Check if filters are active
@@ -94,8 +83,32 @@
 			}
 		}
 
-		// Subscribe to real-time changes
-		ensemblesStore.subscribeToChanges()
+		// Subscribe to real-time changes with callbacks to update local state
+		ensemblesStore.subscribeToChanges({
+			onInsert: (payload) => {
+				const newEnsemble = payload.new as Ensemble
+				// Add to beginning if not already present
+				if (!ensembles.some(e => e.id === newEnsemble.id)) {
+					ensembles = [newEnsemble, ...ensembles]
+				}
+			},
+			onUpdate: (payload) => {
+				const updatedEnsemble = payload.new as Ensemble
+				ensembles = ensembles.map(e => e.id === updatedEnsemble.id ? updatedEnsemble : e)
+				// Also update selectedEnsemble if it's the one being updated
+				if (selectedEnsemble?.id === updatedEnsemble.id) {
+					selectedEnsemble = updatedEnsemble
+				}
+			},
+			onDelete: (payload) => {
+				const deletedId = (payload.old as Ensemble).id
+				ensembles = ensembles.filter(e => e.id !== deletedId)
+				// Clear selection if deleted ensemble was selected
+				if (selectedEnsemble?.id === deletedId) {
+					selectedEnsemble = null
+				}
+			}
+		})
 
 		return () => {
 			ensemblesStore.unsubscribeFromChanges()
@@ -105,15 +118,28 @@
 	async function reloadEnsembles() {
 		try {
 			const result = await ensemblesStore.fetchAll()
-			// Update the data by navigating to refresh
-			// The store will update automatically via real-time subscription
+			// Update local ensembles state with fresh data
+			ensembles = result
+			// If we have a selected ensemble, update it from the new data
+			if (selectedEnsemble?.id) {
+				const updatedEnsemble = result.find(e => e.id === selectedEnsemble.id)
+				if (updatedEnsemble) {
+					selectedEnsemble = updatedEnsemble
+				}
+			}
 		} catch (error) {
 			console.error('Failed to reload ensembles:', error)
 		}
 	}
 
 	function handleSelectEnsemble(event: CustomEvent<{ item: Ensemble }>) {
-		selectedEnsemble = event.detail.item
+		if (event.detail?.item) {
+			selectedEnsemble = event.detail.item
+			// Also save to localStorage for consistency
+			if (event.detail.item.id) {
+				localStorage.setItem('phwb-selected-ensemble', String(event.detail.item.id))
+			}
+		}
 	}
 
 	function handleSearch(event: CustomEvent<{ value: string }>) {

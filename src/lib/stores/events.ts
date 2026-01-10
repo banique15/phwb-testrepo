@@ -151,6 +151,9 @@ export const eventsStore = {
 	clearError: baseStore.clearError,
 	reset: baseStore.reset,
 
+	// Utility function to enhance events
+	enhanceEvents,
+
 	// Enhanced data operations
 	enhanced: {
 		subscribe: enhancedState.subscribe,

@@ -3,7 +3,11 @@
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import { createLocationSchema, type CreateLocation } from '$lib/schemas/location'
 	import { locationsStore } from '$lib/stores/locations'
+	import { locationTypesStore } from '$lib/stores/locationTypes'
+	import { supabase } from '$lib/supabase'
 	import { z } from 'zod'
+	import { onMount } from 'svelte'
+	import type { LocationType } from '$lib/schemas/locationType'
 
 	interface Props {
 		open?: boolean
@@ -48,6 +52,15 @@
 	let isLoading = $state(false)
 	let formErrors = $state<Record<string, string>>({})
 	let submitError = $state<string | null>(null)
+	
+	// Facilities list for selector (when facilityId is not provided)
+	let facilities = $state<Array<{ id: number; name: string }>>([])
+	let loadingFacilities = $state(false)
+	let showFacilitySelector = $derived(!facilityId)
+
+	// Location types
+	let locationTypes = $state<LocationType[]>([])
+	let loadingLocationTypes = $state(false)
 
 	// Update facility_id when prop changes
 	$effect(() => {
@@ -55,6 +68,46 @@
 			formData.facility_id = facilityId
 		}
 	})
+
+	// Load facilities when modal opens and facilityId is not provided
+	$effect(() => {
+		if (open && showFacilitySelector && facilities.length === 0) {
+			loadFacilities()
+		}
+		if (open && locationTypes.length === 0) {
+			loadLocationTypes()
+		}
+	})
+
+	async function loadFacilities() {
+		loadingFacilities = true
+		try {
+			const { data, error } = await supabase
+				.from('phwb_facilities')
+				.select('id, name')
+				.order('name', { ascending: true })
+			
+			if (error) throw error
+			facilities = data || []
+		} catch (err) {
+			console.error('Failed to load facilities:', err)
+			facilities = []
+		} finally {
+			loadingFacilities = false
+		}
+	}
+
+	async function loadLocationTypes() {
+		loadingLocationTypes = true
+		try {
+			const result = await locationTypesStore.fetchAll({ limit: 1000 })
+			locationTypes = result.data.filter(type => type.active)
+		} catch (error) {
+			console.error('Failed to load location types:', error)
+		} finally {
+			loadingLocationTypes = false
+		}
+	}
 
 	function validateField(field: keyof CreateLocation, value: any) {
 		try {
@@ -85,6 +138,7 @@
 			description: '',
 			floor: '',
 			capacity: undefined,
+			type: null,
 			accessibility_features: {},
 			equipment_available: {},
 			attributes: {},
@@ -174,6 +228,42 @@
 			</div>
 		{/if}
 
+		<!-- Facility Selector (only shown when facilityId is not provided) -->
+		{#if showFacilitySelector}
+			<div class="form-control w-full">
+				<label class="label">
+					<span class="label-text">Facility <span class="text-error">*</span></span>
+				</label>
+				{#if loadingFacilities}
+					<div class="input input-bordered w-full flex items-center justify-center">
+						<span class="loading loading-spinner loading-sm"></span>
+						<span class="ml-2">Loading facilities...</span>
+					</div>
+				{:else}
+					<select
+						class="select select-bordered w-full {formErrors.facility_id ? 'select-error' : ''}"
+						value={formData.facility_id || ''}
+						onchange={(e) => {
+							const value = Number(e.currentTarget.value)
+							handleInputChange('facility_id', value || 0)
+						}}
+						disabled={isLoading}
+						required
+					>
+						<option value="0">Select a facility...</option>
+						{#each facilities as facility}
+							<option value={facility.id}>{facility.name}</option>
+						{/each}
+					</select>
+				{/if}
+				{#if formErrors.facility_id}
+					<label class="label">
+						<span class="label-text-alt text-error">{formErrors.facility_id}</span>
+					</label>
+				{/if}
+			</div>
+		{/if}
+
 		<!-- Location Name -->
 		<div class="form-control w-full">
 			<label class="label">
@@ -192,6 +282,38 @@
 			{#if formErrors.name}
 				<label class="label">
 					<span class="label-text-alt text-error">{formErrors.name}</span>
+				</label>
+			{/if}
+		</div>
+
+		<!-- Location Type -->
+		<div class="form-control w-full">
+			<label class="label">
+				<span class="label-text">Location Type</span>
+			</label>
+			{#if loadingLocationTypes}
+				<select class="select select-bordered w-full" disabled>
+					<option>Loading types...</option>
+				</select>
+			{:else}
+				<select
+					class="select select-bordered w-full {formErrors.type ? 'select-error' : ''}"
+					value={formData.type?.toString() || ''}
+					onchange={(e) => {
+						const value = e.currentTarget.value ? Number(e.currentTarget.value) : null
+						handleInputChange('type', value)
+					}}
+					disabled={isLoading}
+				>
+					<option value="">Select location type (optional)</option>
+					{#each locationTypes as type}
+						<option value={type.id?.toString()}>{type.name}</option>
+					{/each}
+				</select>
+			{/if}
+			{#if formErrors.type}
+				<label class="label">
+					<span class="label-text-alt text-error">{formErrors.type}</span>
 				</label>
 			{/if}
 		</div>

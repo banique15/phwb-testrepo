@@ -106,6 +106,7 @@ export async function getArtistPerformanceStats(artistId: string): Promise<Artis
 /**
  * Get performers for a specific event
  * Returns artist information for all artists in the event
+ * Handles both formats: array of IDs or assignments object
  */
 export async function getEventPerformers(eventId: number): Promise<any[]> {
 	// First get the event to extract artist IDs
@@ -120,7 +121,24 @@ export async function getEventPerformers(eventId: number): Promise<any[]> {
 		throw new Error(`Failed to fetch event: ${eventError.message}`)
 	}
 
-	if (!event?.artists || !Array.isArray(event.artists) || event.artists.length === 0) {
+	if (!event?.artists) {
+		return []
+	}
+
+	// Handle different formats: array of IDs or assignments object
+	let artistIds: string[] = []
+	
+	if (Array.isArray(event.artists)) {
+		// Simple array of artist IDs
+		artistIds = event.artists.filter(id => typeof id === 'string')
+	} else if (typeof event.artists === 'object' && event.artists.assignments) {
+		// Assignments format: { assignments: [{ artist_id: ... }, ...] }
+		artistIds = event.artists.assignments
+			.map((assignment: any) => assignment.artist_id)
+			.filter((id: any) => typeof id === 'string')
+	}
+
+	if (artistIds.length === 0) {
 		return []
 	}
 
@@ -138,7 +156,7 @@ export async function getEventPerformers(eventId: number): Promise<any[]> {
 			genres,
 			location
 		`)
-		.in('id', event.artists)
+		.in('id', artistIds)
 
 	if (artistsError) {
 		console.error('Error fetching event performers:', artistsError)

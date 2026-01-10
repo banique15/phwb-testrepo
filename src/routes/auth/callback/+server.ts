@@ -9,7 +9,8 @@ const ALLOWED_EMAILS = [
 	'lis@singforhope.org',
 	'adam@singforhope.org',
 	'javier@singforhope.org',
-	'marty@singforhope.org'
+	'marty@singforhope.org',
+	'javierhinojosame@gmail.com'
 ]
 
 export const GET: RequestHandler = async ({ url, locals }) => {

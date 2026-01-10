@@ -2,7 +2,7 @@
 	import type { Facility } from '$lib/schemas/facility'
 	import type { Location } from '$lib/schemas/location'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { Calendar, ClipboardList, Phone, ScrollText, BarChart, Settings } from 'lucide-svelte'
+	import { Calendar, ClipboardList, Phone, ScrollText, BarChart, Settings, Tag } from 'lucide-svelte'
 	import LocationContextSelector from './LocationContextSelector.svelte'
 	import CalendarTab from './tabs/CalendarTab.svelte'
 	import EventsTab from './tabs/EventsTab.svelte'
@@ -10,6 +10,7 @@
 	import HistoryTab from './tabs/HistoryTab.svelte'
 	import ReportsTab from './tabs/ReportsTab.svelte'
 	import SettingsTab from './tabs/SettingsTab.svelte'
+	import TypeManagement from './TypeManagement.svelte'
 
 	interface Props {
 		facility: Facility
@@ -28,6 +29,7 @@
 		{ id: 'contacts', label: 'Contacts', icon: Phone },
 		{ id: 'history', label: 'History', icon: ScrollText },
 		{ id: 'reports', label: 'Reports', icon: BarChart },
+		{ id: 'types', label: 'Types', icon: Tag },
 		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
 
@@ -97,6 +99,8 @@
 				{locations}
 				{selectedLocationId}
 			/>
+		{:else if activeTab === 'types'}
+			<TypeManagement />
 		{:else if activeTab === 'settings'}
 			<SettingsTab
 				{facility}

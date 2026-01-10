@@ -52,6 +52,28 @@
 			<p class="text-xs text-base-content/50 mt-4">
 				Access restricted to authorized Sing for Hope staff
 			</p>
+
+			{#if import.meta.env.DEV}
+				<div class="divider text-xs">OR</div>
+				<a
+					href="/auth/test-login?email=it@singforhope.org"
+					class="btn btn-outline btn-sm w-full"
+				>
+					🔓 Dev: Test Login (IT Dev)
+				</a>
+				<a
+					href="/auth/test-login?email=marty@singforhope.org"
+					class="btn btn-outline btn-sm w-full mt-2"
+				>
+					🔓 Dev: Test Login (Marty)
+				</a>
+				<a
+					href="/auth/test-login?email=javier@singforhope.org"
+					class="btn btn-outline btn-sm w-full mt-2"
+				>
+					🔓 Dev: Test Login (Javier)
+				</a>
+			{/if}
 		</div>
 	</div>
 </div>

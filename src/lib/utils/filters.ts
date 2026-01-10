@@ -62,9 +62,17 @@ export interface FacilityFilters {
  * Build event filters for Supabase query
  */
 export function buildEventFilters(query: any, filters: EventFilters): any {
-	// Search filter
-	if (filters.search) {
-		query = query.or(`title.ilike.%${filters.search}%,notes.ilike.%${filters.search}%,location_detail.ilike.%${filters.search}%`)
+	// Search filter - apply this first before other filters
+	if (filters.search && filters.search.trim()) {
+		// Trim and validate search string
+		const searchTerm = filters.search.trim()
+		// Note: 'notes' is JSONB in the database, and PostgREST doesn't support
+		// type casting (::text) in .or() filters. We'll search only on 'title' for now.
+		// If notes needs to be searchable, we'd need to either:
+		// 1. Change the column type to text in the database
+		// 2. Use a computed column or view
+		// 3. Handle JSONB search differently (e.g., using ->> operator, but that's complex in .or())
+		query = query.ilike('title', `%${searchTerm}%`)
 	}
 
 	// Status filter

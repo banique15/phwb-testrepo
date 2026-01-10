@@ -54,6 +54,13 @@
 			icon: XCircle,
 			description: 'Event has been cancelled',
 			nextStates: ['planned']
+		},
+		draft: {
+			label: 'Draft',
+			color: 'badge-ghost',
+			icon: ClipboardList,
+			description: 'Event is saved as a draft',
+			nextStates: ['planned', 'confirmed']
 		}
 	}
 	

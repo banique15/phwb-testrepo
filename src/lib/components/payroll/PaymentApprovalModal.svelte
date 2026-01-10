@@ -58,7 +58,9 @@
 	}
 
 	function formatDate(dateString: string): string {
-		return new Date(dateString).toLocaleDateString()
+		// Append 'T00:00:00' to treat date as local time, not UTC
+		const date = new Date(dateString.includes('T') ? dateString : dateString + 'T00:00:00')
+		return date.toLocaleDateString()
 	}
 </script>
 

@@ -22,6 +22,7 @@
 	import CreateLocation from "./components/modals/CreateLocation.svelte";
 	import DeleteLocation from "./components/modals/DeleteLocation.svelte";
 	import FacilitiesFilters from "./components/FacilitiesFilters.svelte";
+	import ManageTypesModal from "./components/modals/ManageTypesModal.svelte";
 	import { supabase } from "$lib/supabase";
 	import type { FacilityFilters } from "$lib/utils/filters";
 
@@ -74,6 +75,7 @@
 	let isDeleteFacilityModalOpen = $state(false);
 	let isCreateLocationModalOpen = $state(false);
 	let isDeleteLocationModalOpen = $state(false);
+	let isManageTypesModalOpen = $state(false);
 	let clientLoading = $state(false);
 
 	// Use derived state to avoid infinite loops
@@ -633,16 +635,6 @@
 		}
 	}
 
-	// Facility type options
-	const facilityTypes = [
-		{ value: "Healing Arts", label: "Healing Arts" },
-		{ value: "Performance", label: "Performance" },
-		{ value: "Community", label: "Community" },
-		{ value: "Education", label: "Education" },
-		{ value: "Conference", label: "Conference" },
-		{ value: "Workshop", label: "Workshop" },
-		{ value: "Other", label: "Other" },
-	];
 </script>
 
 <ErrorBoundary>
@@ -668,26 +660,49 @@
 					on:select={handleSelectFacility}
 				>
 					{#snippet masterActions()}
-						<button
-							class="btn btn-primary btn-xs"
-							onclick={openCreateFacilityModal}
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-3 w-3 mr-1"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
+						<div class="flex gap-2">
+							<button
+								class="btn btn-primary btn-xs"
+								onclick={openCreateFacilityModal}
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M12 4v16m8-8H4"
-								/>
-							</svg>
-							Add
-						</button>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-3 w-3 mr-1"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 4v16m8-8H4"
+									/>
+								</svg>
+								Add
+							</button>
+							<button
+								class="btn btn-outline btn-xs"
+								onclick={() => isManageTypesModalOpen = true}
+								title="Manage facility and location types"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-3 w-3 mr-1"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+									/>
+								</svg>
+								Types
+							</button>
+						</div>
 					{/snippet}
 					{#snippet filters()}
 						<FacilitiesFilters
@@ -698,12 +713,13 @@
 					{/snippet}
 					{#snippet children(props)}
 						{@const facility = props.item as Facility}
+						{@const facilityTypesOptions = data.lookupData.facilityTypes.map(name => ({ value: name, label: name }))}
 						{#if facility}
 							<div class="overflow-y-auto h-full">
 								<!-- Header Card -->
 								<FacilityHeaderCard
 									{facility}
-									{facilityTypes}
+									facilityTypes={facilityTypesOptions}
 									locationCount={facilityLocations.length}
 									{upcomingEventsCount}
 									onUpdateField={updateFacilityField}
@@ -731,6 +747,11 @@
 		open={isCreateFacilityModalOpen}
 		on:close={() => (isCreateFacilityModalOpen = false)}
 		on:success={handleFacilityCreated}
+	/>
+
+	<ManageTypesModal
+		open={isManageTypesModalOpen}
+		on:close={() => (isManageTypesModalOpen = false)}
 	/>
 
 	<DeleteFacility

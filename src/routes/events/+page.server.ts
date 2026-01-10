@@ -355,6 +355,9 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 		}
 	} catch (err) {
 		console.error('Events page load error:', err)
-		throw error(500, 'Failed to load events data')
+		const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+		const errorDetails = err instanceof Error ? err.stack : String(err)
+		console.error('Error details:', errorDetails)
+		throw error(500, `Failed to load events data: ${errorMessage}`)
 	}
 }

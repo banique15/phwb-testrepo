@@ -86,12 +86,15 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 			.select('id, name')
 			.order('name')
 
-		// Get unique facility types for filtering
+		// Get facility types for filtering
 		const { data: facilityTypes } = await supabase
-			.from('phwb_facilities')
-			.select('type')
-			.not('type', 'is', null)
-			.order('type')
+			.from('phwb_facility_types')
+			.select('id, name')
+			.eq('active', true)
+			.order('name')
+
+		// Extract unique type names for filter dropdown
+		const facilityTypeNames = facilityTypes?.map(ft => ft.name) || []
 
 		// Get unique cities and states for filtering
 		const { data: cities } = await supabase
@@ -221,7 +224,7 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 			statistics,
 			lookupData: {
 				partners: partners || [],
-				facilityTypes: Array.from(new Set((facilityTypes || []).map(t => t.type).filter(Boolean))),
+				facilityTypes: facilityTypeNames,
 				cities: Array.from(new Set((cities || []).map(c => c.city).filter(Boolean))),
 				states: Array.from(new Set((states || []).map(s => s.state).filter(Boolean)))
 			},

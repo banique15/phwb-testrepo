@@ -116,16 +116,125 @@ export function createBaseStore<T extends Record<string, any>, TCreate, TUpdate>
 			state.update(s => ({ ...s, loading: true, error: null }))
 
 			try {
-				// Generate UUID if not provided (temporary fix for database constraint)
-				const dataWithId = {
-					...itemData,
-					id: crypto.randomUUID()
+				// Prepare insert data
+				const insertData: any = { ...itemData }
+				
+				// Helper function to check if a Zod schema field is numeric
+				const isNumericField = (field: any): boolean => {
+					if (!field || !field._def) return false
+					const typeName = field._def.typeName
+					
+					// Direct ZodNumber
+					if (typeName === 'ZodNumber') return true
+					
+					// ZodOptional wrapping ZodNumber
+					if (typeName === 'ZodOptional' && field._def.innerType?._def?.typeName === 'ZodNumber') return true
+					
+					// ZodEffects/ZodRefinement wrapping ZodNumber
+					if ((typeName === 'ZodEffects' || typeName === 'ZodRefinement') && 
+						field._def.schema?._def?.typeName === 'ZodNumber') return true
+					
+					// ZodEffects wrapping ZodOptional wrapping ZodNumber
+					if (typeName === 'ZodEffects' && field._def.schema?._def?.typeName === 'ZodOptional' &&
+						field._def.schema?._def?.innerType?._def?.typeName === 'ZodNumber') return true
+					
+					return false
+				}
+				
+				// Check if schema expects numeric ID
+				const schemaIdField = (config.schema as any)?.shape?.id
+				const expectsNumericId = isNumericField(schemaIdField)
+				
+				// Hardcoded list of tables that use numeric IDs (safety fallback)
+				const numericIdTables = [
+					'phwb_location_contacts',
+					'phwb_locations',
+					'phwb_facilities',
+					'phwb_events',
+					'phwb_programs',
+					'phwb_venues',
+					'phwb_partners'
+				]
+				const definitelyNumericId = numericIdTables.includes(config.tableName)
+				
+				// Use hardcoded check if schema detection fails
+				const shouldUseNumericId = expectsNumericId || definitelyNumericId
+				
+				// Debug logging
+				if (definitelyNumericId && !expectsNumericId) {
+					logger.warn(`Schema detection failed for ${config.tableName}, using hardcoded numeric ID check`)
+				}
+				
+				// UUID regex for detection
+				const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+				
+				// AGGRESSIVE: Remove ANY UUID from id field if table expects numeric ID
+				// This handles cases where UUID might have been added before this check
+				if (shouldUseNumericId && insertData.id) {
+					if (typeof insertData.id === 'string' && uuidRegex.test(insertData.id)) {
+						logger.warn(`Removing UUID from id field for numeric ID table ${config.tableName}. UUID: ${insertData.id}`)
+						delete insertData.id
+					} else if (typeof insertData.id !== 'number') {
+						// If it's not a number and not a valid numeric string, remove it
+						const numId = Number(insertData.id)
+						if (isNaN(numId)) {
+							logger.warn(`Removing invalid id value for numeric ID table ${config.tableName}. Value: ${insertData.id}`)
+							delete insertData.id
+						} else {
+							insertData.id = numId
+						}
+					}
+				}
+				
+				// Handle id field based on schema expectations
+				if (!('id' in insertData) || (insertData as any).id === undefined || (insertData as any).id === null) {
+					if (shouldUseNumericId) {
+						// For numeric IDs, don't include id field - let database auto-generate
+						delete insertData.id
+					} else {
+						// For UUID-based tables, generate UUID
+						insertData.id = crypto.randomUUID()
+					}
+				}
+				
+				// FINAL SAFETY CHECK: Remove ANY UUID from id field if shouldUseNumericId
+				// This is a last resort check before sending to database
+				if (shouldUseNumericId && insertData.id) {
+					if (typeof insertData.id === 'string' && uuidRegex.test(insertData.id)) {
+						logger.error(`CRITICAL: UUID still present in id field for numeric ID table ${config.tableName} after cleanup. Removing it.`)
+						delete insertData.id
+					}
 				}
 
-				logger.debug(`Creating ${config.tableName} with data:`, dataWithId)
+				// Safety check: ensure no UUID strings are in numeric fields
+				for (const [key, value] of Object.entries(insertData)) {
+					if (typeof value === 'string' && uuidRegex.test(value)) {
+						// Check if this field should be numeric based on schema
+						const fieldSchema = (config.schema as any)?.shape?.[key]
+						const expectsNumber = fieldSchema && (
+							fieldSchema._def?.typeName === 'ZodNumber' ||
+							fieldSchema._def?.typeName === 'ZodOptional' && fieldSchema._def?.innerType?._def?.typeName === 'ZodNumber' ||
+							(fieldSchema._def?.typeName === 'ZodEffects' || fieldSchema._def?.typeName === 'ZodRefinement') && 
+							fieldSchema._def?.schema?._def?.typeName === 'ZodNumber'
+						)
+						
+						if (expectsNumber) {
+							logger.error(`Invalid data: field ${key} is a UUID string but should be a number. Value: ${value}`)
+							throw new Error(`Invalid ${key}: expected a number but received a UUID "${value}". Please check your data.`)
+						}
+					}
+				}
+
+				// Log the final data being sent (for debugging)
+				logger.debug(`Creating ${config.tableName} with data:`, JSON.stringify(insertData, null, 2))
+				logger.debug(`Data types:`, Object.entries(insertData).reduce((acc, [key, value]) => {
+					acc[key] = typeof value
+					return acc
+				}, {} as Record<string, string>))
+				
 				const { data, error } = await supabase
 					.from(config.tableName)
-					.insert([dataWithId])
+					.insert([insertData])
 					.select()
 					.single()
 

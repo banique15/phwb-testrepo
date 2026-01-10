@@ -3,8 +3,9 @@
 	import type { Artist } from '$lib/schemas/artist'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import InlineEditableMultiSelect from '$lib/components/ui/InlineEditableMultiSelect.svelte'
-	import { Mail, Phone, MapPin, Users, Upload, Loader2, X } from 'lucide-svelte'
+	import { Mail, Phone, MapPin, Users, Upload, Loader2, X, Plus } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
+	import AddArtistToEnsemble from './modals/AddArtistToEnsemble.svelte'
 
 	const BUCKET_NAME = 'artist-photos'
 	const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -49,6 +50,7 @@
 	let uploadingPhoto = $state(false)
 	let dragOver = $state(false)
 	let fileInput: HTMLInputElement
+	let isAddToEnsembleModalOpen = $state(false)
 
 	// Load ensembles when artist changes
 	$effect(() => {
@@ -288,11 +290,22 @@
 				</div>
 
 				<!-- Ensembles Section -->
-				{#if ensembles.length > 0 || loadingEnsembles}
-					<div class="space-y-2">
+				<div class="space-y-2">
+					<div class="flex items-center justify-between">
 						<span class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-1">
 							<Users class="w-3 h-3" /> Ensembles
 						</span>
+						<button
+							type="button"
+							class="btn btn-xs btn-ghost gap-1"
+							onclick={() => isAddToEnsembleModalOpen = true}
+							title="Add artist to ensemble"
+						>
+							<Plus class="w-3 h-3" />
+							Add to Ensemble
+						</button>
+					</div>
+				{#if ensembles.length > 0 || loadingEnsembles}
 						{#if loadingEnsembles}
 							<div class="flex items-center gap-2 text-sm text-base-content/50">
 								<span class="loading loading-spinner loading-xs"></span>
@@ -345,8 +358,8 @@
 								{/each}
 							</div>
 						{/if}
-					</div>
 				{/if}
+				</div>
 
 				<!-- Genres and Instruments Row -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -473,3 +486,14 @@
 	</div>
 </div>
 
+<!-- Add Artist to Ensemble Modal -->
+<AddArtistToEnsemble
+	open={isAddToEnsembleModalOpen}
+	{artist}
+	onClose={() => isAddToEnsembleModalOpen = false}
+	onSuccess={() => {
+		if (artist?.id) {
+			loadArtistEnsembles(artist.id)
+		}
+	}}
+/>

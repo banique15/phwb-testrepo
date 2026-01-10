@@ -8,7 +8,7 @@ export const ensembleSchema = z.object({
 	description: z.string().optional(),
 	ensemble_type: z.string().min(1, 'Ensemble type is required'),
 	status: z.enum(['active', 'inactive', 'archived']).optional(),
-	website: z.string().url('Invalid URL format').optional(),
+	website: z.union([z.string().url('Invalid URL format'), z.literal('')]).optional(),
 	leader_id: z.string().uuid().optional(),
 	instant_id: z.string().optional(),
 })

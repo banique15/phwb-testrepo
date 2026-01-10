@@ -1,15 +1,20 @@
 <script lang="ts">
 	import { Lightbulb, HelpCircle } from 'lucide-svelte'
 	import { eventsStore } from '$lib/stores/events'
-	import { venuesStore } from '$lib/stores/venues'
-	import { artistsStore } from '$lib/stores/artists'
 	import { onMount } from 'svelte'
-	import type { Venue } from '$lib/schemas/venue'
 	import type { Artist } from '$lib/schemas/artist'
+	import type { LocationWithFacility } from '$lib/schemas/location'
 	import { supabase } from '$lib/supabase'
 	import type { EnhancedEvent } from '$lib/stores/events'
 	import 'driver.js/dist/driver.css'
 	import { startCreateEventTour } from '$lib/tours/createEventTour'
+	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
+	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
+	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
+	import CreateLocationContact from '../../facilities/components/modals/contacts/CreateLocationContact.svelte'
+	import { Plus } from 'lucide-svelte'
+	import { toast } from '$lib/stores/toast'
+	import type { LocationContact } from '$lib/schemas/locationContact'
 
 	interface Props {
 		open?: boolean
@@ -28,129 +33,53 @@
 	let startTime = $state('')
 	let endTime = $state('')
 	let status = $state('planned')
-	let venueId = $state<number | null>(null)
-	let selectedArtistIds = $state<Set<string>>(new Set())
-
-	// Data state
-	let venues = $state<Venue[]>([])
-	let artists = $state<Artist[]>([])
-	let loadingVenues = $state(true)
-	let loadingArtists = $state(true)
+	let locationId = $state<number | null>(null)
+	let selectedLocation = $state<LocationWithFacility | null>(null)
+	let artistAssignments = $state<ArtistAssignment[]>([])
+	let productionManagerContactId = $state<number | null>(null)
+	let numberOfAttendees = $state<number | undefined>(undefined)
+	let showCreateContactModal = $state(false)
 
 	// UI state
 	let submitting = $state(false)
 	let error = $state<string | null>(null)
-	let artistSearchTerm = $state('')
-	let venueSearchTerm = $state('')
-	let showVenueDropdown = $state(false)
-
-	// Display-only fields (not saved to database)
-	let selectedInstrument = $state('')
-	let selectedGenre = $state('')
-	let selectedEnsembleSize = $state('')
-	let assignmentMethod = $state<'manual' | 'ai'>('manual') // Track which method user chooses
 
 	const statusOptions = [
 		{ value: 'planned', label: 'Planned' },
 		{ value: 'confirmed', label: 'Confirmed' },
 		{ value: 'in_progress', label: 'In Progress' },
 		{ value: 'completed', label: 'Completed' },
-		{ value: 'cancelled', label: 'Cancelled' }
+		{ value: 'cancelled', label: 'Cancelled' },
+		{ value: 'draft', label: 'Draft' }
 	]
 
 	// Display-only options (for demo purposes)
-	const instrumentOptions = [
-		'Violin', 'Viola', 'Cello', 'Bass', 'Piano', 'Guitar', 'Drums',
-		'Trumpet', 'Saxophone', 'Clarinet', 'Flute', 'Voice/Vocals'
-	]
 
-	const genreOptions = [
-		'Classical', 'Jazz', 'Pop', 'Rock', 'Folk', 'Blues',
-		'R&B/Soul', 'World Music', 'Musical Theater', 'Opera'
-	]
 
-	const ensembleSizeOptions = [
-		{ value: 'solo', label: 'Solo' },
-		{ value: 'duo', label: 'Duo' },
-		{ value: 'trio', label: 'Trio' },
-		{ value: 'quartet', label: 'Quartet' },
-		{ value: 'ensemble', label: 'Small Ensemble (5-8)' },
-		{ value: 'large', label: 'Large Ensemble (9+)' }
-	]
-
-	// Generate time options (half-hour blocks from 6am to 10pm)
-	function generateTimeOptions() {
-		const times: string[] = []
-		for (let hour = 6; hour <= 22; hour++) {
-			times.push(`${hour.toString().padStart(2, '0')}:00`)
-			if (hour < 22) { // Don't add :30 for 10pm
-				times.push(`${hour.toString().padStart(2, '0')}:30`)
-			}
-		}
-		return times
-	}
-
-	const allTimeOptions = generateTimeOptions()
-
-	// Filter end times based on start time
-	let availableEndTimes = $derived.by(() => {
-		if (!startTime) return allTimeOptions
-
-		// Find the index of the start time
-		const startIndex = allTimeOptions.indexOf(startTime)
-		if (startIndex === -1) return allTimeOptions
-
-		// Return only times after the start time
-		return allTimeOptions.slice(startIndex + 1)
+	// Calculate minimum end time based on start time
+	let minEndTime = $derived.by(() => {
+		if (!startTime) return ''
+		// If start time is set, end time must be at least 1 minute after
+		const [hours, minutes] = startTime.split(':').map(Number)
+		const startDate = new Date()
+		startDate.setHours(hours, minutes, 0, 0)
+		startDate.setMinutes(startDate.getMinutes() + 1)
+		return `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`
 	})
 
-	// Format time for display (e.g., "09:00" -> "9:00 AM")
-	function formatTimeDisplay(time: string): string {
-		const [hourStr, minute] = time.split(':')
-		const hour = parseInt(hourStr)
-		const period = hour >= 12 ? 'PM' : 'AM'
-		const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
-		return `${displayHour}:${minute} ${period}`
-	}
-
-	// Load venues and artists on mount
-	onMount(async () => {
-		await Promise.all([loadVenues(), loadArtists()])
+	// Validate that end time is after start time
+	let timeError = $derived.by(() => {
+		if (!startTime || !endTime) return null
+		const [startHours, startMinutes] = startTime.split(':').map(Number)
+		const [endHours, endMinutes] = endTime.split(':').map(Number)
+		const startTotal = startHours * 60 + startMinutes
+		const endTotal = endHours * 60 + endMinutes
+		if (endTotal <= startTotal) {
+			return 'End time must be after start time'
+		}
+		return null
 	})
 
-	async function loadVenues() {
-		try {
-			// The base store defaults to sorting by created_at which fails on the venues view.
-			// Force an alphabetical fetch so the dropdown has the full list available.
-			const result = await venuesStore.fetchAll({
-				sortBy: 'name',
-				sortOrder: 'asc'
-			})
-			venues = (result.data || []).sort((a, b) =>
-				(a.name || '').localeCompare(b.name || '')
-			)
-		} catch (err) {
-			console.error('Failed to load venues:', err)
-		} finally {
-			loadingVenues = false
-		}
-	}
-
-	async function loadArtists() {
-		try {
-			const { data, error: supabaseError } = await supabase
-				.from('phwb_artists')
-				.select('*')
-				.order('full_name')
-
-			if (supabaseError) throw supabaseError
-			artists = data || []
-		} catch (err) {
-			console.error('Failed to load artists:', err)
-		} finally {
-			loadingArtists = false
-		}
-	}
 
 	// Control modal visibility
 	$effect(() => {
@@ -163,78 +92,93 @@
 		}
 	})
 
-	// Filter venues based on search
-	let filteredVenues = $derived.by(() => {
-		if (!venueSearchTerm.trim()) {
-			return venues
+	function handleAssignmentsUpdate(assignments: ArtistAssignment[]) {
+		artistAssignments = assignments
+	}
+
+	function handleLocationChange(newLocationId: number | null, location?: LocationWithFacility | null) {
+		locationId = newLocationId
+		selectedLocation = location || null
+		// If we have a location, try to get facility info
+		if (location && !selectedLocation?.facility) {
+			// Location might not have facility info, so we'll fetch it if needed
+			selectedLocation = location as LocationWithFacility
+		}
+	}
+
+	async function handleSaveDraft() {
+		submitting = true
+		error = null
+
+		if (timeError) {
+			error = timeError
+			submitting = false
+			return
 		}
 
-		const searchLower = venueSearchTerm.toLowerCase()
-		return venues.filter(venue =>
-			venue.name?.toLowerCase().includes(searchLower) ||
-			venue.address?.toLowerCase().includes(searchLower) ||
-			venue.city?.toLowerCase().includes(searchLower)
-		)
-	})
+		try {
+			// Get plain array copies to avoid reactive proxy issues
+			const artistsArray = Array.isArray(artists) ? [...artists] : []
+			
+			// For drafts, we allow minimal data - generate defaults if needed
+			let finalTitle = title.trim()
+			if (!finalTitle) {
+				// Try to generate from available data, or use default
+				if (selectedLocation) {
+					const locationName = selectedLocation.name
+					const facilityName = selectedLocation.facility?.name || 'Unknown Facility'
+					finalTitle = `Draft Event @ ${locationName} (${facilityName})`
+				} else {
+					finalTitle = 'Draft Event'
+				}
+			}
 
-	// Get selected venue name for display
-	let selectedVenueName = $derived.by(() => {
-		if (!venueId) return ''
-		const venue = venues.find(v => v.id === venueId)
-		return venue?.name || ''
-	})
+			// Ensure date exists
+			const eventDate = date || new Date().toISOString().split('T')[0]
 
-	// Filter artists based on search
-	let displayedArtists = $derived.by(() => {
-		if (!artistSearchTerm.trim()) {
-			return artists
+			// Create event data as draft
+			const eventData = {
+				title: finalTitle,
+				date: eventDate,
+				...(startTime && { start_time: startTime }),
+				...(endTime && { end_time: endTime }),
+				status: 'draft',
+				...(locationId && { location_id: locationId }),
+				notes: '',
+				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
+				...(productionManagerContactId && { production_manager_contact_id: productionManagerContactId }),
+				...(artistAssignments.length > 0 && {
+					artists: { assignments: artistAssignments }
+				})
+			}
+
+			const createdEvent = await eventsStore.create(eventData)
+
+			// Reset form
+			resetForm()
+
+			// Close modal and notify parent with the created event
+			onSuccess?.(createdEvent)
+			onClose?.()
+
+		} catch (err) {
+			console.error('Error saving draft:', err)
+			error = err instanceof Error ? err.message : 'Failed to save draft'
+		} finally {
+			submitting = false
 		}
-
-		const searchLower = artistSearchTerm.toLowerCase()
-		return artists.filter(artist =>
-			artist.full_name?.toLowerCase().includes(searchLower) ||
-			artist.artist_name?.toLowerCase().includes(searchLower) ||
-			artist.email?.toLowerCase().includes(searchLower)
-		)
-	})
-
-	function toggleArtist(artistId: string) {
-		if (selectedArtistIds.has(artistId)) {
-			selectedArtistIds.delete(artistId)
-		} else {
-			selectedArtistIds.add(artistId)
-		}
-		selectedArtistIds = new Set(selectedArtistIds) // Trigger reactivity
-	}
-
-	function selectAllVisibleArtists() {
-		displayedArtists.forEach(artist => {
-			if (artist.id) selectedArtistIds.add(artist.id)
-		})
-		selectedArtistIds = new Set(selectedArtistIds)
-	}
-
-	function clearAllArtists() {
-		selectedArtistIds.clear()
-		selectedArtistIds = new Set()
-	}
-
-	function selectVenue(venue: Venue) {
-		venueId = venue.id
-		showVenueDropdown = false
-		venueSearchTerm = ''
-	}
-
-	function clearVenueSelection() {
-		venueId = null
-		venueSearchTerm = ''
 	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault()
 
-		if (!venueId) {
-			error = 'Please select a venue'
+		if (!locationId) {
+			error = 'Please select a location'
+			return
+		}
+
+		if (timeError) {
+			error = timeError
 			return
 		}
 
@@ -242,47 +186,32 @@
 		error = null
 
 		try {
-			// Auto-generate title if blank
-			const venue = venues.find(v => v.id === venueId)
+			// Get location display name for title generation
+			const locationName = selectedLocation?.name || 'Unknown Location'
+			const facilityName = selectedLocation?.facility?.name || ''
+			const locationDisplay = facilityName ? `${locationName} (${facilityName})` : locationName
 			let finalTitle = title.trim()
 
-			// Generate title automatically: "Artist @ Venue" or "Artist1 & Artist2 @ Venue"
+			// Generate title automatically: "Artist @ Location" or "Artist1 & Artist2 @ Location"
 			if (!finalTitle) {
-				const selectedArtistNames = Array.from(selectedArtistIds)
-					.map(artistId => {
-						const artist = artists.find(a => a.id === artistId)
-						return artist?.artist_name || artist?.full_name || 'Unknown Artist'
-					})
-					.filter(name => name !== 'Unknown Artist')
+				const selectedArtistNames = artistAssignments
+					.map(assignment => assignment.artist_name)
+					.filter(name => name && name !== 'Unknown')
 
 				if (selectedArtistNames.length === 0) {
 					// No artists selected
-					finalTitle = `Event @ ${venue?.name || 'Unknown Venue'}`
+					finalTitle = `Event @ ${locationDisplay}`
 				} else if (selectedArtistNames.length === 1) {
 					// Single artist
-					finalTitle = `${selectedArtistNames[0]} @ ${venue?.name || 'Unknown Venue'}`
+					finalTitle = `${selectedArtistNames[0]} @ ${locationDisplay}`
 				} else if (selectedArtistNames.length === 2) {
 					// Two artists
-					finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} @ ${venue?.name || 'Unknown Venue'}`
+					finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} @ ${locationDisplay}`
 				} else {
 					// Multiple artists - show first and count
-					finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} @ ${venue?.name || 'Unknown Venue'}`
+					finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} @ ${locationDisplay}`
 				}
 			}
-
-			// Prepare artist assignments
-			const artistAssignments = Array.from(selectedArtistIds).map(artistId => {
-				const artist = artists.find(a => a.id === artistId)
-				return {
-					artist_id: artistId,
-					artist_name: artist?.full_name || artist?.artist_name || 'Unknown',
-					role: '',
-					status: 'pending',
-					num_hours: 0,
-					hourly_rate: 0,
-					notes: ''
-				}
-			})
 
 			// Create event data
 			const eventData = {
@@ -291,8 +220,10 @@
 				...(startTime && { start_time: startTime }),
 				...(endTime && { end_time: endTime }),
 				status,
-				venue: venueId,
+				location_id: locationId,
 				notes: '',
+				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
+				...(productionManagerContactId && { production_manager_contact_id: productionManagerContactId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -321,16 +252,11 @@
 		startTime = ''
 		endTime = ''
 		status = 'planned'
-		venueId = null
-		venueSearchTerm = ''
-		showVenueDropdown = false
-		selectedArtistIds.clear()
-		selectedArtistIds = new Set()
-		artistSearchTerm = ''
-		assignmentMethod = 'manual'
-		selectedInstrument = ''
-		selectedGenre = ''
-		selectedEnsembleSize = ''
+		locationId = null
+		selectedLocation = null
+		artistAssignments = []
+		productionManagerContactId = null
+		numberOfAttendees = undefined
 		error = null
 	}
 
@@ -344,22 +270,6 @@
 			handleClose()
 		}
 	}
-
-	function handleClickOutsideVenue(e: MouseEvent) {
-		const target = e.target as HTMLElement
-		if (!target.closest('.venue-dropdown-container')) {
-			showVenueDropdown = false
-		}
-	}
-
-	// Add click listener to close venue dropdown when clicking outside
-	$effect(() => {
-		if (showVenueDropdown && modalElement) {
-			const handleClick = (e: MouseEvent) => handleClickOutsideVenue(e)
-			document.addEventListener('click', handleClick)
-			return () => document.removeEventListener('click', handleClick)
-		}
-	})
 
 	// Tour functionality
 	let tourInstance: ReturnType<typeof startCreateEventTour> | null = null
@@ -429,7 +339,7 @@
 					<input
 						type="text"
 						bind:value={title}
-						placeholder="Leave blank to auto-generate from artist(s) and venue"
+						placeholder="Leave blank to auto-generate from artist(s) and location"
 						class="input input-bordered"
 						maxlength="200"
 						disabled={submitting}
@@ -437,94 +347,30 @@
 					<label class="label">
 						<span class="label-text-alt text-info flex items-center gap-1">
 							<Lightbulb class="w-3 h-3" />
-							Will auto-generate as "Artist @ Venue" if left blank
+							Will auto-generate as "Artist @ Location" if left blank
 						</span>
 					</label>
 				</div>
 
-				<!-- Venue (Required) -->
-				<div class="form-control relative venue-dropdown-container" data-tour="venue-selector">
-					<label class="label">
-						<span class="label-text">Venue <span class="text-error">*</span></span>
-					</label>
-
-					{#if venueId && selectedVenueName}
-						<!-- Display selected venue -->
-						<div class="flex gap-2">
-							<input
-								type="text"
-								value={selectedVenueName}
-								class="input input-bordered flex-1"
-								disabled
-							/>
-							<button
-								type="button"
-								class="btn btn-outline"
-								onclick={clearVenueSelection}
-								disabled={submitting}
-							>
-								Change
-							</button>
-						</div>
-					{:else}
-						<!-- Search input -->
-						<input
-							type="text"
-							bind:value={venueSearchTerm}
-							onfocus={() => showVenueDropdown = true}
-							placeholder="Search venues by name, address, or city..."
-							class="input input-bordered"
-							disabled={submitting || loadingVenues}
-							autocomplete="off"
-						/>
-
-						<!-- Dropdown list -->
-						{#if showVenueDropdown && !loadingVenues}
-							<div class="absolute top-full left-0 right-0 z-50 mt-1 border border-base-300 rounded-lg bg-base-100 shadow-lg max-h-64 overflow-y-auto">
-								{#if filteredVenues.length > 0}
-									{#each filteredVenues as venue}
-										<button
-											type="button"
-											class="w-full text-left px-4 py-3 hover:bg-base-200 border-b border-base-300 last:border-b-0"
-											onclick={() => selectVenue(venue)}
-											disabled={submitting}
-										>
-											<div class="font-medium text-sm">{venue.name}</div>
-											{#if venue.address || venue.city}
-												<div class="text-xs text-base-content/60 mt-1">
-													{#if venue.address}{venue.address}{/if}
-													{#if venue.address && venue.city}, {/if}
-													{#if venue.city}{venue.city}{/if}
-												</div>
-											{/if}
-										</button>
-									{/each}
-								{:else}
-									<div class="px-4 py-6 text-center text-sm text-base-content/60">
-										No venues found
-									</div>
-								{/if}
-							</div>
-						{/if}
-					{/if}
-
-					{#if loadingVenues}
-						<label class="label">
-							<span class="label-text-alt">Loading venues...</span>
-						</label>
-					{:else if !venueId}
-						<label class="label">
-							<span class="label-text-alt">{filteredVenues.length} venues available</span>
-						</label>
-					{/if}
+				<!-- Location (Required) -->
+				<div class="form-control" data-tour="location-selector">
+					<FacilityLocationSelector
+						value={locationId}
+						placeholder="Select facility and location"
+						disabled={submitting}
+						required
+						onchange={handleLocationChange}
+					/>
 				</div>
 
-				<!-- Date and Times Row -->
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4" data-tour="date-time">
+				<!-- Date, Times, and Attendees Row -->
+				<div class="grid grid-cols-1 md:grid-cols-4 gap-4" data-tour="date-time">
 					<!-- Date (Required) -->
 					<div class="form-control">
 						<label class="label">
-							<span class="label-text">Date <span class="text-error">*</span></span>
+							<span class="label-text">
+								Date <span class="text-error">*</span>
+							</span>
 						</label>
 						<input
 							type="date"
@@ -540,16 +386,12 @@
 						<label class="label">
 							<span class="label-text">Start Time</span>
 						</label>
-						<select
+						<input
+							type="time"
 							bind:value={startTime}
-							class="select select-bordered"
+							class="input input-bordered {timeError ? 'input-error' : ''}"
 							disabled={submitting}
-						>
-							<option value="">Not specified</option>
-							{#each allTimeOptions as time}
-								<option value={time}>{formatTimeDisplay(time)}</option>
-							{/each}
-						</select>
+						/>
 					</div>
 
 					<!-- End Time -->
@@ -557,22 +399,95 @@
 						<label class="label">
 							<span class="label-text">End Time</span>
 						</label>
-						<select
+						<input
+							type="time"
 							bind:value={endTime}
-							class="select select-bordered"
+							min={minEndTime}
+							class="input input-bordered {timeError ? 'input-error' : ''}"
 							disabled={submitting || !startTime}
-						>
-							<option value="">Not specified</option>
-							{#each availableEndTimes as time}
-								<option value={time}>{formatTimeDisplay(time)}</option>
-							{/each}
-						</select>
-						{#if !startTime}
+						/>
+						{#if timeError}
+							<label class="label">
+								<span class="label-text-alt text-error">{timeError}</span>
+							</label>
+						{:else if !startTime}
 							<label class="label">
 								<span class="label-text-alt">Select a start time first</span>
 							</label>
 						{/if}
 					</div>
+
+					<!-- Number of Attendees -->
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text">Number of Attendees</span>
+						</label>
+						<input
+							type="number"
+							bind:value={numberOfAttendees}
+							placeholder="Enter number of attendees"
+							class="input input-bordered"
+							min="0"
+							step="1"
+							disabled={submitting}
+						/>
+					</div>
+				</div>
+				
+				<!-- Status -->
+				<div class="form-control" data-tour="status-selector">
+					<label class="label">
+						<span class="label-text">Status</span>
+					</label>
+					<select
+						bind:value={status}
+						class="select select-bordered h-10 min-h-[2.5rem]"
+						disabled={submitting}
+					>
+						{#each statusOptions as option}
+							<option value={option.value}>{option.label}</option>
+						{/each}
+					</select>
+				</div>
+
+				<!-- Production Manager Contact -->
+				<div class="form-control">
+					<div class="flex items-center justify-between mb-1">
+						<label class="label">
+							<span class="label-text">Production Manager Contact</span>
+						</label>
+						<button
+							type="button"
+							class="btn btn-xs btn-outline btn-primary"
+							class:btn-disabled={!locationId}
+							onclick={() => {
+								if (!locationId) {
+									toast.error('Please select a location first before adding a production manager contact')
+									return
+								}
+								showCreateContactModal = true
+							}}
+							title={locationId ? "Create new production manager contact" : "Please select a location first"}
+							disabled={!locationId || submitting}
+						>
+							<Plus class="w-3 h-3 mr-1" />
+							Create New
+						</button>
+					</div>
+					<LocationContactSelector
+						value={productionManagerContactId}
+						locationId={locationId}
+						onchange={(contactId) => productionManagerContactId = contactId}
+						placeholder="Select a production manager contact (optional)"
+						disabled={submitting}
+					/>
+					{#if !locationId}
+						<label class="label">
+							<span class="label-text-alt text-warning">
+								Please select a location first to add a production manager contact
+							</span>
+						</label>
+					{/if}
 				</div>
 			</div>
 
@@ -582,178 +497,12 @@
 					<h4 class="font-semibold text-base">Artist Assignment</h4>
 				</div>
 
-				<!-- Split Layout: Manual vs AI -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<!-- Manual Assignment Option -->
-					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-base-300 bg-base-200/50'}" data-tour="manual-assignment">
-						<div class="flex items-start gap-3 mb-3">
-							<input
-								type="radio"
-								name="assignmentMethod"
-								value="manual"
-								checked={assignmentMethod === 'manual'}
-								onchange={() => assignmentMethod = 'manual'}
-								class="radio radio-primary radio-sm mt-1"
-								disabled={submitting}
-							/>
-							<div class="flex-1">
-								<h5 class="font-semibold text-sm mb-1">Assign Artists Manually</h5>
-								<p class="text-xs text-base-content/70">Select specific artists from your roster</p>
-							</div>
-						</div>
-						{#if assignmentMethod === 'manual'}
-							<div class="space-y-3 mt-4">
-								<!-- Artist Search -->
-								<input
-									type="text"
-									bind:value={artistSearchTerm}
-									placeholder="Search artists..."
-									class="input input-bordered input-sm w-full"
-									disabled={submitting}
-								/>
-
-								<!-- Artist List -->
-								{#if loadingArtists}
-									<div class="text-center py-4">
-										<span class="loading loading-spinner loading-sm"></span>
-									</div>
-								{:else if displayedArtists.length > 0}
-									<div class="border border-base-300 rounded-lg max-h-48 overflow-y-auto">
-										{#each displayedArtists.slice(0, 5) as artist}
-											<label class="flex items-center p-2 hover:bg-base-100 border-b border-base-300 last:border-b-0 cursor-pointer">
-												<input
-													type="checkbox"
-													class="checkbox checkbox-primary checkbox-xs mr-2"
-													checked={selectedArtistIds.has(artist.id!)}
-													onchange={() => toggleArtist(artist.id!)}
-													disabled={submitting}
-												/>
-												<div class="flex-1 min-w-0">
-													<div class="font-medium text-xs truncate">
-														{artist.full_name || artist.artist_name || 'Unknown'}
-													</div>
-												</div>
-											</label>
-										{/each}
-									</div>
-									{#if displayedArtists.length > 5}
-										<p class="text-xs text-center text-base-content/60">
-											Showing 5 of {displayedArtists.length} artists
-										</p>
-									{/if}
-								{/if}
-
-								<!-- Selected Preview -->
-								{#if selectedArtistIds.size > 0}
-									<div class="bg-primary/10 rounded p-2">
-										<p class="text-xs font-medium mb-1">Selected: {selectedArtistIds.size}</p>
-										<div class="flex flex-wrap gap-1">
-											{#each Array.from(selectedArtistIds).slice(0, 3) as artistId}
-												{@const artist = artists.find(a => a.id === artistId)}
-												{#if artist}
-													<span class="badge badge-primary badge-xs">
-														{(artist.full_name || artist.artist_name || '').split(' ')[0]}
-													</span>
-												{/if}
-											{/each}
-											{#if selectedArtistIds.size > 3}
-												<span class="badge badge-xs">+{selectedArtistIds.size - 3}</span>
-											{/if}
-										</div>
-									</div>
-								{/if}
-							</div>
-						{/if}
-					</div>
-
-					<!-- AI Matching Option -->
-					<div class="border-2 rounded-lg p-4 transition-all {assignmentMethod === 'ai' ? 'border-secondary bg-secondary/5' : 'border-base-300 bg-base-200/50'}" data-tour="ai-assignment">
-						<div class="flex items-start gap-3 mb-3">
-							<input
-								type="radio"
-								name="assignmentMethod"
-								value="ai"
-								checked={assignmentMethod === 'ai'}
-								onchange={() => assignmentMethod = 'ai'}
-								class="radio radio-secondary radio-sm mt-1"
-								disabled={submitting}
-							/>
-							<div class="flex-1">
-								<div class="flex items-center gap-2 mb-1">
-									<h5 class="font-semibold text-sm">AI Auto-Match</h5>
-									<div class="flex gap-0.5">
-										<span class="inline-block w-1 h-1 bg-secondary rounded-full animate-pulse" style="animation-delay: 0ms;"></span>
-										<span class="inline-block w-1 h-1 bg-secondary rounded-full animate-pulse" style="animation-delay: 150ms;"></span>
-										<span class="inline-block w-1 h-1 bg-secondary rounded-full animate-pulse" style="animation-delay: 300ms;"></span>
-									</div>
-								</div>
-								<p class="text-xs text-base-content/70">AI finds artists matching your criteria</p>
-							</div>
-						</div>
-						{#if assignmentMethod === 'ai'}
-							<div class="space-y-3 mt-4">
-								<p class="text-xs font-medium mb-2">Set Preferences:</p>
-
-								<!-- Instrument -->
-								<div class="form-control">
-									<label class="label py-1">
-										<span class="label-text text-xs">Instrument</span>
-									</label>
-									<select
-										bind:value={selectedInstrument}
-										class="select select-bordered select-sm w-full"
-										disabled={submitting}
-									>
-										<option value="">Any</option>
-										{#each instrumentOptions as instrument}
-											<option value={instrument}>{instrument}</option>
-										{/each}
-									</select>
-								</div>
-
-								<!-- Genre -->
-								<div class="form-control">
-									<label class="label py-1">
-										<span class="label-text text-xs">Genre</span>
-									</label>
-									<select
-										bind:value={selectedGenre}
-										class="select select-bordered select-sm w-full"
-										disabled={submitting}
-									>
-										<option value="">Any</option>
-										{#each genreOptions as genre}
-											<option value={genre}>{genre}</option>
-										{/each}
-									</select>
-								</div>
-
-								<!-- Ensemble Size -->
-								<div class="form-control">
-									<label class="label py-1">
-										<span class="label-text text-xs">Size</span>
-									</label>
-									<select
-										bind:value={selectedEnsembleSize}
-										class="select select-bordered select-sm w-full"
-										disabled={submitting}
-									>
-										<option value="">Any</option>
-										{#each ensembleSizeOptions as option}
-											<option value={option.value}>{option.label}</option>
-										{/each}
-									</select>
-								</div>
-
-								<div class="bg-secondary/10 rounded p-2 mt-3">
-									<p class="text-xs text-secondary font-medium">
-										🤖 AI will suggest best matches after event creation
-									</p>
-								</div>
-							</div>
-						{/if}
-					</div>
-				</div>
+				<UnifiedArtistAssignment
+					assignments={artistAssignments}
+					onAssignmentsUpdate={handleAssignmentsUpdate}
+					mode="create"
+					readonly={submitting}
+				/>
 			</div>
 
 			<!-- Form Actions -->
@@ -767,9 +516,20 @@
 					Cancel
 				</button>
 				<button
+					type="button"
+					class="btn btn-ghost"
+					onclick={handleSaveDraft}
+					disabled={submitting}
+				>
+					{#if submitting}
+						<span class="loading loading-spinner loading-sm"></span>
+					{/if}
+					Save as Draft
+				</button>
+				<button
 					type="submit"
 					class="btn btn-primary"
-					disabled={submitting || !venueId}
+					disabled={submitting || !locationId}
 				>
 					{#if submitting}
 						<span class="loading loading-spinner loading-sm"></span>
@@ -786,3 +546,16 @@
 		<button onclick={handleClose}>close</button>
 	</form>
 </dialog>
+
+<!-- Create Location Contact Modal -->
+<CreateLocationContact
+	open={showCreateContactModal}
+	locationId={locationId ? Number(locationId) : undefined}
+	on:close={() => showCreateContactModal = false}
+	on:success={(e: CustomEvent<{ contact: LocationContact }>) => {
+		const newContact = e.detail.contact
+		productionManagerContactId = newContact.id
+		showCreateContactModal = false
+		toast.success('Production manager contact created and selected')
+	}}
+/>

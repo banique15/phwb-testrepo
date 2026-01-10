@@ -12,22 +12,36 @@ const steps: TourStep[] = [
 		element: '[data-tour="event-title"]',
 		title: 'Event Title (Optional)',
 		description:
-			'Enter a custom title or leave blank. The system will auto-generate one like "Artist Name @ Venue".',
+			'Enter a custom title or leave blank. The system will auto-generate one like "Artist Name @ Location".',
 		side: 'bottom'
 	},
 	{
-		element: '[data-tour="venue-selector"]',
-		title: 'Select a Venue',
+		element: '[data-tour="program-selector"]',
+		title: 'Select a Program',
 		description:
-			'Search and select where the event takes place. Start typing to filter by name, address, or city. This field is required.',
+			'Choose the program this event belongs to. This field is required to create an event.',
+		side: 'bottom'
+	},
+	{
+		element: '[data-tour="location-selector"]',
+		title: 'Select a Location',
+		description:
+			'Search and select where the event takes place. Use the + buttons to quickly create a new location or facility if needed. This field is required.',
 		side: 'bottom'
 	},
 	{
 		element: '[data-tour="date-time"]',
 		title: 'Schedule Your Event',
 		description:
-			'Set the date (required) and optionally specify start/end times. End time options adjust based on your start time.',
+			'Set the date (required) and optionally specify start/end times. You can select any specific time - the end time must be after the start time.',
 		side: 'top'
+	},
+	{
+		element: '[data-tour="status-selector"]',
+		title: 'Event Status',
+		description:
+			'Set the initial status of your event. You can change this later if needed.',
+		side: 'bottom'
 	},
 	{
 		element: '[data-tour="manual-assignment"]',
@@ -47,7 +61,7 @@ const steps: TourStep[] = [
 		element: '[data-tour="form-actions"]',
 		title: 'Create Your Event',
 		description:
-			'Click "Create Event" when ready. Your event will be saved with the selected artists and settings.',
+			'Click "Create Event" when ready. Your event will be saved with the selected artists and settings. You can also save as a draft to complete later.',
 		side: 'top'
 	}
 ]

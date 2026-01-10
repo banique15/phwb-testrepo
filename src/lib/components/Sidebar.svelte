@@ -17,6 +17,7 @@
 		{ name: "Programs", href: "/programs", disabled: false },
 		{ name: "Facilities", href: "/facilities", disabled: false },
 		{ name: "Events", href: "/events", disabled: false },
+		{ name: "Bugs", href: "/bugs", disabled: false },
 		{ name: "Reports", href: "/reports", disabled: false },
 		{ name: "Payroll", href: "/payroll", disabled: false },
 	];

@@ -44,7 +44,9 @@
 
 	function formatEventDate(dateStr: string) {
 		try {
-			return format(new Date(dateStr), 'MMM d, yyyy');
+			// Append 'T00:00:00' to treat date as local time, not UTC
+			const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+			return format(date, 'MMM d, yyyy');
 		} catch {
 			return dateStr;
 		}

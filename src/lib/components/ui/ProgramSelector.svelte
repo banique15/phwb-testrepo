@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte'
 	import { createEventDispatcher } from 'svelte'
 	import { supabase } from '$lib/supabase'
 
@@ -37,18 +38,32 @@
 	let selectedProgram = $state<Program | null>(null)
 	let highlightedIndex = $state(-1)
 	let searchTimeout: number | undefined
+	let lastLoadedValue: number | null = null
 
 	// Input element reference for focus management
 	let inputElement: HTMLInputElement
 
+	// All programs cache for client-side filtering
+	let allPrograms = $state<Program[]>([])
+	let programsLoaded = $state(false)
+
 	// Watch for value changes to update selected program
 	$effect(() => {
-		if (value && value !== selectedProgram?.id) {
-			loadSelectedProgram(value)
-		} else if (!value) {
-			selectedProgram = null
-			searchQuery = ''
-		}
+		// Read value (this creates the dependency)
+		const currentValue = value
+		
+		// Use untrack to prevent tracking other state changes
+		untrack(() => {
+			// Only load if value changed and we haven't already loaded this value
+			if (currentValue != null && currentValue !== lastLoadedValue) {
+				lastLoadedValue = currentValue
+				loadSelectedProgram(currentValue)
+			} else if (currentValue == null && lastLoadedValue !== null) {
+				lastLoadedValue = null
+				selectedProgram = null
+				searchQuery = ''
+			}
+		})
 	})
 
 	// Load the selected program by ID
@@ -71,41 +86,69 @@
 		}
 	}
 
-	// Search for programs
-	async function searchPrograms(query: string) {
-		if (!query.trim()) {
-			programs = []
-			return
-		}
-
+	// Load all programs once for client-side filtering
+	async function loadAllPrograms(force = false) {
+		if (programsLoaded && !force) return
+		
 		isLoading = true
 		try {
 			const { data, error } = await supabase
 				.from('phwb_programs')
 				.select('id, title, description, geo_coverage')
-				.or(`title.ilike.%${query}%,description.ilike.%${query}%,geo_coverage.ilike.%${query}%`)
 				.order('title')
-				.limit(10)
 
 			if (error) throw error
-
-			programs = data || []
+			allPrograms = data || []
+			programsLoaded = true
 		} catch (err) {
-			console.error('Failed to search programs:', err)
-			programs = []
+			console.error('Failed to load programs:', err)
+			allPrograms = []
 		} finally {
 			isLoading = false
 		}
 	}
 
+	// Expose refresh function
+	async function refreshPrograms() {
+		programsLoaded = false
+		await loadAllPrograms(true)
+	}
+
+	// Search for programs (client-side filtering)
+	function searchPrograms(query: string) {
+		const searchLower = query.toLowerCase().trim()
+		
+		if (!searchLower) {
+			// Show all programs if no search query
+			programs = allPrograms.slice(0, 50)
+			return
+		}
+		
+		// Filter programs by title, description, or geo_coverage
+		programs = allPrograms.filter(program => {
+			const title = program.title?.toLowerCase() || ''
+			const description = program.description?.toLowerCase() || ''
+			const geoCoverage = program.geo_coverage?.toLowerCase() || ''
+			
+			return title.includes(searchLower) ||
+				description.includes(searchLower) ||
+				geoCoverage.includes(searchLower)
+		}).slice(0, 50)
+	}
+
 	// Handle input changes
-	function handleInput(event: Event) {
+	async function handleInput(event: Event) {
 		const target = event.target as HTMLInputElement
 		searchQuery = target.value
 		
 		// Clear existing timeout
 		if (searchTimeout) {
 			clearTimeout(searchTimeout)
+		}
+
+		// Load programs if not already loaded
+		if (!programsLoaded) {
+			await loadAllPrograms()
 		}
 
 		// Debounce search
@@ -115,13 +158,14 @@
 				dispatch('change', { value: undefined, program: null })
 			}
 			searchPrograms(searchQuery)
-			isOpen = searchQuery.length > 0
+			isOpen = true
 			highlightedIndex = -1
 		}, 300)
 	}
 
 	// Handle program selection
 	function selectProgram(program: Program) {
+		lastLoadedValue = program.id
 		selectedProgram = program
 		searchQuery = program.title
 		isOpen = false
@@ -159,12 +203,28 @@
 		}
 	}
 
-	// Handle focus
-	function handleFocus() {
-		if (searchQuery && !selectedProgram) {
-			searchPrograms(searchQuery)
+	// Handle focus - show all programs immediately
+	async function handleFocus() {
+		// Load programs on focus if not already loaded
+		if (!programsLoaded) {
+			await loadAllPrograms()
+		}
+		
+		// If no selection, show all programs on focus
+		if (!selectedProgram) {
+			if (searchQuery) {
+				searchPrograms(searchQuery)
+			} else {
+				// Show all programs
+				programs = allPrograms.slice(0, 50)
+			}
 			isOpen = true
 		}
+	}
+
+	// Expose refresh function - can be called externally
+	export async function refresh() {
+		await refreshPrograms()
 	}
 
 	// Handle blur (with delay to allow for clicks)
@@ -177,6 +237,7 @@
 
 	// Clear selection
 	function clearSelection() {
+		lastLoadedValue = null
 		selectedProgram = null
 		searchQuery = ''
 		programs = []
@@ -224,41 +285,65 @@
 		{/if}
 
 		<!-- Dropdown -->
-		{#if isOpen && (programs.length > 0 || isLoading)}
-			<div class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+		{#if isOpen}
+			<div class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-xl shadow-xl max-h-80 overflow-y-auto">
 				{#if isLoading}
-					<div class="px-4 py-3 text-center text-base-content/60">
-						<span class="loading loading-spinner loading-sm mr-2"></span>
-						Searching programs...
+					<div class="px-4 py-6 text-center text-base-content/60">
+						<span class="loading loading-spinner loading-md mb-2"></span>
+						<p class="text-sm">Loading programs...</p>
+					</div>
+				{:else if programs.length === 0 && searchQuery.trim()}
+					<div class="px-4 py-6 text-center">
+						<div class="text-base-content/40 mb-2">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+							</svg>
+						</div>
+						<p class="text-sm text-base-content/60">No programs found for "{searchQuery}"</p>
+						<p class="text-xs text-base-content/40 mt-1">Try searching by title, description, or coverage</p>
 					</div>
 				{:else if programs.length === 0}
-					<div class="px-4 py-3 text-center text-base-content/60">
-						No programs found
+					<div class="px-4 py-6 text-center text-base-content/60">
+						<p class="text-sm">No programs available</p>
 					</div>
 				{:else}
+					<!-- Header showing result count -->
+					<div class="px-3 py-2 bg-base-200/50 border-b border-base-300 text-xs text-base-content/60">
+						{#if searchQuery.trim()}
+							{programs.length} program{programs.length !== 1 ? 's' : ''} found
+						{:else}
+							Select a program ({allPrograms.length} total)
+						{/if}
+					</div>
+					
 					{#each programs as program, index}
 						<button
 							type="button"
-							class="w-full px-4 py-3 text-left hover:bg-base-200 flex items-center justify-between {index === highlightedIndex ? 'bg-base-200' : ''}"
+							class="w-full px-4 py-3 text-left transition-colors hover:bg-base-200 border-b border-base-200 last:border-b-0 {index === highlightedIndex ? 'bg-primary/5 border-l-2 border-l-primary' : ''}"
 							onclick={() => selectProgram(program)}
 						>
-							<div class="flex-1">
-								<div class="font-medium">
-									{program.title}
+							<div class="flex items-start justify-between gap-3">
+								<div class="flex-1 min-w-0">
+									<div class="font-medium text-base-content">
+										{program.title}
+									</div>
+									{#if program.description}
+										<div class="text-sm text-base-content/60 mt-1 line-clamp-2">
+											{program.description}
+										</div>
+									{/if}
+									{#if program.geo_coverage}
+										<div class="flex items-center gap-1 mt-1">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											<span class="text-xs text-base-content/50">Coverage: {program.geo_coverage}</span>
+										</div>
+									{/if}
 								</div>
-								{#if program.description}
-									<div class="text-sm text-base-content/60">
-										{program.description}
-									</div>
-								{/if}
-								{#if program.geo_coverage}
-									<div class="text-xs text-base-content/50">
-										Coverage: {program.geo_coverage}
-									</div>
-								{/if}
-							</div>
-							<div class="text-xs text-base-content/40">
-								ID: {program.id}
+								<div class="text-xs text-base-content/40 shrink-0">
+									ID: {program.id}
+								</div>
 							</div>
 						</button>
 					{/each}
@@ -269,9 +354,9 @@
 
 	<!-- Error message -->
 	{#if error}
-		<div class="label">
+		<label class="label">
 			<span class="label-text-alt text-error">{error}</span>
-		</div>
+		</label>
 	{/if}
 
 </div>

@@ -53,7 +53,8 @@
 		{ value: 'confirmed', label: 'Confirmed' },
 		{ value: 'in_progress', label: 'In Progress' },
 		{ value: 'completed', label: 'Completed' },
-		{ value: 'cancelled', label: 'Cancelled' }
+		{ value: 'cancelled', label: 'Cancelled' },
+		{ value: 'draft', label: 'Draft' }
 	]
 
 	// Date filter options

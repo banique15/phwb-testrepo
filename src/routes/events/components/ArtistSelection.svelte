@@ -425,6 +425,11 @@
 									<div class="font-medium">
 										{artist.full_name || artist.artist_name || 'Unknown Name'}
 									</div>
+									{#if artist.artist_name && artist.artist_name !== artist.full_name}
+										<div class="text-sm text-base-content/60">
+											{artist.artist_name}
+										</div>
+									{/if}
 									{#if artist.email}
 										<div class="text-sm text-base-content/60">
 											{artist.email}

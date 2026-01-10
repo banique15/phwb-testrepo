@@ -3,7 +3,10 @@
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import { updateFacilitySchema, type Facility, type UpdateFacility } from '$lib/schemas/facility'
 	import { facilitiesStore } from '$lib/stores/facilities'
+	import { facilityTypesStore } from '$lib/stores/facilityTypes'
+	import { onMount } from 'svelte'
 	import { z } from 'zod'
+	import type { FacilityType } from '$lib/schemas/facilityType'
 
 	interface Props {
 		open?: boolean
@@ -27,13 +30,33 @@
 	let contactFields = $state<Array<{ key: string; value: string }>>([])
 	let parkingFields = $state<Array<{ key: string; value: string }>>([])
 
+	// Facility types
+	let facilityTypes = $state<FacilityType[]>([])
+	let loadingTypes = $state(false)
+
+	onMount(async () => {
+		await loadFacilityTypes()
+	})
+
+	async function loadFacilityTypes() {
+		loadingTypes = true
+		try {
+			const result = await facilityTypesStore.fetchAll({ limit: 1000 })
+			facilityTypes = result.data.filter(type => type.active)
+		} catch (error) {
+			console.error('Failed to load facility types:', error)
+		} finally {
+			loadingTypes = false
+		}
+	}
+
 	// Initialize form when facility changes
 	$effect(() => {
 		if (facility && open) {
 			formData = {
 				name: facility.name || '',
 				address: facility.address || '',
-				type: facility.type || '',
+				facility_type_id: facility.facility_type_id || null,
 				reference: facility.reference || '',
 				description: facility.description || '',
 				image: facility.image || '',
@@ -187,16 +210,6 @@
 		}
 	}
 
-	// Facility type options
-	const facilityTypes = [
-		'Healing Arts',
-		'Performance',
-		'Community',
-		'Education',
-		'Conference',
-		'Workshop',
-		'Other'
-	]
 </script>
 
 <Modal 
@@ -247,20 +260,30 @@
 						<label class="label" for="edit-facility-type">
 							<span class="label-text">Facility Type</span>
 						</label>
-						<select 
-							id="edit-facility-type"
-							class="select select-bordered {formErrors.type ? 'select-error' : ''}"
-							value={formData.type || ''}
-							onchange={(e) => handleInputChange('type', e.currentTarget.value)}
-						>
-							<option value="">Select facility type</option>
-							{#each facilityTypes as type}
-								<option value={type}>{type}</option>
-							{/each}
-						</select>
-						{#if formErrors.type}
+						{#if loadingTypes}
+							<select
+								id="edit-facility-type"
+								class="select select-bordered"
+								disabled
+							>
+								<option>Loading types...</option>
+							</select>
+						{:else}
+							<select 
+								id="edit-facility-type"
+								class="select select-bordered {formErrors.facility_type_id ? 'select-error' : ''}"
+								value={formData.facility_type_id?.toString() || ''}
+								onchange={(e) => handleInputChange('facility_type_id', e.currentTarget.value ? Number(e.currentTarget.value) : null)}
+							>
+								<option value="">Select facility type</option>
+								{#each facilityTypes as type}
+									<option value={type.id?.toString()}>{type.name}</option>
+								{/each}
+							</select>
+						{/if}
+						{#if formErrors.facility_type_id}
 							<label class="label">
-								<span class="label-text-alt text-error">{formErrors.type}</span>
+								<span class="label-text-alt text-error">{formErrors.facility_type_id}</span>
 							</label>
 						{/if}
 					</div>

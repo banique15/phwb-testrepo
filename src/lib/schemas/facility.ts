@@ -5,9 +5,13 @@ export const facilitySchema = z.object({
 	created_at: z.string().optional(),
 	updated_at: z.string().optional(),
 	name: z.string().min(1, 'Facility name is required').max(200, 'Name must be less than 200 characters'),
-	image: z.string().url('Invalid image URL format').optional().nullable(),
+	image: z.preprocess(
+		(val) => (typeof val === 'string' && val.trim() === '') ? null : val,
+		z.union([z.string().url('Invalid image URL format'), z.null(), z.undefined()])
+	).optional().nullable(),
 	address: z.string().max(500, 'Address must be less than 500 characters').optional().nullable(),
-	type: z.string().max(100, 'Type must be less than 100 characters').optional().nullable(),
+	type: z.string().max(100, 'Type must be less than 100 characters').optional().nullable(), // Legacy field, use facility_type_id instead
+	facility_type_id: z.number().optional().nullable(),
 	reference: z.string().max(200, 'Reference must be less than 200 characters').optional().nullable(),
 	description: z.string().max(2000, 'Description must be less than 2000 characters').optional().nullable(),
 	parking: z.any().optional().nullable(),

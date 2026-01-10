@@ -102,7 +102,7 @@
 
 	function handleSelect(item: any) {
 		// Persist selection to localStorage
-		if (browser && storageKey) {
+		if (browser && storageKey && item.id) {
 			localStorage.setItem(storageKey, String(item.id))
 		}
 
@@ -278,7 +278,7 @@
 						/>
 					{:else}
 						<div class="overflow-y-auto h-full space-y-2">
-							{#each items as item (item.id)}
+							{#each items as item (item.id ?? item.name ?? item)}
 								<div
 									class="p-3 rounded-lg border cursor-pointer transition-all duration-200"
 									class:bg-primary={selectedItem?.id === item.id}

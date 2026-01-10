@@ -8,7 +8,6 @@
 	import type { PageData } from './$types'
 	// Lazy load modals for better performance
 	const CreateEvent = () => import('./modals/CreateEvent.svelte')
-	const EditEvent = () => import('./modals/EditEvent.svelte')
 	const DeleteConfirm = () => import('./modals/DeleteConfirm.svelte')
 	import ScheduleDisplay from './components/ScheduleDisplay.svelte'
 	import RequirementsDisplay from './components/RequirementsDisplay.svelte'
@@ -55,7 +54,6 @@
 	// Modal states
 	let showCreateModal = $state(false)
 	let showCreateForm = $state(false)
-	let showEditModal = $state(false)
 	let showDeleteModal = $state(false)
 	
 	let eventArtistsCount = $state(0)
@@ -70,21 +68,38 @@
 
 	// Track newly created events that need to be merged with server data
 	let newlyCreatedEvents = $state<EnhancedEvent[]>([])
+	
+	// Track updated events to merge with server data
+	let updatedEvents = $state<Map<number, EnhancedEvent>>(new Map())
+	
+	// Track deleted event IDs to filter them out from the list
+	let deletedEventIds = $state<Set<number>>(new Set())
 
-	// Use server-loaded data merged with any newly created events
+	// Use server-loaded data merged with any newly created or updated events
 	let events = $derived.by(() => {
 		const serverEvents = data.events || []
+
+		// Start with server events and apply updates
+		let mergedEvents = serverEvents.map((e: EnhancedEvent) => {
+			const updated = updatedEvents.get(e.id!)
+			return updated || e
+		})
+
+		// Filter out deleted events
+		if (deletedEventIds.size > 0) {
+			mergedEvents = mergedEvents.filter((e: EnhancedEvent) => !deletedEventIds.has(e.id!))
+		}
 
 		// If we have newly created events, merge them with server data
 		if (newlyCreatedEvents.length > 0) {
 			// Get IDs of new events to avoid duplicates
 			const newIds = new Set(newlyCreatedEvents.map(e => e.id))
-			// Filter out any duplicates from server data and prepend new events
-			const filteredServerEvents = serverEvents.filter((e: EnhancedEvent) => !newIds.has(e.id))
-			return [...newlyCreatedEvents, ...filteredServerEvents]
+			// Filter out any duplicates from merged events and prepend new events
+			const filteredMergedEvents = mergedEvents.filter((e: EnhancedEvent) => !newIds.has(e.id))
+			return [...newlyCreatedEvents, ...filteredMergedEvents]
 		}
 
-		return serverEvents
+		return mergedEvents
 	})
 
 	// Filter state from server data
@@ -99,23 +114,23 @@
 
 	$effect(() => {
 		// Only run once when we have events and haven't restored yet
-		if (browser && !hasRestoredSelection && data.events && data.events.length > 0) {
+		if (browser && !hasRestoredSelection && events && events.length > 0) {
 			hasRestoredSelection = true
 
 			// URL parameters take priority over localStorage
 			const urlId = $page.url.searchParams.get('id')
-			const shouldEdit = $page.url.searchParams.get('edit') === 'true'
 
 			if (urlId) {
-				const urlEvent = data.events.find((e: EnhancedEvent) => e.id === Number(urlId))
+				const urlEvent = events.find((e: EnhancedEvent) => e.id === Number(urlId))
 				if (urlEvent) {
 					selectedEvent = urlEvent
-					// Open edit modal if edit=true
+					// If edit=true, switch to settings tab (where edit mode is)
+					const shouldEdit = $page.url.searchParams.get('edit') === 'true'
 					if (shouldEdit) {
-						showEditModal = true
+						externalActiveTab = 'settings'
 					}
-					// Clear URL params after handling
-					goto('/events', { replaceState: true, keepFocus: true })
+					// Preserve URL params - don't clear them
+					// This allows direct links to work and be shareable
 					return
 				}
 			}
@@ -123,7 +138,7 @@
 			// Fall back to localStorage if no URL param
 			const savedId = localStorage.getItem(STORAGE_KEY)
 			if (savedId && !selectedEvent) {
-				const savedEvent = data.events.find((e: EnhancedEvent) => e.id === Number(savedId))
+				const savedEvent = events.find((e: EnhancedEvent) => e.id === Number(savedId))
 				if (savedEvent) {
 					selectedEvent = savedEvent
 				}
@@ -132,14 +147,22 @@
 	})
 
 	async function selectEvent(event: EnhancedEvent) {
-		selectedEvent = event
+		showCreateForm = false
+		// Use updated event from cache if available, otherwise use the passed event
+		const eventToSelect = updatedEvents.get(event.id!) || event
+		selectedEvent = eventToSelect
 		// Persist selection to localStorage
-		if (browser && event.id) {
-			localStorage.setItem(STORAGE_KEY, event.id.toString())
+		if (browser && eventToSelect.id) {
+			localStorage.setItem(STORAGE_KEY, eventToSelect.id.toString())
+			// Update URL to reflect selected event
+			const searchParams = new URLSearchParams($page.url.searchParams)
+			searchParams.set('id', eventToSelect.id.toString())
+			// Preserve other query params like filters
+			await goto(`/events?${searchParams.toString()}`, { replaceState: true, keepFocus: true })
 		}
 		// Load artists count
-		if (event.artists) {
-			const artists = formatArtists(event.artists)
+		if (eventToSelect.artists) {
+			const artists = formatArtists(eventToSelect.artists)
 			eventArtistsCount = artists.length
 		} else {
 			eventArtistsCount = 0
@@ -168,24 +191,33 @@
 		if (!selectedEvent?.id) return
 
 		try {
-			// Validate the field
-			const fieldSchema =
-				updateEventSchema.shape[
-					field as keyof typeof updateEventSchema.shape
-				]
-			if (fieldSchema) {
-				fieldSchema.parse(value)
-			}
+			// Prepare update data - handle null/empty values
+			const finalValue = value === "" || value === null ? null : value
+			const updateData: any = { [field]: finalValue }
 
-			// Prepare update data
-			const updateData: any = { [field]: value === "" ? null : value }
+			// Validate the field only if value is not null (for optional fields)
+			if (finalValue !== null) {
+				const fieldSchema =
+					updateEventSchema.shape[
+						field as keyof typeof updateEventSchema.shape
+					]
+				if (fieldSchema) {
+					fieldSchema.parse(finalValue)
+				}
+			}
 
 			// Update event
 			const updatedEvent = await eventsStore.update(selectedEvent.id, updateData)
 			
 			// Enhance the updated event
 			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			
+			// Update selectedEvent
 			selectedEvent = enhanced
+			
+			// Also update the event in the updatedEvents cache so it persists when navigating
+			updatedEvents.set(enhanced.id!, enhanced)
+			updatedEvents = new Map(updatedEvents) // Trigger reactivity
 		} catch (error) {
 			if (error instanceof z.ZodError) {
 				throw new Error(
@@ -198,7 +230,8 @@
 
 	function formatDate(dateStr: string | undefined) {
 		if (!dateStr) return 'Not specified'
-		const date = new Date(dateStr)
+		// Append 'T00:00:00' to treat date as local time, not UTC
+		const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
 		return date.toLocaleDateString('en-US', {
 			month: '2-digit',
 			day: '2-digit',
@@ -209,7 +242,8 @@
 	function formatDateWithRelative(dateStr: string | undefined, startTime?: string, endTime?: string): string {
 		if (!dateStr) return 'No date specified'
 
-		const date = new Date(dateStr)
+		// Append 'T00:00:00' to treat date as local time, not UTC
+		const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
 		const today = new Date()
 		const now = new Date()
 		today.setHours(0, 0, 0, 0)
@@ -332,6 +366,8 @@
 				return 'badge-error'
 			case 'confirmed':
 				return 'badge-primary'
+			case 'draft':
+				return 'badge-ghost'
 			default:
 				return 'badge-outline'
 		}
@@ -357,12 +393,16 @@
 
 	function isUpcoming(dateStr: string | undefined) {
 		if (!dateStr) return false
-		return new Date(dateStr) > new Date()
+		// Append 'T00:00:00' to treat date as local time, not UTC
+		const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+		return date > new Date()
 	}
 
 	function isPast(dateStr: string | undefined) {
 		if (!dateStr) return false
-		return new Date(dateStr) < new Date()
+		// Append 'T00:00:00' to treat date as local time, not UTC
+		const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+		return date < new Date()
 	}
 
 	// Client-side filter state - initialized from URL params with fallback to server data
@@ -408,10 +448,11 @@
 		// Apply search filter
 		if (clientFilters.search) {
 			const searchLower = clientFilters.search.toLowerCase()
-			result = result.filter((e: EnhancedEvent) =>
-				e.title?.toLowerCase().includes(searchLower) ||
-				e.notes?.toLowerCase().includes(searchLower)
-			)
+			result = result.filter((e: EnhancedEvent) => {
+				const titleMatch = typeof e.title === 'string' && e.title.toLowerCase().includes(searchLower)
+				const notesMatch = typeof e.notes === 'string' && e.notes.toLowerCase().includes(searchLower)
+				return titleMatch || notesMatch
+			})
 		}
 
 		// Apply status filter
@@ -439,12 +480,17 @@
 			const today = new Date()
 			today.setHours(0, 0, 0, 0)
 
+			// Helper to parse date as local time
+			const parseLocalDate = (dateStr: string) => {
+				return new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+			}
+
 			switch (clientFilters.dateFilter) {
 				case 'upcoming':
-					result = result.filter((e: EnhancedEvent) => e.date && new Date(e.date) >= today)
+					result = result.filter((e: EnhancedEvent) => e.date && parseLocalDate(e.date) >= today)
 					break
 				case 'past':
-					result = result.filter((e: EnhancedEvent) => e.date && new Date(e.date) < today)
+					result = result.filter((e: EnhancedEvent) => e.date && parseLocalDate(e.date) < today)
 					break
 				case 'this_week':
 					const weekStart = new Date(today)
@@ -453,7 +499,7 @@
 					weekEnd.setDate(weekEnd.getDate() + 6)
 					result = result.filter((e: EnhancedEvent) => {
 						if (!e.date) return false
-						const eventDate = new Date(e.date)
+						const eventDate = parseLocalDate(e.date)
 						return eventDate >= weekStart && eventDate <= weekEnd
 					})
 					break
@@ -462,18 +508,18 @@
 					const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
 					result = result.filter((e: EnhancedEvent) => {
 						if (!e.date) return false
-						const eventDate = new Date(e.date)
+						const eventDate = parseLocalDate(e.date)
 						return eventDate >= monthStart && eventDate <= monthEnd
 					})
 					break
 				case 'custom':
 					if (clientFilters.dateFrom) {
-						const fromDate = new Date(clientFilters.dateFrom)
-						result = result.filter((e: EnhancedEvent) => e.date && new Date(e.date) >= fromDate)
+						const fromDate = parseLocalDate(clientFilters.dateFrom)
+						result = result.filter((e: EnhancedEvent) => e.date && parseLocalDate(e.date) >= fromDate)
 					}
 					if (clientFilters.dateTo) {
-						const toDate = new Date(clientFilters.dateTo)
-						result = result.filter((e: EnhancedEvent) => e.date && new Date(e.date) <= toDate)
+						const toDate = parseLocalDate(clientFilters.dateTo)
+						result = result.filter((e: EnhancedEvent) => e.date && parseLocalDate(e.date) <= toDate)
 					}
 					break
 			}
@@ -483,12 +529,17 @@
 		const today = new Date()
 		today.setHours(0, 0, 0, 0)
 
+		// Helper to parse date as local time
+		const parseLocalDate = (dateStr: string) => {
+			return new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+		}
+
 		result = [...result].sort((a: EnhancedEvent, b: EnhancedEvent) => {
 			switch (sortBy) {
 				case 'upcoming':
 					// Future events first (sorted by date asc), then past events (sorted by date desc)
-					const aDate = a.date ? new Date(a.date) : new Date(0)
-					const bDate = b.date ? new Date(b.date) : new Date(0)
+					const aDate = a.date ? parseLocalDate(a.date) : new Date(0)
+					const bDate = b.date ? parseLocalDate(b.date) : new Date(0)
 					const aIsFuture = aDate >= today
 					const bIsFuture = bDate >= today
 					if (aIsFuture && !bIsFuture) return -1
@@ -532,14 +583,18 @@
 
 	// Recalculate statistics based on filtered events
 	let filteredStatistics = $derived.by(() => {
+		const parseLocalDate = (dateStr: string) => {
+			return new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+		}
+		const now = new Date()
 		return {
 			total: filteredEvents.length,
 			scheduled: filteredEvents.filter((e: EnhancedEvent) => e.status === 'scheduled').length,
 			confirmed: filteredEvents.filter((e: EnhancedEvent) => e.status === 'confirmed').length,
 			completed: filteredEvents.filter((e: EnhancedEvent) => e.status === 'completed').length,
 			cancelled: filteredEvents.filter((e: EnhancedEvent) => e.status === 'cancelled').length,
-			upcoming: filteredEvents.filter((e: EnhancedEvent) => e.date && new Date(e.date) > new Date()).length,
-			past: filteredEvents.filter((e: EnhancedEvent) => e.date && new Date(e.date) < new Date()).length
+			upcoming: filteredEvents.filter((e: EnhancedEvent) => e.date && parseLocalDate(e.date) > now).length,
+			past: filteredEvents.filter((e: EnhancedEvent) => e.date && parseLocalDate(e.date) < now).length
 		}
 	})
 
@@ -620,16 +675,6 @@
 		showCreateModal = false
 	}
 	
-	function openEditModal() {
-		if (selectedEvent) {
-			showEditModal = true
-		}
-	}
-	
-	function closeEditModal() {
-		showEditModal = false
-	}
-	
 	function openDeleteModal() {
 		if (selectedEvent) {
 			showDeleteModal = true
@@ -649,10 +694,28 @@
 
 		// Clear selection if event was deleted
 		if (showDeleteModal && selectedEvent) {
+			const deletedId = selectedEvent.id
+			// Add deleted event ID to the set to filter it out from the list
+			if (deletedId) {
+				deletedEventIds = new Set([...deletedEventIds, deletedId])
+			}
 			selectedEvent = null
 			if (browser) {
 				localStorage.removeItem(STORAGE_KEY)
 			}
+		}
+	}
+
+	async function handleEventUpdated(updatedEvent: EnhancedEvent) {
+		// Update the selected event with the new data
+		selectedEvent = updatedEvent
+		// Also update in the events list if it exists there
+		const eventIndex = events.findIndex((e: EnhancedEvent) => e.id === updatedEvent.id)
+		if (eventIndex >= 0) {
+			// Update the event in the list
+			const updatedEvents = [...events]
+			updatedEvents[eventIndex] = updatedEvent
+			// Note: We can't directly update the derived store, but the next fetch will get the updated data
 		}
 	}
 
@@ -697,6 +760,15 @@
 				await eventsStore.enhanced.bulkUpdate(eventIds, { status: newStatus })
 			} else if (action === 'delete') {
 				await eventsStore.enhanced.bulkDelete(eventIds)
+				// Add deleted event IDs to the set to filter them out from the list
+				deletedEventIds = new Set([...deletedEventIds, ...eventIds])
+				// Clear selected event if it was deleted
+				if (selectedEvent && eventIds.includes(selectedEvent.id!)) {
+					selectedEvent = null
+					if (browser) {
+						localStorage.removeItem(STORAGE_KEY)
+					}
+				}
 			}
 			clearSelection()
 		} catch (err) {
@@ -767,27 +839,35 @@
 							</div>
 						</div>
 
-						<!-- Detail View (if event selected) -->
-						{#if selectedEvent}
+						<!-- Detail View (if event selected or creating new event) -->
+						{#if showCreateForm || selectedEvent}
 							<div class="lg:w-1/3 lg:flex-none h-full">
 								<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
 									<div class="card-body flex flex-col h-full min-h-0">
 										<div class="overflow-y-auto flex-1 min-h-0">
-											<!-- Header Card -->
-											<EventHeaderCard
-												event={selectedEvent}
-												artistsCount={eventArtistsCount}
-												onUpdateField={updateEventField}
-												onArtistCountClick={handleArtistCountClick}
-											/>
+											{#if showCreateForm}
+												<EventCreateForm
+													onSuccess={handleCreateFormSuccess}
+													onCancel={handleCreateFormCancel}
+												/>
+											{:else if selectedEvent}
+												<!-- Header Card -->
+												<EventHeaderCard
+													event={selectedEvent}
+													artistsCount={eventArtistsCount}
+													onUpdateField={updateEventField}
+													onArtistCountClick={handleArtistCountClick}
+												/>
 
-											<!-- Tabs Section -->
-											<EventTabs
-												event={selectedEvent}
-												onUpdateField={updateEventField}
-												onDelete={openDeleteModal}
-												{externalActiveTab}
-											/>
+												<!-- Tabs Section -->
+												<EventTabs
+													event={selectedEvent}
+													onUpdateField={updateEventField}
+													onDelete={openDeleteModal}
+													{externalActiveTab}
+													onEventUpdated={handleEventUpdated}
+												/>
+											{/if}
 										</div>
 									</div>
 								</div>
@@ -936,6 +1016,7 @@
 												onUpdateField={updateEventField}
 												onDelete={openDeleteModal}
 												{externalActiveTab}
+												onEventUpdated={handleEventUpdated}
 											/>
 										</div>
 									</div>
@@ -955,17 +1036,6 @@
 		<CreateEventComponent
 			open={showCreateModal}
 			onClose={closeCreateModal}
-			onSuccess={handleModalSuccess}
-		/>
-	{/await}
-{/if}
-
-{#if showEditModal}
-	{#await EditEvent() then { default: EditEventComponent }}
-		<EditEventComponent
-			open={showEditModal}
-			event={selectedEvent}
-			onClose={closeEditModal}
 			onSuccess={handleModalSuccess}
 		/>
 	{/await}

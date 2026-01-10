@@ -81,11 +81,22 @@
 	// Get events for a specific date
 	function getEventsForDate(date: Date): EnhancedEvent[] {
 		const dateStr = formatDateForComparison(date)
-		return events.filter(event => {
-			if (!event.date) return false
-			const eventDateStr = formatDateForComparison(new Date(event.date))
-			return eventDateStr === dateStr
-		})
+		return events
+			.filter(event => {
+				if (!event.date) return false
+				// Append 'T00:00:00' to treat date as local time, not UTC
+				const eventDate = new Date(event.date.includes('T') ? event.date : event.date + 'T00:00:00')
+				const eventDateStr = formatDateForComparison(eventDate)
+				return eventDateStr === dateStr
+			})
+			.sort((a, b) => {
+				// Events without start_time go to the end
+				if (!a.start_time && !b.start_time) return 0
+				if (!a.start_time) return 1
+				if (!b.start_time) return -1
+				// Sort by start_time (HH:MM format)
+				return a.start_time.localeCompare(b.start_time)
+			})
 	}
 
 	function formatDateForComparison(date: Date): string {

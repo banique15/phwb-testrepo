@@ -3,7 +3,10 @@
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import { createFacilitySchema, type CreateFacility } from '$lib/schemas/facility'
 	import { facilitiesStore } from '$lib/stores/facilities'
+	import { facilityTypesStore } from '$lib/stores/facilityTypes'
+	import { onMount } from 'svelte'
 	import { z } from 'zod'
+	import type { FacilityType } from '$lib/schemas/facilityType'
 
 	interface Props {
 		open?: boolean
@@ -35,6 +38,26 @@
 	// Contact fields state
 	let contactFields = $state([{ key: '', value: '' }])
 	let parkingFields = $state([{ key: '', value: '' }])
+
+	// Facility types
+	let facilityTypes = $state<FacilityType[]>([])
+	let loadingTypes = $state(false)
+
+	onMount(async () => {
+		await loadFacilityTypes()
+	})
+
+	async function loadFacilityTypes() {
+		loadingTypes = true
+		try {
+			const result = await facilityTypesStore.fetchAll({ limit: 1000 })
+			facilityTypes = result.data.filter(type => type.active)
+		} catch (error) {
+			console.error('Failed to load facility types:', error)
+		} finally {
+			loadingTypes = false
+		}
+	}
 
 	// Validation helper
 	function validateField(field: keyof CreateFacility, value: any) {
@@ -80,7 +103,7 @@
 		formData = {
 			name: '',
 			address: '',
-			type: '',
+			facility_type_id: null,
 			reference: '',
 			description: '',
 			image: '',
@@ -174,16 +197,6 @@
 		}
 	}
 
-	// Facility type options
-	const facilityTypes = [
-		'Healing Arts',
-		'Performance',
-		'Community',
-		'Education',
-		'Conference',
-		'Workshop',
-		'Other'
-	]
 </script>
 
 <Modal 
@@ -233,20 +246,30 @@
 					<label class="label" for="facility-type">
 						<span class="label-text">Facility Type</span>
 					</label>
-					<select
-						id="facility-type"
-						class="select select-bordered w-full {formErrors.type ? 'select-error' : ''}"
-						value={formData.type || ''}
-						onchange={(e) => handleInputChange('type', e.currentTarget.value)}
-					>
-						<option value="">Select facility type</option>
-						{#each facilityTypes as type}
-							<option value={type}>{type}</option>
-						{/each}
-					</select>
-					{#if formErrors.type}
+					{#if loadingTypes}
+						<select
+							id="facility-type"
+							class="select select-bordered w-full"
+							disabled
+						>
+							<option>Loading types...</option>
+						</select>
+					{:else}
+						<select
+							id="facility-type"
+							class="select select-bordered w-full {formErrors.facility_type_id ? 'select-error' : ''}"
+							value={formData.facility_type_id?.toString() || ''}
+							onchange={(e) => handleInputChange('facility_type_id', e.currentTarget.value ? Number(e.currentTarget.value) : null)}
+						>
+							<option value="">Select facility type</option>
+							{#each facilityTypes as type}
+								<option value={type.id?.toString()}>{type.name}</option>
+							{/each}
+						</select>
+					{/if}
+					{#if formErrors.facility_type_id}
 						<label class="label">
-							<span class="label-text-alt text-error">{formErrors.type}</span>
+							<span class="label-text-alt text-error">{formErrors.facility_type_id}</span>
 						</label>
 					{/if}
 				</div>

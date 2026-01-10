@@ -24,6 +24,9 @@
 	let loadingMembers = $state(false)
 	let showAddMemberModal = $state(false)
 	let lastLoadedEnsembleId = $state<string | null>(null)
+	let editingMemberId = $state<string | null>(null)
+	let editingMemberRole = $state<string>('')
+	let removingMemberId = $state<string | null>(null)
 
 	// Reset edit data when ensemble changes
 	$effect(() => {
@@ -138,6 +141,81 @@
 		// Reload members list
 		await loadMembers()
 		closeAddMemberModal()
+	}
+
+	function startEditMember(member: any) {
+		editingMemberId = member.id
+		editingMemberRole = member.role || ''
+	}
+
+	function cancelEditMember() {
+		editingMemberId = null
+		editingMemberRole = ''
+	}
+
+	function handleRoleKeydown(e: KeyboardEvent, memberId: string) {
+		if (e.key === 'Enter') {
+			e.preventDefault()
+			saveMemberRole(memberId)
+		} else if (e.key === 'Escape') {
+			e.preventDefault()
+			cancelEditMember()
+		}
+	}
+
+	async function saveMemberRole(memberId: string) {
+		if (!memberId) return
+
+		isLoading = true
+		error = null
+
+		try {
+			const { error: updateError } = await supabase
+				.from('phwb_ensemble_members')
+				.update({
+					role: editingMemberRole.trim() || null
+				})
+				.eq('id', memberId)
+
+			if (updateError) throw updateError
+
+			// Reload members to reflect changes
+			await loadMembers()
+			editingMemberId = null
+			editingMemberRole = ''
+		} catch (err: any) {
+			console.error('Failed to update member role:', err)
+			error = err.message || 'Failed to update member role'
+		} finally {
+			isLoading = false
+		}
+	}
+
+	async function removeMember(memberId: string) {
+		if (!memberId) return
+
+		removingMemberId = memberId
+		error = null
+
+		try {
+			const { error: updateError } = await supabase
+				.from('phwb_ensemble_members')
+				.update({
+					is_active: false,
+					left_at: new Date().toISOString()
+				})
+				.eq('id', memberId)
+
+			if (updateError) throw updateError
+
+			// Reload members to reflect changes
+			await loadMembers()
+		} catch (err: any) {
+			console.error('Failed to remove member:', err)
+			error = err.message || 'Failed to remove member'
+		} finally {
+			removingMemberId = null
+		}
 	}
 </script>
 
@@ -326,20 +404,74 @@
 				{:else}
 					<div class="space-y-2">
 						{#each members as member}
-							<div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
-								<div class="flex-1">
+							<div class="flex items-center justify-between p-3 bg-base-200 rounded-lg gap-3">
+								<div class="flex-1 min-w-0">
 									<p class="font-medium text-sm">{getArtistDisplayName(member.artist)}</p>
-									{#if member.role}
-										<p class="text-xs text-base-content/60">{member.role}</p>
+									{#if editingMemberId === member.id}
+										<input
+											type="text"
+											bind:value={editingMemberRole}
+											placeholder="Role (optional)"
+											class="input input-xs input-bordered mt-1 w-full max-w-xs"
+											disabled={isLoading}
+											onkeydown={(e) => handleRoleKeydown(e, member.id)}
+										/>
+									{:else}
+										{#if member.role}
+											<p class="text-xs text-base-content/60">{member.role}</p>
+										{:else}
+											<p class="text-xs text-base-content/40 italic">No role specified</p>
+										{/if}
 									{/if}
 									{#if member.artist?.email}
 										<p class="text-xs text-base-content/60">{member.artist.email}</p>
 									{/if}
-								</div>
-								<div class="text-right">
-									<p class="text-xs text-base-content/60">
+									<p class="text-xs text-base-content/60 mt-1">
 										Joined {formatDate(member.joined_at)}
 									</p>
+								</div>
+								<div class="flex gap-2 flex-shrink-0">
+									{#if editingMemberId === member.id}
+										<button
+											class="btn btn-xs btn-primary"
+											onclick={() => saveMemberRole(member.id)}
+											disabled={isLoading}
+										>
+											Save
+										</button>
+										<button
+											class="btn btn-xs btn-ghost"
+											onclick={cancelEditMember}
+											disabled={isLoading}
+										>
+											Cancel
+										</button>
+									{:else}
+										<button
+											class="btn btn-xs btn-outline"
+											onclick={() => startEditMember(member)}
+											disabled={isLoading || removingMemberId === member.id}
+											title="Edit role"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+											</svg>
+										</button>
+										<button
+											class="btn btn-xs btn-error btn-outline"
+											onclick={() => removeMember(member.id)}
+											disabled={isLoading || removingMemberId === member.id}
+											title="Remove member"
+										>
+											{#if removingMemberId === member.id}
+												<span class="loading loading-spinner loading-xs"></span>
+											{:else}
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+												</svg>
+											{/if}
+										</button>
+									{/if}
 								</div>
 							</div>
 						{/each}

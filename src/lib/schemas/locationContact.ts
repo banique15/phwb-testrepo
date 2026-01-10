@@ -3,7 +3,8 @@ import { z } from 'zod'
 // Contact type options
 export const CONTACT_TYPES = ['general', 'emergency', 'scheduling', 'technical', 'security', 'logistics'] as const
 
-export const locationContactSchema = z.object({
+// Base schema without refinement (for omit operations)
+const locationContactSchemaBase = z.object({
 	id: z.number().optional(),
 	created_at: z.string().optional(),
 	updated_at: z.string().optional(),
@@ -20,7 +21,9 @@ export const locationContactSchema = z.object({
 	active: z.boolean().default(true),
 	notes: z.string().optional().nullable(),
 })
-.refine(
+
+// Refined schema with validation
+export const locationContactSchema = locationContactSchemaBase.refine(
 	(data) => data.email || data.phone,
 	{
 		message: 'At least one contact method (email or phone) is required',
@@ -28,13 +31,37 @@ export const locationContactSchema = z.object({
 	}
 )
 
-export const createLocationContactSchema = locationContactSchema.omit({
+// Base create schema without refinement (for partial operations)
+const createLocationContactSchemaBase = locationContactSchemaBase.omit({
 	id: true,
 	created_at: true,
 	updated_at: true,
 })
 
-export const updateLocationContactSchema = createLocationContactSchema.partial()
+// Create schema with validation
+export const createLocationContactSchema = createLocationContactSchemaBase.refine(
+	(data) => data.email || data.phone,
+	{
+		message: 'At least one contact method (email or phone) is required',
+		path: ['email']
+	}
+)
+
+// Update schema - make all fields optional, but still validate if both email and phone are provided
+export const updateLocationContactSchema = createLocationContactSchemaBase.partial().refine(
+	(data) => {
+		// If any contact data is provided, at least one method should be present
+		if (data.email || data.phone || data.name || data.location_id) {
+			return data.email || data.phone
+		}
+		// If no contact data is provided, that's fine for partial updates
+		return true
+	},
+	{
+		message: 'At least one contact method (email or phone) is required when updating contact information',
+		path: ['email']
+	}
+)
 
 export type LocationContact = z.infer<typeof locationContactSchema>
 export type CreateLocationContact = z.infer<typeof createLocationContactSchema>

@@ -3,7 +3,10 @@
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import { updateLocationSchema, type Location, type UpdateLocation } from '$lib/schemas/location'
 	import { locationsStore } from '$lib/stores/locations'
+	import { locationTypesStore } from '$lib/stores/locationTypes'
+	import { onMount } from 'svelte'
 	import { z } from 'zod'
+	import type { LocationType } from '$lib/schemas/locationType'
 
 	interface Props {
 		open?: boolean
@@ -21,6 +24,26 @@
 	let isLoading = $state(false)
 	let formErrors = $state<Record<string, string>>({})
 	let submitError = $state<string | null>(null)
+
+	// Location types
+	let locationTypes = $state<LocationType[]>([])
+	let loadingLocationTypes = $state(false)
+
+	onMount(async () => {
+		await loadLocationTypes()
+	})
+
+	async function loadLocationTypes() {
+		loadingLocationTypes = true
+		try {
+			const result = await locationTypesStore.fetchAll({ limit: 1000 })
+			locationTypes = result.data.filter(type => type.active)
+		} catch (error) {
+			console.error('Failed to load location types:', error)
+		} finally {
+			loadingLocationTypes = false
+		}
+	}
 
 	// Attribute checkboxes state
 	let attributesState = $state({
@@ -44,6 +67,7 @@
 				description: location.description,
 				floor: location.floor,
 				capacity: location.capacity,
+				type: location.type || null,
 				accessibility_features: location.accessibility_features,
 				equipment_available: location.equipment_available,
 				attributes: location.attributes,
@@ -240,7 +264,39 @@
 					value={formData.description || ''}
 					oninput={(e) => handleInputChange('description', e.currentTarget.value)}
 					disabled={isLoading}
-				></textarea>
+				>				</textarea>
+			</div>
+
+			<!-- Location Type -->
+			<div class="form-control w-full">
+				<label class="label">
+					<span class="label-text">Location Type</span>
+				</label>
+				{#if loadingLocationTypes}
+					<select class="select select-bordered w-full" disabled>
+						<option>Loading types...</option>
+					</select>
+				{:else}
+					<select
+						class="select select-bordered w-full {formErrors.type ? 'select-error' : ''}"
+						value={formData.type?.toString() || ''}
+						onchange={(e) => {
+							const value = e.currentTarget.value ? Number(e.currentTarget.value) : null
+							handleInputChange('type', value)
+						}}
+						disabled={isLoading}
+					>
+						<option value="">Select location type (optional)</option>
+						{#each locationTypes as type}
+							<option value={type.id?.toString()}>{type.name}</option>
+						{/each}
+					</select>
+				{/if}
+				{#if formErrors.type}
+					<label class="label">
+						<span class="label-text-alt text-error">{formErrors.type}</span>
+					</label>
+				{/if}
 			</div>
 
 			<!-- Location Attributes -->

@@ -87,7 +87,16 @@
 	}
 
 	function getEventsForDate(date: string): CalendarEvent[] {
-		return allEvents.filter(e => e.date === date)
+		return allEvents
+			.filter(e => e.date === date)
+			.sort((a, b) => {
+				// Events without start_time go to the end
+				if (!a.start_time && !b.start_time) return 0
+				if (!a.start_time) return 1
+				if (!b.start_time) return -1
+				// Sort by start_time (HH:MM format)
+				return a.start_time.localeCompare(b.start_time)
+			})
 	}
 
 	function getEventsForDateAndHour(date: string, hour: number): CalendarEvent[] {
@@ -242,11 +251,12 @@
 	}
 
 	function getStatusBadgeColor(status: string): string {
-		switch (status) {
+		switch (status?.toLowerCase()) {
 			case 'confirmed': return 'badge-success'
 			case 'completed': return 'badge-info'
 			case 'cancelled': return 'badge-error'
 			case 'in_progress': return 'badge-warning'
+			case 'draft': return 'badge-ghost'
 			default: return 'badge-primary'
 		}
 	}

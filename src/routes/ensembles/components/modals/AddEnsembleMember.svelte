@@ -245,6 +245,11 @@
 									disabled={submitting}
 								>
 									<div class="font-medium text-sm">{getArtistDisplayName(artist)}</div>
+									{#if artist.artist_name && artist.artist_name !== getArtistDisplayName(artist)}
+										<div class="text-xs text-base-content/60 mt-1">
+											{artist.artist_name}
+										</div>
+									{/if}
 									{#if artist.email}
 										<div class="text-xs text-base-content/60 mt-1">
 											{artist.email}

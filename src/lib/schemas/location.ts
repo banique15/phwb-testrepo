@@ -16,6 +16,7 @@ export const locationSchema = z.object({
 	active: z.boolean().default(true),
 	image: z.string().url('Invalid image URL format').optional().nullable(),
 	contacts: z.any().optional().nullable(),
+	type: z.number().optional().nullable(), // Foreign key to phwb_location_types
 })
 
 export const createLocationSchema = locationSchema.omit({

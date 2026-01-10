@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { invalidateAll } from '$app/navigation'
+	import { page } from '$app/stores'
 	import { User } from 'lucide-svelte'
 	import { artistsStore, updateArtist } from '$lib/stores/artists'
 	import type { Artist } from '$lib/schemas/artist'
@@ -242,12 +243,40 @@
 		}
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		// Load ensemble membership data for filtering
 		loadArtistsWithEnsembles()
 
 		// Load event counts for all artists
 		loadArtistEventCounts()
+
+		// Check for artist ID in URL first (e.g., /artists?id=xxx)
+		const urlArtistId = $page.url.searchParams.get('id')
+		if (urlArtistId && data.artists.length > 0) {
+			// Try to find in current data
+			let urlArtist = data.artists.find(artist => artist.id === urlArtistId)
+
+			// If not found in current data, fetch it directly
+			if (!urlArtist) {
+				const { data: fetchedArtist } = await supabase
+					.from('phwb_artists')
+					.select('*')
+					.eq('id', urlArtistId)
+					.single()
+
+				if (fetchedArtist) {
+					urlArtist = fetchedArtist
+				}
+			}
+
+			if (urlArtist) {
+				selectedArtist = urlArtist
+				if (urlArtist.id) {
+					loadArtistEventsCount(urlArtist.id)
+				}
+				return // Don't check localStorage if URL param was used
+			}
+		}
 
 		// Restore selected artist from localStorage on initial client-side mount
 		const artistStorageKey = 'phwb-selected-artist'

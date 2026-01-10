@@ -27,7 +27,8 @@
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
       "WebFetch(domain:driverjs.com)",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__list_tables"
     ]
   },
   "enableAllProjectMcpServers": true,

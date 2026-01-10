@@ -6,6 +6,7 @@ declare global {
 		interface Locals {
 			session: import('@supabase/supabase-js').Session | null
 			supabase: import('@supabase/supabase-js').SupabaseClient
+			supabaseAdmin: import('@supabase/supabase-js').SupabaseClient
 		}
 		// interface PageData {}
 		// interface PageState {}
