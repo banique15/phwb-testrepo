@@ -43,7 +43,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			try {
 				const fileExt = file.name.split('.').pop() || 'png'
 				const fileName = `${bugId}/replication/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-				const filePath = `bug-attachments/${fileName}`
+				const filePath = fileName // Don't include bucket name in path
 
 				// Upload to Supabase Storage
 				const { error: uploadError } = await supabase.storage

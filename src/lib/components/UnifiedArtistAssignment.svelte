@@ -498,11 +498,11 @@
 			<span>{error}</span>
 		</div>
 	{:else}
-		<div class="flex gap-1 items-start">
+		<div class="flex flex-col lg:flex-row gap-2 items-start">
 			<!-- Left Panel: Available Artists -->
-			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-0">
+			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-[200px] w-full lg:w-auto">
 				<div class="p-3 border-b border-base-300 flex-shrink-0">
-					<h4 class="font-semibold mb-2">Available Artists & Ensembles</h4>
+					<h4 class="font-semibold mb-2 text-sm">Available Artists & Ensembles</h4>
 					<input
 						type="text"
 						bind:value={artistSearch}
@@ -526,58 +526,60 @@
 						</div>
 					{:else}
 						{#each availableItems as item}
+							{@const displayName = item.type === 'ensemble' ? item.name : getArtistDisplayName(item)}
 							<button
 								type="button"
-								class="w-full text-left px-4 py-3 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedLeftArtistId === item.id ? 'bg-primary/20' : ''}"
+								class="w-full text-left px-3 py-2.5 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedLeftArtistId === item.id ? 'bg-primary/20' : ''}"
 								onclick={() => selectedLeftArtistId = selectedLeftArtistId === item.id ? null : item.id}
 								disabled={updating}
+								title={displayName}
 							>
-								<div class="flex items-center gap-3">
+								<div class="flex items-center gap-2.5">
 									{#if item.type === 'ensemble'}
-										<div class="avatar placeholder">
-											<div class="bg-primary text-primary-content rounded-full w-8 h-8">
-												<Users class="w-4 h-4" />
+										<div class="avatar placeholder flex-shrink-0">
+											<div class="bg-primary text-primary-content rounded-full w-7 h-7">
+												<Users class="w-3.5 h-3.5" />
 											</div>
 										</div>
 									{:else if item.profile_photo}
-										<div class="avatar">
-											<div class="w-8 h-8 rounded-full">
-												<img src={item.profile_photo} alt={getArtistDisplayName(item)} />
+										<div class="avatar flex-shrink-0">
+											<div class="w-7 h-7 rounded-full">
+												<img src={item.profile_photo} alt={displayName} />
 											</div>
 										</div>
 									{:else}
-										<div class="avatar placeholder">
-											<div class="bg-neutral text-neutral-content rounded-full w-8 h-8">
+										<div class="avatar placeholder flex-shrink-0">
+											<div class="bg-neutral text-neutral-content rounded-full w-7 h-7">
 												<span class="text-xs">
-													{getArtistDisplayName(item).charAt(0).toUpperCase()}
+													{displayName.charAt(0).toUpperCase()}
 												</span>
 											</div>
 										</div>
 									{/if}
-									<div class="flex-1 min-w-0">
-										<div class="flex items-center gap-2 min-w-0">
+									<div class="flex-1 min-w-0 overflow-hidden">
+										<div class="flex items-center gap-1.5 min-w-0">
 											{#if item.type === 'ensemble'}
-												<Users class="w-3.5 h-3.5 text-success flex-shrink-0" />
+												<Users class="w-3 h-3 text-success flex-shrink-0" />
 											{/if}
-											<div class="font-medium text-sm truncate flex-1 min-w-0">
-												{item.type === 'ensemble' ? item.name : getArtistDisplayName(item)}
+											<div class="font-medium text-sm break-words line-clamp-2" title={displayName}>
+												{displayName}
 											</div>
 										</div>
 										{#if item.type === 'ensemble'}
-											<div class="text-xs text-base-content/60 truncate">
+											<div class="text-xs text-base-content/60 line-clamp-1">
 												{item.member_count || 0} {item.member_count === 1 ? 'member' : 'members'}
 												{#if item.ensemble_type}
 													• {item.ensemble_type}
 												{/if}
 											</div>
 										{:else}
-											{#if item.artist_name && item.artist_name !== getArtistDisplayName(item)}
-												<div class="text-xs text-base-content/60 truncate">
+											{#if item.artist_name && item.artist_name !== displayName}
+												<div class="text-xs text-base-content/60 line-clamp-1" title={item.artist_name}>
 													{item.artist_name}
 												</div>
 											{/if}
 											{#if item.email}
-												<div class="text-xs text-base-content/60 truncate">{item.email}</div>
+												<div class="text-xs text-base-content/60 line-clamp-1" title={item.email}>{item.email}</div>
 											{/if}
 										{/if}
 									</div>
@@ -589,7 +591,7 @@
 			</div>
 
 			<!-- Center Column 1: Action Buttons (Left to Center) -->
-			<div class="flex flex-col justify-center items-center gap-2 self-center w-12">
+			<div class="flex flex-row lg:flex-col justify-center items-center gap-2 self-center w-auto lg:w-12">
 				<button
 					class="btn btn-primary btn-circle btn-sm"
 					onclick={() => selectedLeftArtistId && assignArtist(selectedLeftArtistId)}
@@ -612,9 +614,9 @@
 			</div>
 
 			<!-- Center Panel: Booking/Hold/Assigned Artists -->
-			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-0">
+			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-[200px] w-full lg:w-auto">
 				<div class="p-3 border-b border-base-300 flex-shrink-0">
-					<h4 class="font-semibold">Booking/Hold/Assigned ({pendingArtists.length})</h4>
+					<h4 class="font-semibold text-sm">Booking/Hold/Assigned ({pendingArtists.length})</h4>
 				</div>
 				<div class="overflow-y-auto flex-1 min-h-0">
 					{#if isLoading}
@@ -628,41 +630,43 @@
 					{:else}
 						{#each pendingArtists as artist}
 							{@const cost = (artist.num_hours || 0) * (artist.hourly_rate || 0)}
+							{@const artistName = artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
 							<button
 								type="button"
-								class="w-full text-left px-4 py-3 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedCenterArtistId === artist.artist_id ? 'bg-primary/20' : ''}"
+								class="w-full text-left px-3 py-2.5 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedCenterArtistId === artist.artist_id ? 'bg-primary/20' : ''}"
 								onclick={() => selectedCenterArtistId = selectedCenterArtistId === artist.artist_id ? null : artist.artist_id}
 								disabled={updating}
+								title={artistName}
 							>
-								<div class="flex items-center gap-3">
+								<div class="flex items-center gap-2.5">
 									{#if artist.profile_photo}
-										<div class="avatar">
-											<div class="w-8 h-8 rounded-full">
-												<img src={artist.profile_photo} alt={artist.full_name || artist.artist_name || artist.artist_name} />
+										<div class="avatar flex-shrink-0">
+											<div class="w-7 h-7 rounded-full">
+												<img src={artist.profile_photo} alt={artistName} />
 											</div>
 										</div>
 									{:else}
-										<div class="avatar placeholder">
-											<div class="bg-neutral text-neutral-content rounded-full w-8 h-8">
+										<div class="avatar placeholder flex-shrink-0">
+											<div class="bg-neutral text-neutral-content rounded-full w-7 h-7">
 												<span class="text-xs">
-													{(artist.full_name || artist.artist_name || artist.artist_name || 'A').charAt(0).toUpperCase()}
+													{artistName.charAt(0).toUpperCase()}
 												</span>
 											</div>
 										</div>
 									{/if}
-									<div class="flex-1 min-w-0">
-										<div class="font-medium text-sm truncate">
-											{artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
+									<div class="flex-1 min-w-0 overflow-hidden">
+										<div class="font-medium text-sm break-words line-clamp-2" title={artistName}>
+											{artistName}
 										</div>
 										{#if artist.artist_name && artist.artist_name !== artist.full_name}
-											<div class="text-xs text-base-content/60 truncate">
+											<div class="text-xs text-base-content/60 line-clamp-1" title={artist.artist_name}>
 												{artist.artist_name}
 											</div>
 										{/if}
 										{#if artist.email}
-											<div class="text-xs text-base-content/60 truncate">{artist.email}</div>
+											<div class="text-xs text-base-content/60 line-clamp-1" title={artist.email}>{artist.email}</div>
 										{/if}
-										<div class="flex items-center gap-2 mt-1">
+										<div class="flex items-center gap-2 mt-1 flex-wrap">
 											{#if artist.role}
 												<span class="badge badge-outline badge-xs">{artist.role}</span>
 											{/if}
@@ -674,7 +678,7 @@
 									{#if !readonly}
 										<button
 											type="button"
-											class="btn btn-ghost btn-xs"
+											class="btn btn-ghost btn-xs flex-shrink-0"
 											onclick={(e) => openAssignmentModal(artist, e)}
 											title="Edit assignment details"
 										>
@@ -689,7 +693,7 @@
 			</div>
 
 			<!-- Center Column 2: Action Buttons (Center to Right) -->
-			<div class="flex flex-col justify-center items-center gap-2 self-center w-12">
+			<div class="flex flex-row lg:flex-col justify-center items-center gap-2 self-center w-auto lg:w-12">
 				<button
 					class="btn btn-success btn-circle btn-sm"
 					onclick={() => selectedCenterArtistId && confirmArtist(selectedCenterArtistId)}
@@ -709,9 +713,9 @@
 			</div>
 
 			<!-- Right Panel: Confirmed Artists -->
-			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-0">
+			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-[200px] w-full lg:w-auto">
 				<div class="p-3 border-b border-base-300 flex-shrink-0">
-					<h4 class="font-semibold">Confirmed ({confirmedArtists.length})</h4>
+					<h4 class="font-semibold text-sm">Confirmed ({confirmedArtists.length})</h4>
 				</div>
 				<div class="overflow-y-auto flex-1 min-h-0">
 					{#if isLoading}
@@ -725,41 +729,43 @@
 					{:else}
 						{#each confirmedArtists as artist}
 							{@const cost = (artist.num_hours || 0) * (artist.hourly_rate || 0)}
+							{@const artistName = artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
 							<button
 								type="button"
-								class="w-full text-left px-4 py-3 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedRightArtistId === artist.artist_id ? 'bg-primary/20' : ''}"
+								class="w-full text-left px-3 py-2.5 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedRightArtistId === artist.artist_id ? 'bg-primary/20' : ''}"
 								onclick={() => selectedRightArtistId = selectedRightArtistId === artist.artist_id ? null : artist.artist_id}
 								disabled={updating}
+								title={artistName}
 							>
-								<div class="flex items-center gap-3">
+								<div class="flex items-center gap-2.5">
 									{#if artist.profile_photo}
-										<div class="avatar">
-											<div class="w-8 h-8 rounded-full">
-												<img src={artist.profile_photo} alt={artist.full_name || artist.artist_name || artist.artist_name} />
+										<div class="avatar flex-shrink-0">
+											<div class="w-7 h-7 rounded-full">
+												<img src={artist.profile_photo} alt={artistName} />
 											</div>
 										</div>
 									{:else}
-										<div class="avatar placeholder">
-											<div class="bg-neutral text-neutral-content rounded-full w-8 h-8">
+										<div class="avatar placeholder flex-shrink-0">
+											<div class="bg-neutral text-neutral-content rounded-full w-7 h-7">
 												<span class="text-xs">
-													{(artist.full_name || artist.artist_name || artist.artist_name || 'A').charAt(0).toUpperCase()}
+													{artistName.charAt(0).toUpperCase()}
 												</span>
 											</div>
 										</div>
 									{/if}
-									<div class="flex-1 min-w-0">
-										<div class="font-medium text-sm truncate">
-											{artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
+									<div class="flex-1 min-w-0 overflow-hidden">
+										<div class="font-medium text-sm break-words line-clamp-2" title={artistName}>
+											{artistName}
 										</div>
 										{#if artist.artist_name && artist.artist_name !== artist.full_name}
-											<div class="text-xs text-base-content/60 truncate">
+											<div class="text-xs text-base-content/60 line-clamp-1" title={artist.artist_name}>
 												{artist.artist_name}
 											</div>
 										{/if}
 										{#if artist.email}
-											<div class="text-xs text-base-content/60 truncate">{artist.email}</div>
+											<div class="text-xs text-base-content/60 line-clamp-1" title={artist.email}>{artist.email}</div>
 										{/if}
-										<div class="flex items-center gap-2 mt-1">
+										<div class="flex items-center gap-2 mt-1 flex-wrap">
 											{#if artist.role}
 												<span class="badge badge-outline badge-xs">{artist.role}</span>
 											{/if}
@@ -771,7 +777,7 @@
 									{#if !readonly}
 										<button
 											type="button"
-											class="btn btn-ghost btn-xs"
+											class="btn btn-ghost btn-xs flex-shrink-0"
 											onclick={(e) => openAssignmentModal(artist, e)}
 											title="Edit assignment details"
 										>

@@ -52,9 +52,15 @@
 		
 		for (const screenshot of screenshots) {
 			try {
+				// Remove 'bug-attachments/' prefix if present, since getPublicUrl already knows the bucket
+				let filePath = screenshot.file_path
+				if (filePath.startsWith('bug-attachments/')) {
+					filePath = filePath.replace('bug-attachments/', '')
+				}
+				
 				const { data } = supabase.storage
 					.from('bug-attachments')
-					.getPublicUrl(screenshot.file_path)
+					.getPublicUrl(filePath)
 				
 				if (data?.publicUrl) {
 					urls.set(screenshot.id as number, data.publicUrl)

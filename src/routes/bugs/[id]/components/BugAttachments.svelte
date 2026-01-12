@@ -35,7 +35,7 @@
 		try {
 			const fileExt = file.name.split('.').pop()
 			const fileName = `${bugId}/${Date.now()}.${fileExt}`
-			const filePath = `bug-attachments/${fileName}`
+			const filePath = fileName // Don't include bucket name in path
 
 			// Upload to Supabase Storage
 			const { error: uploadError } = await supabase.storage

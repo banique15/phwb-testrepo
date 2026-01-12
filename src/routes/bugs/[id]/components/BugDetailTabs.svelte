@@ -11,7 +11,6 @@
 	import BugRelations from './BugRelations.svelte'
 	import BugTimeTracking from './BugTimeTracking.svelte'
 	import BugReplication from './BugReplication.svelte'
-	import type { BugAttachment } from '$lib/schemas/bug-attachment'
 
 	interface Props {
 		bug: Bug
