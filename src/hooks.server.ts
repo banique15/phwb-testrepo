@@ -49,45 +49,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	)
 
 	// Get the session from the server-side client
-	let { data: { session } } = await event.locals.supabase.auth.getSession()
-	
-	// Dev mode: Check for test login cookie and create mock session
-	if (process.env.NODE_ENV === 'development' && !session) {
-		const devUserId = event.cookies.get('dev-test-user-id')
-		const devUserEmail = event.cookies.get('dev-test-user-email')
-		
-		if (devUserId && devUserEmail) {
-			// Ensure profile exists with correct name
-			const devUserNames: Record<string, string> = {
-				'it@singforhope.org': 'IT Dev',
-				'marty@singforhope.org': 'Marty',
-				'javier@singforhope.org': 'Javier'
-			}
-			const displayName = devUserNames[devUserEmail.toLowerCase()] || devUserEmail.split('@')[0]
-			
-			// Update profile if needed
-			await event.locals.supabase.from('profiles').upsert({
-				id: devUserId,
-				full_name: displayName
-			}, { onConflict: 'id' })
-			
-			// Create a mock session object for dev testing
-			// This won't work with Supabase's actual auth, but we can bypass checks
-			session = {
-				user: {
-					id: devUserId,
-					email: devUserEmail,
-					user_metadata: {},
-					app_metadata: {}
-				},
-				access_token: 'dev-token',
-				refresh_token: 'dev-refresh-token',
-				expires_at: Math.floor(Date.now() / 1000) + 3600,
-				expires_in: 3600,
-				token_type: 'bearer'
-			} as any
-		}
-	}
+	// This works the same in both dev and production - real Supabase auth
+	const { data: { session } } = await event.locals.supabase.auth.getSession()
 	
 	event.locals.session = session
 

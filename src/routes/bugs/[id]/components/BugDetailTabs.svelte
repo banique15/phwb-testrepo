@@ -45,11 +45,16 @@
 	}: Props = $props()
 
 	let descriptionValue = $state(bug.description || '')
+	
+	// Track the last known bug.description to detect actual server/parent changes
+	let lastKnownBugDescription = $state(bug.description || '')
 
-	// Update description value only when bug.description actually changes
+	// Update description value only when bug.description changes from the server/parent
+	// NOT when user edits it locally
 	$effect(() => {
 		const newDescription = bug.description || ''
-		if (descriptionValue !== newDescription) {
+		if (newDescription !== lastKnownBugDescription) {
+			lastKnownBugDescription = newDescription
 			descriptionValue = newDescription
 		}
 	})

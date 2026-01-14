@@ -56,7 +56,7 @@ export const load: PageServerLoad = async ({ locals, setHeaders }) => {
 			fetchCount('phwb_partners'),
 			fetchCount('phwb_facilities'),
 			fetchCount('phwb_locations'),
-			supabase.from('profiles').select('full_name').eq('id', locals.session.user.id).single(),
+			supabase.from('profiles').select('full_name').eq('id', locals.session.user.id).maybeSingle(),
 			supabase
 				.from('phwb_events')
 				.select('id, title, date, start_time, end_time, status, program, program_rel:phwb_programs!left(title)')

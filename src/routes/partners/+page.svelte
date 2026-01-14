@@ -66,12 +66,20 @@
 	let performanceMetrics = $derived(data.performance);
 
 	// Keep selected partner in sync with updated data
+	// Note: We compare by stringified data to avoid infinite loops from Svelte 5 proxy inequality
+	let lastSyncedPartnerData = $state<string | null>(null);
+	
 	$effect(() => {
 		if (selectedPartner?.id && partners.length > 0) {
 			const partnerId = selectedPartner.id;
 			const updatedPartner = partners.find((p) => p.id === partnerId);
-			if (updatedPartner && updatedPartner !== selectedPartner) {
-				selectedPartner = updatedPartner;
+			if (updatedPartner) {
+				const updatedData = JSON.stringify(updatedPartner);
+				// Only update if the data actually changed
+				if (updatedData !== lastSyncedPartnerData) {
+					lastSyncedPartnerData = updatedData;
+					selectedPartner = updatedPartner;
+				}
 			}
 		}
 	});
@@ -355,8 +363,13 @@
 			);
 			selectedPartner = updatedPartner;
 
-			// Refresh the page data
-			await updateUrlAndFetch({});
+			// Update the local data array to reflect changes immediately
+			// The store already updated its internal state, but we also need to
+			// update the page's data.partners array for display consistency
+			const partnerIndex = data.partners.findIndex(p => p.id === selectedPartner?.id);
+			if (partnerIndex >= 0) {
+				data.partners[partnerIndex] = updatedPartner;
+			}
 		} catch (error) {
 			if (error instanceof z.ZodError) {
 				throw new Error(
@@ -393,13 +406,6 @@
 			}
 		}
 		return item.organization || "No organization";
-	}
-
-	function getPartnerDetail(item: any): string {
-		return item.description
-			? item.description.substring(0, 100) +
-					(item.description.length > 100 ? "..." : "")
-			: "";
 	}
 
 	function openCreateModal() {
@@ -471,7 +477,6 @@
 					masterTitle="Partners"
 					getItemTitle={getPartnerTitle}
 					getItemSubtitle={getPartnerSubtitle}
-					getItemDetail={getPartnerDetail}
 					detailEmptyIcon={Handshake}
 					detailEmptyTitle="Select a partner"
 					detailEmptyMessage="Choose a partner from the list to view their full profile"

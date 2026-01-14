@@ -45,7 +45,7 @@
 	let isSubmitting = $state(false)
 
 	// Calculate total pay (using the same logic as the table)
-	let totalPay = $derived(() => {
+	let totalPay = $derived.by(() => {
 		// If we have a pre-calculated total_pay from the entry, use it
 		if (entry?.total_pay) {
 			return entry.total_pay

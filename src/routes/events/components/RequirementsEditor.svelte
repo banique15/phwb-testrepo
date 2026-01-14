@@ -154,7 +154,7 @@
 	}
 	
 	// Filtered requirements
-	let filteredRequirements = $derived(() => {
+	let filteredRequirements = $derived.by(() => {
 		return requirementsList.filter(req => {
 			const categoryMatch = filterCategory === 'all' || req.category === filterCategory
 			const statusMatch = filterStatus === 'all' || req.status === filterStatus

@@ -81,7 +81,7 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 				.from('phwb_events')
 				.select('*')
 				.eq('id', requestedEventId)
-				.single()
+				.maybeSingle()
 
 			if (singleEvent) {
 				requestedEvent = singleEvent

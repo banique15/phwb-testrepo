@@ -30,7 +30,7 @@
 	})
 
 	// Check if confirmation text matches facility name
-	const isConfirmationValid = $derived(() => {
+	const isConfirmationValid = $derived.by(() => {
 		if (!facility?.name) return false
 		return confirmationText.trim().toLowerCase() === facility.name.toLowerCase()
 	})
@@ -43,7 +43,7 @@
 
 	async function handleDelete(event?: SubmitEvent | MouseEvent) {
 		event?.preventDefault()
-		if (!facility?.id || !isConfirmationValid()) return
+		if (!facility?.id || !isConfirmationValid) return
 
 		isLoading = true
 		submitError = null
@@ -171,17 +171,17 @@
 						<input 
 							id="delete-facility-confirmation"
 							type="text" 
-							class="input input-bordered {isConfirmationValid() ? 'input-success' : confirmationText ? 'input-error' : ''}"
+							class="input input-bordered {isConfirmationValid ? 'input-success' : confirmationText ? 'input-error' : ''}"
 							bind:value={confirmationText}
 							placeholder="Type the facility name here"
 							autocomplete="off"
 							spellcheck="false"
 						/>
-						{#if confirmationText && !isConfirmationValid()}
+						{#if confirmationText && !isConfirmationValid}
 							<label class="label">
 								<span class="label-text-alt text-error">Facility name does not match</span>
 							</label>
-						{:else if isConfirmationValid()}
+						{:else if isConfirmationValid}
 							<label class="label">
 								<span class="label-text-alt text-success">✓ Confirmation text matches</span>
 							</label>
@@ -218,7 +218,7 @@
 			type="button"
 			class="btn btn-error"
 			onclick={handleDelete}
-			disabled={isLoading || !isConfirmationValid() || !facility}
+			disabled={isLoading || !isConfirmationValid || !facility}
 		>
 			{#if isLoading}
 				<span class="loading loading-spinner loading-sm"></span>

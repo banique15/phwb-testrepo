@@ -81,13 +81,15 @@ export const partnersStore = {
 			// Validate data
 			const validatedData = partnerSchema.omit({ id: true, created_at: true }).parse(partnerData)
 			
+			// Use maybeSingle() to handle edge cases
 			const { data, error } = await supabase
 				.from('phwb_partners')
 				.insert([validatedData])
 				.select()
-				.single()
+				.maybeSingle()
 			
 			if (error) throw error
+			if (!data) throw new Error('Failed to create partner')
 			
 			partnersState.update(state => ({
 				...state,
@@ -114,14 +116,21 @@ export const partnersStore = {
 			// Validate data
 			const validatedData = partnerSchema.omit({ id: true, created_at: true }).partial().parse(updates)
 			
-			const { data, error } = await supabase
-				.from('phwb_partners')
-				.update(validatedData)
-				.eq('id', id)
-				.select()
-				.single()
-			
-			if (error) throw error
+			// Use server API endpoint to ensure proper authentication and RLS handling
+			const response = await fetch(`/api/partners/${id}`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(validatedData)
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}))
+				throw new Error(errorData.message || `Failed to update partner: ${response.status}`)
+			}
+
+			const data = await response.json()
 			
 			partnersState.update(state => ({
 				...state,

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte'
-	import { createEventDispatcher } from 'svelte'
 	import { supabase } from '$lib/supabase'
 
 	interface Program {
@@ -16,6 +15,7 @@
 		error?: string
 		required?: boolean
 		disabled?: boolean
+		onchange?: (e: CustomEvent<{ value: number | undefined; program: Program | null }>) => void
 	}
 
 	let {
@@ -23,12 +23,17 @@
 		placeholder = 'Search for a program...',
 		error = '',
 		required = false,
-		disabled = false
+		disabled = false,
+		onchange
 	}: Props = $props()
 
-	const dispatch = createEventDispatcher<{
-		change: { value: number | undefined; program: Program | null }
-	}>()
+	// Helper to emit change events via callback prop
+	function emitChange(detail: { value: number | undefined; program: Program | null }) {
+		if (onchange) {
+			const event = new CustomEvent('change', { detail })
+			onchange(event)
+		}
+	}
 
 	// Component state
 	let searchQuery = $state('')
@@ -39,6 +44,7 @@
 	let highlightedIndex = $state(-1)
 	let searchTimeout: number | undefined
 	let lastLoadedValue: number | null = null
+	let isSelecting = $state(false) // Flag to prevent $effect from interfering during selection
 
 	// Input element reference for focus management
 	let inputElement: HTMLInputElement
@@ -54,14 +60,22 @@
 		
 		// Use untrack to prevent tracking other state changes
 		untrack(() => {
+			// Don't interfere if user is actively selecting
+			if (isSelecting) return
+			
 			// Only load if value changed and we haven't already loaded this value
 			if (currentValue != null && currentValue !== lastLoadedValue) {
 				lastLoadedValue = currentValue
 				loadSelectedProgram(currentValue)
 			} else if (currentValue == null && lastLoadedValue !== null) {
+				// Only clear if value is explicitly null (not just undefined)
 				lastLoadedValue = null
 				selectedProgram = null
 				searchQuery = ''
+			} else if (currentValue != null && selectedProgram && selectedProgram.id !== currentValue) {
+				// Value changed from parent - sync the selection
+				lastLoadedValue = currentValue
+				loadSelectedProgram(currentValue)
 			}
 		})
 	})
@@ -153,10 +167,9 @@
 
 		// Debounce search
 		searchTimeout = setTimeout(() => {
-			if (searchQuery !== (selectedProgram?.title || '')) {
-				selectedProgram = null
-				dispatch('change', { value: undefined, program: null })
-			}
+			// Don't clear selection when typing - just show search results
+			// Selection will only be cleared if user explicitly selects a different program
+			// or clears it via the clear button
 			searchPrograms(searchQuery)
 			isOpen = true
 			highlightedIndex = -1
@@ -165,6 +178,7 @@
 
 	// Handle program selection
 	function selectProgram(program: Program) {
+		isSelecting = true
 		lastLoadedValue = program.id
 		selectedProgram = program
 		searchQuery = program.title
@@ -172,7 +186,26 @@
 		highlightedIndex = -1
 		programs = []
 		
-		dispatch('change', { value: program.id, program })
+		emitChange({ value: program.id, program })
+		
+		// Reset selecting flag after a brief delay to allow parent to update
+		// This prevents $effect from interfering with the selection
+		setTimeout(() => {
+			isSelecting = false
+			// Ensure lastLoadedValue and selectedProgram match the value prop after parent updates
+			if (value === program.id) {
+				lastLoadedValue = program.id
+				// Keep the selected program if value matches
+				if (!selectedProgram || selectedProgram.id !== program.id) {
+					selectedProgram = program
+					searchQuery = program.title
+				}
+			} else if (value !== null && value !== undefined) {
+				// Value changed from parent - sync it
+				lastLoadedValue = value
+				loadSelectedProgram(value)
+			}
+		}, 300)
 	}
 
 	// Handle keyboard navigation
@@ -232,6 +265,11 @@
 		setTimeout(() => {
 			isOpen = false
 			highlightedIndex = -1
+			// Restore search query to match selected program if one is selected
+			// This prevents clearing the selection when user clicks away
+			if (selectedProgram && searchQuery !== selectedProgram.title) {
+				searchQuery = selectedProgram.title
+			}
 		}, 150)
 	}
 
@@ -242,7 +280,7 @@
 		searchQuery = ''
 		programs = []
 		isOpen = false
-		dispatch('change', { value: undefined, program: null })
+		emitChange({ value: undefined, program: null })
 		inputElement?.focus()
 	}
 </script>

@@ -141,7 +141,7 @@
 	}
 	
 	// Smart status suggestions based on event date
-	let suggestedActions = $derived(() => {
+	let suggestedActions = $derived.by(() => {
 		const suggestions = []
 		
 		if (isEventToday() && currentStatus === 'confirmed') {

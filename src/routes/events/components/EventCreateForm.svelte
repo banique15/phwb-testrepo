@@ -12,6 +12,7 @@
 	import CreateFacility from '../../facilities/components/modals/CreateFacility.svelte'
 	import CreateLocation from '../../facilities/components/modals/CreateLocation.svelte'
 	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
+	import TimePicker from '$lib/components/ui/TimePicker.svelte'
 	import { Plus } from 'lucide-svelte'
 
 	interface Props {
@@ -19,9 +20,10 @@
 		onCancel?: () => void
 		initialDate?: string
 		initialTime?: string
+		onFieldFocus?: () => void
 	}
 
-	let { onSuccess, onCancel, initialDate, initialTime }: Props = $props()
+	let { onSuccess, onCancel, initialDate, initialTime, onFieldFocus }: Props = $props()
 
 	// Form state
 	let title = $state('')
@@ -33,6 +35,11 @@
 	let selectedLocation = $state<LocationWithFacility | null>(null)
 	let programId = $state<number | null>(null)
 	let artistAssignments = $state<ArtistAssignment[]>([])
+	let notes = $state('')
+	let numberOfAttendees = $state<number | null>(null)
+	let numberOfMusicians = $state<number | null>(null)
+	let pmHours = $state<number | null>(null)
+	let pmRate = $state<number | null>(null)
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -150,47 +157,82 @@
 		}
 	}
 
-	async function handleSaveDraft() {
-		submitting = true
-		error = null
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault()
+
+		// For drafts, allow minimal data - skip required field validation
+		if (status !== 'draft') {
+			if (!programId) {
+				error = 'Please select a program'
+				return
+			}
+
+			if (!locationId) {
+				error = 'Please select a location'
+				return
+			}
+		}
 
 		if (timeError) {
 			error = timeError
-			submitting = false
 			return
 		}
 
+		submitting = true
+		error = null
+
 		try {
-			// Get plain array copies to avoid reactive proxy issues
-			const programsArray = Array.isArray(programs) ? [...programs] : []
-			
-			// For drafts, we allow minimal data - generate defaults if needed
 			let finalTitle = title.trim()
+			
+			// For drafts, generate a simple title if missing
 			if (!finalTitle) {
-				// Try to generate from available data, or use default
-				if (selectedLocation) {
-					const locationName = selectedLocation.name
-					const facilityName = selectedLocation.facility?.name || 'Unknown Facility'
-					finalTitle = `Draft Event @ ${locationName} (${facilityName})`
+				if (status === 'draft') {
+					if (selectedLocation) {
+						const locationName = selectedLocation.name
+						const facilityName = selectedLocation.facility?.name || 'Unknown Facility'
+						finalTitle = `Draft Event @ ${locationName} (${facilityName})`
+					} else {
+						finalTitle = 'Draft Event'
+					}
 				} else {
-					finalTitle = 'Draft Event'
+					// For non-drafts, require location and program for title generation
+					const locationName = selectedLocation?.name || 'Unknown Location'
+					const facilityName = selectedLocation?.facility?.name || ''
+					const locationDisplay = facilityName ? `${locationName} (${facilityName})` : locationName
+					const selectedArtistNames = artistAssignments
+						.map(assignment => assignment.artist_name)
+						.filter(name => name && name !== 'Unknown')
+
+					if (selectedArtistNames.length === 0) {
+						finalTitle = `Event @ ${locationDisplay}`
+					} else if (selectedArtistNames.length === 1) {
+						finalTitle = `${selectedArtistNames[0]} @ ${locationDisplay}`
+					} else if (selectedArtistNames.length === 2) {
+						finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} @ ${locationDisplay}`
+					} else {
+						finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} @ ${locationDisplay}`
+					}
 				}
 			}
 
-			// Ensure date exists
+			// Ensure date exists (required for all events)
 			const eventDate = date || new Date().toISOString().split('T')[0]
 
-			// Use existing artistAssignments, no need to convert
+			const program = programId ? programs.find(p => p.id === programId) : null
 
 			const eventData = {
 				title: finalTitle,
 				date: eventDate,
 				...(startTime && { start_time: startTime }),
 				...(endTime && { end_time: endTime }),
-				status: 'draft',
+				status,
 				...(locationId && { location_id: locationId }),
-				...(programId && { program_id: programId }),
-				notes: '',
+				...(programId && { program: programId }),
+				...(notes && { notes }),
+				...(numberOfAttendees !== null && { number_of_attendees: numberOfAttendees }),
+				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
+				...(pmHours !== null && { pm_hours: pmHours }),
+				...(pmRate !== null && { pm_rate: pmRate }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -199,84 +241,17 @@
 			const createdEvent = await eventsStore.create(eventData)
 			// Add program_name to the returned event for calendar display
 			if (createdEvent && programId) {
-				const program = programsArray.find(p => p.id === programId)
 				(createdEvent as any).program_name = program?.title || null
 			}
-			onSuccess?.(createdEvent)
-
-		} catch (err) {
-			console.error('Error saving draft:', err)
-			error = err instanceof Error ? err.message : 'Failed to save draft'
-		} finally {
-			submitting = false
-		}
-	}
-
-	async function handleSubmit(e: SubmitEvent) {
-		e.preventDefault()
-
-		if (!programId) {
-			error = 'Please select a program'
-			return
-		}
-
-		if (!locationId) {
-			error = 'Please select a location'
-			return
-		}
-
-		if (timeError) {
-			error = timeError
-			return
-		}
-
-		submitting = true
-		error = null
-
-		try {
-			const locationName = selectedLocation?.name || 'Unknown Location'
-			const facilityName = selectedLocation?.facility?.name || ''
-			const locationDisplay = facilityName ? `${locationName} (${facilityName})` : locationName
-			const program = programs.find(p => p.id === programId)
-			let finalTitle = title.trim()
-
-			if (!finalTitle) {
-				const selectedArtistNames = artistAssignments
-					.map(assignment => assignment.artist_name)
-					.filter(name => name && name !== 'Unknown')
-
-				if (selectedArtistNames.length === 0) {
-					finalTitle = `Event @ ${locationDisplay}`
-				} else if (selectedArtistNames.length === 1) {
-					finalTitle = `${selectedArtistNames[0]} @ ${locationDisplay}`
-				} else if (selectedArtistNames.length === 2) {
-					finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} @ ${locationDisplay}`
-				} else {
-					finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} @ ${locationDisplay}`
-				}
-			}
-
-			// Use existing artistAssignments, no need to convert
-
-			const eventData = {
-				title: finalTitle,
-				date,
-				...(startTime && { start_time: startTime }),
-				...(endTime && { end_time: endTime }),
-				status,
-				location_id: locationId,
-				program_id: programId,
-				notes: '',
-				...(artistAssignments.length > 0 && {
-					artists: { assignments: artistAssignments }
-				})
-			}
-
-			const createdEvent = await eventsStore.create(eventData)
-			// Add program_name to the returned event for calendar display
-			if (createdEvent) {
-				(createdEvent as any).program_name = program?.title || null
-			}
+			
+			// Preserve location, facility, and start time for next event creation
+			// Only reset title, end time, status, and artist assignments
+			title = ''
+			endTime = ''
+			status = 'planned'
+			artistAssignments = []
+			// Keep: date, startTime, locationId, selectedLocation, programId
+			
 			onSuccess?.(createdEvent)
 
 		} catch (err) {
@@ -341,9 +316,10 @@
 					type="text"
 					bind:value={title}
 					placeholder="Leave blank to auto-generate"
-					class="input input-bordered input-sm"
+					class="input input-bordered input-sm w-full"
 					maxlength="200"
 					disabled={submitting}
+					onfocus={() => onFieldFocus?.()}
 				/>
 				<label class="label">
 					<span class="label-text-alt text-info flex items-center gap-1">
@@ -360,9 +336,10 @@
 				</label>
 				<select
 					bind:value={programId}
-					class="select select-bordered h-10 min-h-[2.5rem]"
+					class="select select-bordered h-10 min-h-[2.5rem] w-full"
 					disabled={submitting || loadingPrograms}
 					required
+					onfocus={() => onFieldFocus?.()}
 				>
 					<option value={null}>Select a program...</option>
 					{#each programs as program}
@@ -378,8 +355,8 @@
 
 			<!-- Location -->
 			<div class="form-control" data-tour="location-selector">
-				<div class="flex gap-2">
-					<div class="flex-1">
+				<div class="flex flex-col sm:flex-row gap-2">
+					<div class="flex-1 min-w-0">
 						<FacilityLocationSelector
 							bind:this={locationSelectorRef}
 							value={locationId}
@@ -412,7 +389,7 @@
 			</div>
 
 			<!-- Date and Times -->
-			<div class="grid grid-cols-3 gap-2" data-tour="date-time">
+			<div class="grid grid-cols-1 sm:grid-cols-3 gap-2" data-tour="date-time">
 				<div class="form-control">
 					<label class="label">
 						<span class="label-text">Date <span class="text-error">*</span></span>
@@ -420,9 +397,10 @@
 					<input
 						type="date"
 						bind:value={date}
-						class="input input-bordered input-sm"
+						class="input input-bordered input-sm w-full"
 						required
 						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
 					/>
 				</div>
 
@@ -430,11 +408,11 @@
 					<label class="label">
 						<span class="label-text">Start Time</span>
 					</label>
-					<input
-						type="time"
+					<TimePicker
 						bind:value={startTime}
-						class="input input-bordered input-sm {timeError ? 'input-error' : ''}"
 						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+						error={!!timeError}
 					/>
 				</div>
 
@@ -442,12 +420,11 @@
 					<label class="label">
 						<span class="label-text">End Time</span>
 					</label>
-					<input
-						type="time"
+					<TimePicker
 						bind:value={endTime}
-						min={minEndTime}
-						class="input input-bordered input-sm {timeError ? 'input-error' : ''}"
 						disabled={submitting || !startTime}
+						onfocus={() => onFieldFocus?.()}
+						error={!!timeError}
 					/>
 					{#if timeError}
 						<label class="label">
@@ -468,8 +445,9 @@
 				</label>
 				<select
 					bind:value={status}
-					class="select select-bordered h-10 min-h-[2.5rem]"
+					class="select select-bordered h-10 min-h-[2.5rem] w-full"
 					disabled={submitting}
+					onfocus={() => onFieldFocus?.()}
 				>
 					{#each statusOptions as option}
 						<option value={option.value}>{option.label}</option>
@@ -488,7 +466,107 @@
 					onAssignmentsUpdate={handleAssignmentsUpdate}
 					mode="create"
 					readonly={submitting}
+					eventStartTime={startTime}
+					eventEndTime={endTime}
 				/>
+			</div>
+
+			<!-- Notes and Attendees -->
+			<div class="space-y-4">
+				<div class="border-b pb-2">
+					<h4 class="font-semibold text-base">Notes</h4>
+				</div>
+				
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Number of Attendees</span>
+					</label>
+					<input
+						type="number"
+						bind:value={numberOfAttendees}
+						placeholder="Enter number of attendees"
+						class="input input-bordered input-sm w-full"
+						min="0"
+						step="1"
+						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+					/>
+				</div>
+
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Number of Artists/Musicians</span>
+					</label>
+					<input
+						type="number"
+						bind:value={numberOfMusicians}
+						placeholder="Enter number of artists/musicians performing"
+						class="input input-bordered input-sm w-full"
+						min="0"
+						step="1"
+						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+					/>
+				</div>
+
+				<!-- Production Manager Payroll Section -->
+				<div class="border-t border-base-300 pt-4 mt-4">
+					<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
+					<div class="grid grid-cols-3 gap-4">
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">PM Hours</span>
+							</label>
+							<input
+								type="number"
+								bind:value={pmHours}
+								placeholder="0"
+								class="input input-bordered input-sm w-full"
+								min="0"
+								step="0.5"
+								disabled={submitting}
+								onfocus={() => onFieldFocus?.()}
+							/>
+						</div>
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">PM Rate ($/hr)</span>
+							</label>
+							<input
+								type="number"
+								bind:value={pmRate}
+								placeholder="0.00"
+								class="input input-bordered input-sm w-full"
+								min="0"
+								step="0.01"
+								disabled={submitting}
+								onfocus={() => onFieldFocus?.()}
+							/>
+						</div>
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">PM Total</span>
+							</label>
+							<div class="input input-bordered input-sm bg-base-200 flex items-center">
+								<span class="font-mono">${((pmHours || 0) * (pmRate || 0)).toFixed(2)}</span>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Notes</span>
+					</label>
+					<textarea
+						bind:value={notes}
+						placeholder="Add any additional notes about this event..."
+						class="textarea textarea-bordered textarea-sm w-full"
+						rows="4"
+						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+					></textarea>
+				</div>
 			</div>
 
 			<!-- Form Actions -->
@@ -502,26 +580,15 @@
 					Cancel
 				</button>
 				<button
-					type="button"
-					class="btn btn-ghost btn-sm"
-					onclick={handleSaveDraft}
-					disabled={submitting}
-				>
-					{#if submitting}
-						<span class="loading loading-spinner loading-xs"></span>
-					{/if}
-					Save as Draft
-				</button>
-				<button
 					type="submit"
 					class="btn btn-primary btn-sm"
-					disabled={submitting || !locationId || !programId}
+					disabled={submitting || (status !== 'draft' && (!locationId || !programId))}
 				>
 					{#if submitting}
 						<span class="loading loading-spinner loading-xs"></span>
-						Creating...
+						{status === 'draft' ? 'Saving...' : 'Creating...'}
 					{:else}
-						Create Event
+						{status === 'draft' ? 'Save as Draft' : 'Create Event'}
 					{/if}
 				</button>
 			</div>

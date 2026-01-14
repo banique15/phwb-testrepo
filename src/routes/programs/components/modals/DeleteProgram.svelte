@@ -30,7 +30,7 @@
 	})
 
 	// Check if confirmation text matches program title
-	const isConfirmationValid = $derived(() => {
+	const isConfirmationValid = $derived.by(() => {
 		if (!program?.title) return false
 		return confirmationText.trim().toLowerCase() === program.title.toLowerCase()
 	})
@@ -43,7 +43,7 @@
 
 	async function handleDelete(event?: SubmitEvent | MouseEvent) {
 		event?.preventDefault()
-		if (!program?.id || !isConfirmationValid()) return
+		if (!program?.id || !isConfirmationValid) return
 
 		isLoading = true
 		submitError = null
@@ -163,17 +163,17 @@
 						<input 
 							id="delete-program-confirmation"
 							type="text" 
-							class="input input-bordered {isConfirmationValid() ? 'input-success' : confirmationText ? 'input-error' : ''}"
+							class="input input-bordered {isConfirmationValid ? 'input-success' : confirmationText ? 'input-error' : ''}"
 							bind:value={confirmationText}
 							placeholder="Type the program title here"
 							autocomplete="off"
 							spellcheck="false"
 						/>
-						{#if confirmationText && !isConfirmationValid()}
+						{#if confirmationText && !isConfirmationValid}
 							<label class="label">
 								<span class="label-text-alt text-error">Program title does not match</span>
 							</label>
-						{:else if isConfirmationValid()}
+						{:else if isConfirmationValid}
 							<label class="label">
 								<span class="label-text-alt text-success">✓ Confirmation text matches</span>
 							</label>
@@ -209,7 +209,7 @@
 			type="button"
 			class="btn btn-error"
 			onclick={handleDelete}
-			disabled={isLoading || !isConfirmationValid() || !program}
+			disabled={isLoading || !isConfirmationValid || !program}
 		>
 			{#if isLoading}
 				<span class="loading loading-spinner loading-sm"></span>

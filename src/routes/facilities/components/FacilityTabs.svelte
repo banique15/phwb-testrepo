@@ -19,9 +19,10 @@
 		onSelectLocation: (locationId: number | null) => void
 		onDelete: () => void
 		onAddLocation?: () => void
+		onEditLocation?: (locationId: number | null) => void
 	}
 
-	let { facility, locations, selectedLocationId, onSelectLocation, onDelete, onAddLocation }: Props = $props()
+	let { facility, locations, selectedLocationId, onSelectLocation, onDelete, onAddLocation, onEditLocation }: Props = $props()
 
 	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
 		{ id: 'calendar', label: 'Calendar', icon: Calendar },
@@ -68,7 +69,7 @@
 	</div>
 
 	<!-- Tab Content -->
-	<div class="tab-content">
+	<div class="tab-content block min-h-[400px] pt-4">
 		{#if activeTab === 'calendar'}
 			<CalendarTab
 				{facility}
@@ -107,6 +108,7 @@
 				{locations}
 				{selectedLocationId}
 				{onDelete}
+				onEditLocation={onEditLocation}
 			/>
 		{/if}
 	</div>

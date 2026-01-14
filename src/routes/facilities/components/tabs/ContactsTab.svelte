@@ -13,12 +13,12 @@
 
 	let { facility, locations, selectedLocationId }: Props = $props()
 
-	let facilityContacts = $derived(() => {
+	let facilityContacts = $derived.by(() => {
 		if (!facility.contacts || typeof facility.contacts !== 'object') return []
 		return Object.entries(facility.contacts).map(([key, value]) => ({ key, value: String(value) }))
 	})
 
-	let locationContacts = $derived(() => {
+	let locationContacts = $derived.by(() => {
 		if (selectedLocationId === null) return []
 		const location = locations.find(l => l.id === selectedLocationId)
 		if (!location) return []

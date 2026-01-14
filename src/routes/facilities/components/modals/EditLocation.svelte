@@ -56,7 +56,8 @@
 		elevator: false,
 		naturalLight: false,
 		adjustableLighting: false,
-		storage: false
+		storage: false,
+		acoustics: 0 as number // 0 = not rated, 1-5 rating scale
 	})
 
 	$effect(() => {
@@ -88,6 +89,7 @@
 				attributesState.naturalLight = !!attrs.naturalLight
 				attributesState.adjustableLighting = !!attrs.adjustableLighting
 				attributesState.storage = !!attrs.storage
+				attributesState.acoustics = typeof attrs.acoustics === 'number' ? attrs.acoustics : 0
 			} else {
 				// Reset attributes state if no attributes
 				attributesState = {
@@ -100,7 +102,8 @@
 					elevator: false,
 					naturalLight: false,
 					adjustableLighting: false,
-					storage: false
+					storage: false,
+					acoustics: 0
 				}
 			}
 		}
@@ -140,6 +143,7 @@
 		if (attributesState.naturalLight) attrs.naturalLight = true
 		if (attributesState.adjustableLighting) attrs.adjustableLighting = true
 		if (attributesState.storage) attrs.storage = { available: true }
+		if (attributesState.acoustics > 0) attrs.acoustics = attributesState.acoustics
 		formData.attributes = Object.keys(attrs).length > 0 ? attrs : {}
 	}
 
@@ -257,14 +261,14 @@
 				<label class="label">
 					<span class="label-text">Description</span>
 				</label>
-				<textarea
-					class="textarea textarea-bordered w-full h-24"
-					placeholder="Describe this location..."
-					class:textarea-error={formErrors.description}
-					value={formData.description || ''}
-					oninput={(e) => handleInputChange('description', e.currentTarget.value)}
-					disabled={isLoading}
-				>				</textarea>
+			<textarea
+				class="textarea textarea-bordered w-full h-24"
+				placeholder="Describe this location..."
+				class:textarea-error={formErrors.description}
+				value={formData.description || ''}
+				oninput={(e) => handleInputChange('description', e.currentTarget.value)}
+				disabled={isLoading}
+			></textarea>
 			</div>
 
 			<!-- Location Type -->
@@ -412,6 +416,34 @@
 						/>
 						<span class="label-text text-sm">Storage Available</span>
 					</label>
+				</div>
+
+				<!-- Acoustics Rating -->
+				<div class="mt-4 p-3 border rounded bg-base-200/50">
+					<label class="label">
+						<span class="label-text font-medium">Acoustics Quality Rating</span>
+					</label>
+					<div class="flex items-center gap-2">
+						<select
+							class="select select-bordered select-sm flex-1"
+							value={attributesState.acoustics}
+							onchange={(e) => {
+								attributesState.acoustics = parseInt(e.currentTarget.value)
+								updateAttributes()
+							}}
+							disabled={isLoading}
+						>
+							<option value="0">Not Rated</option>
+							<option value="1">1 - Poor (echoey, noisy)</option>
+							<option value="2">2 - Fair (some echo/noise issues)</option>
+							<option value="3">3 - Good (adequate for most performances)</option>
+							<option value="4">4 - Very Good (minimal echo, good sound)</option>
+							<option value="5">5 - Excellent (purpose-built acoustics)</option>
+						</select>
+					</div>
+					<p class="text-xs text-base-content/60 mt-1">
+						Rate the acoustic quality for musical performances
+					</p>
 				</div>
 			</div>
 

@@ -72,19 +72,39 @@
 	let reportedByFilter = $state(data.filters.reportedBy || '')
 
 	// Initialize profiles map from server data (only once on mount)
+	// Track last synced data to avoid unnecessary updates
+	let lastSyncedBugsData = $state<string | null>(null)
+	
+	// Sync bugs with data.bugs when server data changes (e.g., after invalidateAll())
+	$effect(() => {
+		const newBugsData = JSON.stringify(data.bugs.map(b => b.id))
+		if (newBugsData !== lastSyncedBugsData) {
+			lastSyncedBugsData = newBugsData
+			bugs = data.bugs
+			
+			// Update profiles map when data changes
+			const map = new Map<string, { full_name: string | null; avatar_url: string | null }>()
+			data.bugs.forEach((bug: any) => {
+				if (bug.profiles_reported && bug.reported_by) {
+					map.set(bug.reported_by, bug.profiles_reported)
+				}
+				if (bug.profiles_assigned && bug.assigned_to) {
+					map.set(bug.assigned_to, bug.profiles_assigned)
+				}
+			})
+			profilesMap = map
+			
+			// Update statistics
+			statistics = {
+				total: data.statistics.total,
+				open: data.statistics.open,
+				inProgress: data.statistics.inProgress,
+				resolved: data.statistics.resolved
+			}
+		}
+	})
+	
 	onMount(() => {
-		const map = new Map<string, { full_name: string | null; avatar_url: string | null }>()
-		data.bugs.forEach((bug: any) => {
-			if (bug.profiles_reported && bug.reported_by) {
-				map.set(bug.reported_by, bug.profiles_reported)
-			}
-			if (bug.profiles_assigned && bug.assigned_to) {
-				map.set(bug.assigned_to, bug.profiles_assigned)
-			}
-		})
-		profilesMap = map
-		bugs = data.bugs
-		
 		// Load saved view mode preference
 		viewMode = loadViewMode()
 	})
@@ -97,7 +117,7 @@
 			.from('profiles')
 			.select('id, full_name, avatar_url')
 			.eq('id', userId)
-			.single()
+			.maybeSingle()
 
 		if (profile) {
 			profilesMap = new Map(profilesMap)
@@ -117,18 +137,34 @@
 		}
 	}
 
-	// Update URL when filters change
-	function updateFilters() {
-		const params = new URLSearchParams()
-		if (searchQuery) params.set('search', searchQuery)
-		if (statusFilter) params.set('status', statusFilter)
-		if (priorityFilter) params.set('priority', priorityFilter)
-		if (severityFilter) params.set('severity', severityFilter)
-		if (categoryFilter) params.set('category', categoryFilter)
-		if (assignedToFilter) params.set('assignedTo', assignedToFilter)
-		if (reportedByFilter) params.set('reportedBy', reportedByFilter)
+	// Debounce timer for search input
+	let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+	
+	// Update URL when filters change (with optional debounce for search)
+	function updateFilters(debounce = false) {
+		const doUpdate = () => {
+			const params = new URLSearchParams()
+			if (searchQuery) params.set('search', searchQuery)
+			if (statusFilter) params.set('status', statusFilter)
+			if (priorityFilter) params.set('priority', priorityFilter)
+			if (severityFilter) params.set('severity', severityFilter)
+			if (categoryFilter) params.set('category', categoryFilter)
+			if (assignedToFilter) params.set('assignedTo', assignedToFilter)
+			if (reportedByFilter) params.set('reportedBy', reportedByFilter)
+			
+			// Use replaceState to update URL without triggering full page navigation
+			// This prevents the input from losing focus
+			goto(`/bugs?${params.toString()}`, { noScroll: true, replaceState: true, keepFocus: true })
+		}
 		
-		goto(`/bugs?${params.toString()}`, { noScroll: true })
+		if (debounce) {
+			// Clear previous timer
+			if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+			// Set new timer with 300ms delay
+			searchDebounceTimer = setTimeout(doUpdate, 300)
+		} else {
+			doUpdate()
+		}
 	}
 
 	function getStatusBadgeClass(status: BugType['status']): string {
@@ -223,8 +259,8 @@
 		selectedBugs = new Set()
 	}
 
-	// Group bugs by status for kanban view
-	function getBugsByStatus(): Record<BugType['status'], BugType[]> {
+	// Group bugs by status for kanban view - make it reactive so kanban updates in realtime
+	const bugsByStatus = $derived.by(() => {
 		const grouped: Record<string, BugType[]> = {
 			new: [],
 			triage: [],
@@ -251,7 +287,7 @@
 		})
 		
 		return grouped as Record<BugType['status'], BugType[]>
-	}
+	})
 
 	// Status order for kanban columns
 	const statusOrder: BugType['status'][] = ['new', 'triage', 'in_progress', 'testing', 'resolved', 'closed', 'reopened']
@@ -260,6 +296,16 @@
 	onMount(() => {
 		console.log('Setting up realtime subscription for bugs...')
 		realtimeSubscription = bugsStore.subscribeToChanges({
+			status: (status) => {
+				console.log('Realtime subscription status:', status)
+				if (status === 'SUBSCRIBED') {
+					console.log('✅ Realtime subscription is active and ready')
+				} else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+					console.warn('⚠️ Realtime subscription issue:', status)
+				} else if (status === 'CLOSED') {
+					console.warn('⚠️ Realtime subscription closed, will attempt to reconnect')
+				}
+			},
 			onInsert: async (payload) => {
 				console.log('Realtime INSERT event received:', payload)
 				const newBug = payload.new as BugType
@@ -299,22 +345,26 @@
 			onUpdate: async (payload) => {
 				console.log('Realtime UPDATE event received:', payload)
 				const updatedBug = payload.new as BugType
-				const oldBug = payload.old as BugType
+				const oldBug = payload.old as Partial<BugType>
 				
 				// Fetch profiles if needed
 				if (updatedBug.reported_by) await fetchProfile(updatedBug.reported_by)
 				if (updatedBug.assigned_to) await fetchProfile(updatedBug.assigned_to)
 				
+				// Find the existing bug to get its old status if not available in payload
+				const existingBug = bugs.find(b => b.id === updatedBug.id)
+				const oldStatus = oldBug.status || existingBug?.status
+				
 				// Update statistics based on status changes
-				if (oldBug.status !== updatedBug.status) {
+				if (oldStatus && oldStatus !== updatedBug.status) {
 					// Remove from old status
-					if (['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(oldBug.status)) {
+					if (['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(oldStatus)) {
 						statistics.open -= 1
 					}
-					if (oldBug.status === 'in_progress') {
+					if (oldStatus === 'in_progress') {
 						statistics.inProgress -= 1
 					}
-					if (oldBug.status === 'resolved') {
+					if (oldStatus === 'resolved') {
 						statistics.resolved -= 1
 					}
 					
@@ -382,14 +432,17 @@
 		if (realtimeSubscription) {
 			console.log('Realtime subscription established:', realtimeSubscription)
 		} else {
-			console.error('Failed to establish realtime subscription')
+			console.error('❌ Failed to establish realtime subscription')
 		}
 	})
 
-	// Cleanup subscription
+	// Cleanup subscription and timers
 	onDestroy(() => {
 		if (realtimeSubscription) {
 			bugsStore.unsubscribeFromChanges()
+		}
+		if (searchDebounceTimer) {
+			clearTimeout(searchDebounceTimer)
 		}
 	})
 </script>
@@ -463,7 +516,7 @@
 							class="grow"
 							placeholder="Search bugs..."
 							bind:value={searchQuery}
-							oninput={() => updateFilters()}
+							oninput={() => updateFilters(true)}
 						/>
 					</label>
 				</div>
@@ -592,7 +645,7 @@
 			<div class="flex-1 overflow-x-auto overflow-y-hidden min-h-0">
 				<div class="flex gap-4 h-full pb-4" style="min-width: fit-content;">
 					{#each statusOrder as status}
-						{@const bugsInStatus = getBugsByStatus()[status]}
+						{@const bugsInStatus = bugsByStatus[status]}
 						<div class="flex-shrink-0 w-80 flex flex-col bg-base-200 rounded-lg border border-base-300 overflow-hidden">
 							<!-- Column Header -->
 							<div class="p-4 bg-base-300 border-b border-base-300 sticky top-0 z-10">

@@ -223,13 +223,15 @@ export const eventsEnhancedStore = {
 		try {
 			await lookupUtils.initialize()
 			
+			// Use maybeSingle() to handle cases where event doesn't exist
 			const { data, error } = await supabase
 				.from('phwb_events')
 				.select('*')
 				.eq('id', id)
-				.single()
+				.maybeSingle()
 			
 			if (error) throw error
+			if (!data) throw new Error('Event not found')
 			
 			return enhanceEvents([data])[0]
 		} catch (error) {

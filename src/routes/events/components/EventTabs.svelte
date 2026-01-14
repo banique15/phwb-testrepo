@@ -48,7 +48,10 @@
 		artist_assignments: event?.artists?.assignments || [],
 		selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
 		number_of_attendees: event?.number_of_attendees || undefined,
-		production_manager_contact_id: event?.production_manager_contact_id || null
+		number_of_musicians: event?.number_of_musicians || undefined,
+		production_manager_contact_id: event?.production_manager_contact_id || null,
+		pm_hours: event?.pm_hours || undefined,
+		pm_rate: event?.pm_rate || undefined
 	})
 
 	// Update form data when event changes
@@ -68,7 +71,10 @@
 				artist_assignments: event.artists?.assignments || [],
 				selected_artists: event.artists?.assignments?.map(a => a.artist_id) || [],
 				number_of_attendees: event.number_of_attendees || undefined,
-				production_manager_contact_id: event.production_manager_contact_id || null
+				number_of_musicians: event.number_of_musicians || undefined,
+				production_manager_contact_id: event.production_manager_contact_id || null,
+				pm_hours: event.pm_hours || undefined,
+				pm_rate: event.pm_rate || undefined
 			}
 		}
 	})
@@ -148,7 +154,9 @@
 				artist_assignments: event.artists?.assignments || [],
 				selected_artists: event.artists?.assignments?.map(a => a.artist_id) || [],
 				number_of_attendees: event.number_of_attendees || undefined,
-				production_manager_contact_id: event.production_manager_contact_id || null
+				production_manager_contact_id: event.production_manager_contact_id || null,
+				pm_hours: event.pm_hours || undefined,
+				pm_rate: event.pm_rate || undefined
 			}
 		}
 		errors = {}
@@ -216,6 +224,18 @@
 			} else if (editingTab === 'notes') {
 				if (formData.notes !== event.notes) {
 					updateData.notes = formData.notes
+				}
+				if (formData.number_of_attendees !== event.number_of_attendees) {
+					updateData.number_of_attendees = formData.number_of_attendees
+				}
+				if (formData.number_of_musicians !== event.number_of_musicians) {
+					updateData.number_of_musicians = formData.number_of_musicians
+				}
+				if (formData.pm_hours !== event.pm_hours) {
+					updateData.pm_hours = formData.pm_hours
+				}
+				if (formData.pm_rate !== event.pm_rate) {
+					updateData.pm_rate = formData.pm_rate
 				}
 			}
 
@@ -285,6 +305,10 @@
 		selectedEnsembleId = ensembleId
 		
 		try {
+			// Get ensemble name
+			const ensemble = ensembles.find(e => e.id === ensembleId)
+			const ensembleName = ensemble?.name || 'Unknown Ensemble'
+			
 			const { data: members, error: membersError } = await supabase
 				.from('phwb_ensemble_members')
 				.select('artist_id, role, phwb_artists(id, full_name, artist_name)')
@@ -307,7 +331,9 @@
 						status: 'pending',
 						num_hours: 0,
 						hourly_rate: 0,
-						notes: ''
+						notes: '',
+						ensemble_id: ensembleId,
+						ensemble_name: ensembleName
 					}
 				})
 
@@ -439,7 +465,9 @@
 							onAssignmentsUpdate={handleArtistAssignmentsUpdate}
 							eventId={event.id}
 							mode="edit"
-							readonly={loading}
+							readonly={false}
+							eventStartTime={formData.start_time}
+							eventEndTime={formData.end_time}
 						/>
 
 						<div class="flex justify-end gap-2 pt-4">
@@ -470,6 +498,8 @@
 							eventId={event.id}
 							mode="edit"
 							readonly={true}
+							eventStartTime={event.start_time}
+							eventEndTime={event.end_time}
 						/>
 					{:else}
 						<p class="text-base opacity-70">No performers assigned</p>
@@ -587,13 +617,86 @@
 					<h3 class="text-lg font-semibold">Notes</h3>
 				</div>
 				{#if editingTab === 'notes'}
-					<div class="form-control">
-						<textarea
-							bind:value={formData.notes}
-							class="textarea textarea-bordered"
-							placeholder="Enter event notes"
-							rows="8"
-						></textarea>
+					<div class="space-y-4">
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">Number of Attendees</span>
+							</label>
+							<input
+								type="number"
+								bind:value={formData.number_of_attendees}
+								class="input input-bordered"
+								placeholder="Enter number of attendees"
+								min="0"
+								step="1"
+							/>
+						</div>
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">Number of Artists/Musicians</span>
+							</label>
+							<input
+								type="number"
+								bind:value={formData.number_of_musicians}
+								class="input input-bordered"
+								placeholder="Enter number of artists/musicians performing"
+								min="0"
+								step="1"
+							/>
+						</div>
+						
+						<!-- Production Manager Payroll Section -->
+						<div class="border-t border-base-300 pt-4 mt-4">
+							<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+								<div class="form-control">
+									<label class="label">
+										<span class="label-text">PM Hours</span>
+									</label>
+									<input
+										type="number"
+										bind:value={formData.pm_hours}
+										class="input input-bordered"
+										placeholder="0"
+										min="0"
+										step="0.5"
+									/>
+								</div>
+								<div class="form-control">
+									<label class="label">
+										<span class="label-text">PM Rate ($/hr)</span>
+									</label>
+									<input
+										type="number"
+										bind:value={formData.pm_rate}
+										class="input input-bordered"
+										placeholder="0.00"
+										min="0"
+										step="0.01"
+									/>
+								</div>
+								<div class="form-control">
+									<label class="label">
+										<span class="label-text">PM Total</span>
+									</label>
+									<div class="input input-bordered bg-base-200 flex items-center">
+										<span class="font-mono">${((formData.pm_hours || 0) * (formData.pm_rate || 0)).toFixed(2)}</span>
+									</div>
+								</div>
+							</div>
+						</div>
+						
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">Notes</span>
+							</label>
+							<textarea
+								bind:value={formData.notes}
+								class="textarea textarea-bordered"
+								placeholder="Enter event notes"
+								rows="8"
+							></textarea>
+						</div>
 					</div>
 					<div class="flex justify-end gap-2 pt-4">
 						<button
@@ -617,15 +720,79 @@
 						</button>
 					</div>
 				{:else}
-					<InlineEditableField
-						value={event.notes}
-						field="notes"
-						type="textarea"
-						placeholder="Enter event notes"
-						maxLength={2000}
-						rows={8}
-						onSave={(value) => onUpdateField('notes', value)}
-					/>
+					<div class="space-y-4">
+						<div>
+							<InlineEditableField
+								value={event.number_of_attendees}
+								field="number_of_attendees"
+								type="number"
+								placeholder="0"
+								label="Number of Attendees"
+								onSave={(value) => onUpdateField('number_of_attendees', value ? parseInt(value) : null)}
+								formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
+							/>
+						</div>
+						<div>
+							<InlineEditableField
+								value={event.number_of_musicians}
+								field="number_of_musicians"
+								type="number"
+								placeholder="0"
+								label="Number of Artists/Musicians"
+								onSave={(value) => onUpdateField('number_of_musicians', value ? parseInt(value) : null)}
+								formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
+							/>
+						</div>
+						
+						<!-- Production Manager Payroll Section (View Mode) -->
+						<div class="border-t border-base-300 pt-4 mt-4">
+							<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+								<div>
+									<InlineEditableField
+										value={event.pm_hours}
+										field="pm_hours"
+										type="number"
+										placeholder="0"
+										label="PM Hours"
+										onSave={(value) => onUpdateField('pm_hours', value ? parseFloat(value) : null)}
+										formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not set'}
+									/>
+								</div>
+								<div>
+									<InlineEditableField
+										value={event.pm_rate}
+										field="pm_rate"
+										type="number"
+										placeholder="0.00"
+										label="PM Rate ($/hr)"
+										onSave={(value) => onUpdateField('pm_rate', value ? parseFloat(value) : null)}
+										formatDisplay={(val) => val !== null && val !== undefined ? `$${Number(val).toFixed(2)}` : 'Not set'}
+									/>
+								</div>
+								<div>
+									<label class="label">
+										<span class="label-text font-medium">PM Total</span>
+									</label>
+									<div class="p-2 bg-base-200 rounded">
+										<span class="font-mono">${((event.pm_hours || 0) * (event.pm_rate || 0)).toFixed(2)}</span>
+									</div>
+								</div>
+							</div>
+						</div>
+						
+						<div>
+							<InlineEditableField
+								value={event.notes}
+								field="notes"
+								type="textarea"
+								placeholder="Enter event notes"
+								maxLength={2000}
+								rows={8}
+								onSave={(value) => onUpdateField('notes', value)}
+							/>
+						</div>
+					</div>
 				{/if}
 			</div>
 		{:else if activeTab === 'history'}

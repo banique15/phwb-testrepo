@@ -399,6 +399,7 @@
 			
 			// Process each event
 			for (const event of eventsToProcess) {
+				// Create payroll entries for artist assignments
 				if (event.artists?.assignments && Array.isArray(event.artists.assignments)) {
 					for (const assignment of event.artists.assignments) {
 						try {
@@ -426,6 +427,34 @@
 							console.error('Error creating payroll entry:', err)
 							errors.push(`Failed to create entry for artist ${assignment.artist_id} in event ${event.title}`)
 						}
+					}
+				}
+				
+				// Create payroll entry for Production Manager if pm_hours is set
+				if (event.pm_hours && event.pm_hours > 0) {
+					try {
+						const pmPayrollData: CreatePayroll = {
+							event_date: event.date,
+							artist_id: 'PM', // Placeholder for PM - could be linked to production_manager_contact_id if they're an artist
+							venue_id: event.venue || undefined,
+							event_id: event.id,
+							hours: event.pm_hours,
+							rate: event.pm_rate || 50, // Default rate if not specified
+							additional_pay: 0,
+							status: 'Planned',
+							employee_contractor_status: 'contractor',
+							payment_type: 'other', // PM work is categorized as 'other'
+							created_by: user.email || user.id,
+							creation_method: 'event-automation',
+							source_event_id: event.id,
+							notes: `Production Manager - Auto-generated from event: ${event.title}`
+						}
+						
+						const created = await payrollStore.create(pmPayrollData)
+						if (created) createdCount++
+					} catch (err) {
+						console.error('Error creating PM payroll entry:', err)
+						errors.push(`Failed to create PM entry for event ${event.title}`)
 					}
 				}
 			}

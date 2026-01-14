@@ -79,7 +79,7 @@
 	const isEmpty = $derived(value === '' || value === null || value === undefined || (typeof value === 'string' && value.trim() === ''))
 	
 	// Get error messages as array
-	const errorMessages = $derived(() => {
+	const errorMessages = $derived.by(() => {
 		if (!error) return []
 		return Array.isArray(error) ? error : [error]
 	})

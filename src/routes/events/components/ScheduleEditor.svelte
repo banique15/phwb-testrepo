@@ -57,7 +57,7 @@
 	let isCustomActivity = $state(false)
 	
 	// Available artists for extra blocks
-	let availableArtists = $derived(() => {
+	let availableArtists = $derived.by(() => {
 		if (!event?.artists?.assignments) return []
 		return event.artists.assignments.map(a => ({
 			id: a.artist_id,

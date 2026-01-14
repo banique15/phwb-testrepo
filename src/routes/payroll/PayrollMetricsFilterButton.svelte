@@ -50,7 +50,7 @@
 	}
 
 	// Get current filter summary text
-	let filterSummary = $derived(() => {
+	let filterSummary = $derived.by(() => {
 		if (!hasActiveFilters) return 'Filter metrics'
 		
 		const filters = []

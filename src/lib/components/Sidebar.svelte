@@ -17,7 +17,6 @@
 		{ name: "Programs", href: "/programs", disabled: false },
 		{ name: "Facilities", href: "/facilities", disabled: false },
 		{ name: "Events", href: "/events", disabled: false },
-		{ name: "Bugs", href: "/bugs", disabled: false },
 		{ name: "Reports", href: "/reports", disabled: false },
 		{ name: "Payroll", href: "/payroll", disabled: false },
 	];
@@ -225,14 +224,33 @@
 			</ul>
 		</nav>
 
-		<!-- Footer with swipe hint for mobile -->
-		{#if isMobile}
-			<div class="p-2 border-t border-base-300 lg:hidden">
-				<div class="text-xs text-base-content/60 text-center">
-					Swipe from left edge to open menu
+		<!-- Footer with Bugs link and swipe hint for mobile -->
+		<div class="flex-none border-t border-base-300">
+			{#if isMobile}
+				<div class="p-2 lg:hidden">
+					<div class="text-xs text-base-content/60 text-center mb-2">
+						Swipe from left edge to open menu
+					</div>
 				</div>
+			{/if}
+			<div class="p-2">
+				<a
+					href="/bugs"
+					data-sveltekit-preload-data="hover"
+					data-sveltekit-preload-code="eager"
+					class="flex items-center gap-3 py-3 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+					class:bg-primary={isActive("/bugs")}
+					class:text-primary-content={isActive("/bugs")}
+					class:shadow-sm={isActive("/bugs")}
+					class:hover:bg-base-300={!isActive("/bugs")}
+					class:text-base-content={!isActive("/bugs")}
+					onclick={handleNavClick}
+					aria-current={isActive("/bugs") ? "page" : undefined}
+				>
+					<span>Bugs</span>
+				</a>
 			</div>
-		{/if}
+		</div>
 
 		<!-- User section -->
 		{#if $authStore}

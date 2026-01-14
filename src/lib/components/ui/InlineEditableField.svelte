@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { formatPhoneInput, validatePhoneInput, formatPhone } from '$lib/utils/phone'
+	import TimePicker from './TimePicker.svelte'
 
 	interface Props {
 		value: string | number | boolean | null | undefined
 		field: string
-		type?: 'text' | 'textarea' | 'select' | 'number' | 'url' | 'checkbox' | 'phone'
+		type?: 'text' | 'textarea' | 'select' | 'number' | 'url' | 'checkbox' | 'phone' | 'time'
 		options?: Array<{ value: string; label: string }>
 		placeholder?: string
 		required?: boolean
@@ -59,6 +60,7 @@
 	let validationError = $state<string | null>(null)
 	let inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null = $state(null)
 	let isManuallyEditing = $state(false) // Track if user manually entered edit mode
+	let timePickerValue = $state<string | null>(null) // For time picker component
 
 	// Initialize edit value when entering edit mode
 	function startEdit() {
@@ -68,6 +70,10 @@
 		if (type === 'phone' && value && typeof value === 'string') {
 			// Extract digits only for editing
 			editValue = value.replace(/\D/g, '')
+		} else if (type === 'time') {
+			// For time type, set both editValue and timePickerValue
+			editValue = (value as string) || ''
+			timePickerValue = (value as string) || null
 		} else {
 			editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
 		}
@@ -85,6 +91,9 @@
 		isManuallyEditing = false
 		if (type === 'phone' && value && typeof value === 'string') {
 			editValue = value.replace(/\D/g, '')
+		} else if (type === 'time') {
+			editValue = (value as string) || ''
+			timePickerValue = (value as string) || null
 		} else {
 			editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
 		}
@@ -137,6 +146,16 @@
 			editValue = formatted
 		}
 
+		if (type === 'time') {
+			// Use timePickerValue if available, otherwise use editValue
+			const timeValue = timePickerValue || (editValue as string) || ''
+			if (timeValue && !/^\d{2}:\d{2}$/.test(timeValue)) {
+				validationError = 'Please enter a valid time in HH:MM format'
+				return
+			}
+			editValue = timeValue
+		}
+
 		if (maxLength && typeof editValue === 'string' && editValue.length > maxLength) {
 			validationError = `Maximum length is ${maxLength} characters`
 			return
@@ -149,6 +168,10 @@
 			const editDigits = typeof editValue === 'string' ? editValue.replace(/\D/g, '') : ''
 			const valueDigits = typeof value === 'string' ? value.replace(/\D/g, '') : ''
 			hasChanged = editDigits !== valueDigits
+		} else if (type === 'time') {
+			// For time fields, use timePickerValue if available
+			const timeValue = timePickerValue || (editValue as string) || ''
+			hasChanged = timeValue !== (value as string || '')
 		} else {
 			hasChanged = editValue !== value
 		}
@@ -216,6 +239,12 @@
 		}
 	}
 
+	function handleTimeChange(newValue: string | null) {
+		timePickerValue = newValue
+		editValue = newValue || ''
+		validationError = null
+	}
+
 	let isBlank = $derived(isEmpty(value))
 	
 	// Determine if we should show edit mode
@@ -258,6 +287,12 @@
 			return digits.length > 0 || val === ''
 		}
 		
+		// For time fields, use timePickerValue if available
+		if (type === 'time') {
+			const timeValue = timePickerValue || (val as string) || ''
+			return timeValue === '' || /^\d{2}:\d{2}$/.test(timeValue)
+		}
+		
 		// Check max length
 		if (maxLength && typeof val === 'string' && val.length > maxLength) {
 			return false
@@ -279,6 +314,10 @@
 			const editDigits = typeof editValue === 'string' ? editValue.replace(/\D/g, '') : ''
 			const valueDigits = typeof value === 'string' ? value.replace(/\D/g, '') : ''
 			if (editDigits === valueDigits) return false
+		} else if (type === 'time') {
+			// For time fields, use timePickerValue if available
+			const timeValue = timePickerValue || (editValue as string) || ''
+			if (timeValue === (value as string || '')) return false
 		} else {
 			if (editValue === value) return false
 		}
@@ -296,6 +335,9 @@
 		if (isEditing && !isManuallyEditing) {
 			if (type === 'phone' && value && typeof value === 'string') {
 				editValue = value.replace(/\D/g, '')
+			} else if (type === 'time') {
+				editValue = (value as string) || ''
+				timePickerValue = (value as string) || null
 			} else {
 				editValue = value ?? (type === 'number' ? 0 : type === 'checkbox' ? false : '')
 			}
@@ -385,6 +427,13 @@
 						oninput={handleInputChange}
 						onkeydown={handleKeyDown}
 						disabled={isLoading}
+					/>
+				{:else if type === 'time'}
+					<TimePicker
+						bind:value={timePickerValue}
+						disabled={isLoading}
+						onchange={handleTimeChange}
+						error={!!(validationError || error)}
 					/>
 				{:else}
 					<input

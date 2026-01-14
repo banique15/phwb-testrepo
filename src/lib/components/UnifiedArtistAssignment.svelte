@@ -13,6 +13,8 @@
 		num_hours?: number
 		hourly_rate?: number
 		notes?: string
+		ensemble_id?: string // ID of ensemble this artist belongs to (for grouping)
+		ensemble_name?: string // Name of ensemble (for display)
 	}
 
 	interface Props {
@@ -23,6 +25,9 @@
 		eventId?: number
 		readonly?: boolean
 		mode?: 'create' | 'edit' // 'create' uses assignments prop, 'edit' uses eventId
+		// Event times for calculating hours
+		eventStartTime?: string | null
+		eventEndTime?: string | null
 	}
 
 	let { 
@@ -30,7 +35,9 @@
 		onAssignmentsUpdate, 
 		eventId,
 		readonly = false,
-		mode = eventId ? 'edit' : 'create'
+		mode = eventId ? 'edit' : 'create',
+		eventStartTime = null,
+		eventEndTime = null
 	}: Props = $props()
 
 	// Component state
@@ -47,6 +54,7 @@
 	let editingAssignmentId = $state<string | null>(null) // artist_id being edited
 	let showAssignmentModal = $state(false)
 	let modalAssignment = $state<ArtistAssignment | null>(null)
+	let viewMode = $state<'artists' | 'ensembles'>('artists') // Toggle between artists and ensembles
 
 	// Role options
 	const roleOptions = [
@@ -232,44 +240,55 @@
 		}
 	}
 
-	// Create combined list of artists and ensembles
+	// Create list of available artists or ensembles based on view mode
 	let availableItems = $derived.by(() => {
-		const assignedArtistIds = new Set(localAssignments.map(a => a.artist_id))
-		
-		const artistItems = allArtists
-			.filter(artist => !assignedArtistIds.has(artist.id!))
-			.map(artist => ({ ...artist, type: 'artist' as const }))
+		if (viewMode === 'ensembles') {
+			// Show ensembles
+			const ensembleItems = allEnsembles
+				.map(ensemble => ({ ...ensemble, type: 'ensemble' as const }))
 
-		const ensembleItems = allEnsembles
-			.map(ensemble => ({ ...ensemble, type: 'ensemble' as const }))
+			const sorted = ensembleItems.sort((a, b) => {
+				const nameA = (a.name || '').toLowerCase()
+				const nameB = (b.name || '').toLowerCase()
+				return nameA.localeCompare(nameB)
+			})
 
-		const combined = [...artistItems, ...ensembleItems].sort((a, b) => {
-			const nameA = a.type === 'artist' 
-				? getArtistDisplayName(a).toLowerCase()
-				: (a.name || '').toLowerCase()
-			const nameB = b.type === 'artist'
-				? getArtistDisplayName(b).toLowerCase()
-				: (b.name || '').toLowerCase()
-			return nameA.localeCompare(nameB)
-		})
-
-		if (artistSearch.trim()) {
-			const searchLower = artistSearch.toLowerCase()
-			return combined.filter(item => {
-				if (item.type === 'artist') {
-					const name = getArtistDisplayName(item).toLowerCase()
-					const email = (item.email || '').toLowerCase()
-					return name.includes(searchLower) || email.includes(searchLower)
-				} else {
+			if (artistSearch.trim()) {
+				const searchLower = artistSearch.toLowerCase()
+				return sorted.filter(item => {
 					const name = (item.name || '').toLowerCase()
 					const description = (item.description || '').toLowerCase()
 					const type = (item.ensemble_type || '').toLowerCase()
 					return name.includes(searchLower) || description.includes(searchLower) || type.includes(searchLower)
-				}
-			})
-		}
+				})
+			}
 
-		return combined
+			return sorted
+		} else {
+			// Show artists
+			const assignedArtistIds = new Set(localAssignments.map(a => a.artist_id))
+			
+			const artistItems = allArtists
+				.filter(artist => !assignedArtistIds.has(artist.id!))
+				.map(artist => ({ ...artist, type: 'artist' as const }))
+
+			const sorted = artistItems.sort((a, b) => {
+				const nameA = getArtistDisplayName(a).toLowerCase()
+				const nameB = getArtistDisplayName(b).toLowerCase()
+				return nameA.localeCompare(nameB)
+			})
+
+			if (artistSearch.trim()) {
+				const searchLower = artistSearch.toLowerCase()
+				return sorted.filter(item => {
+					const name = getArtistDisplayName(item).toLowerCase()
+					const email = (item.email || '').toLowerCase()
+					return name.includes(searchLower) || email.includes(searchLower)
+				})
+			}
+
+			return sorted
+		}
 	})
 
 	// Enrich assignments with artist data for display
@@ -285,12 +304,15 @@
 				status: assignment.status,
 				num_hours: assignment.num_hours,
 				hourly_rate: assignment.hourly_rate,
-				notes: assignment.notes
+				notes: assignment.notes,
+				// Preserve ensemble metadata
+				ensemble_id: assignment.ensemble_id,
+				ensemble_name: assignment.ensemble_name
 			}
 		})
 	})
 
-	// Split assignments into pending and confirmed
+	// Split assignments into pending and confirmed, grouped by ensemble
 	let pendingArtists = $derived.by(() => {
 		return enrichedAssignments.filter(a => 
 			!a.status || 
@@ -303,6 +325,45 @@
 
 	let confirmedArtists = $derived.by(() => {
 		return enrichedAssignments.filter(a => a.status === 'confirmed')
+	})
+
+	// Group assignments by ensemble for visual grouping
+	let groupedPendingArtists = $derived.by(() => {
+		const grouped = new Map<string, typeof pendingArtists>()
+		const ungrouped: typeof pendingArtists = []
+
+		for (const artist of pendingArtists) {
+			if (artist.ensemble_id && artist.ensemble_name) {
+				const key = artist.ensemble_id
+				if (!grouped.has(key)) {
+					grouped.set(key, [])
+				}
+				grouped.get(key)!.push(artist)
+			} else {
+				ungrouped.push(artist)
+			}
+		}
+
+		return { grouped, ungrouped }
+	})
+
+	let groupedConfirmedArtists = $derived.by(() => {
+		const grouped = new Map<string, typeof confirmedArtists>()
+		const ungrouped: typeof confirmedArtists = []
+
+		for (const artist of confirmedArtists) {
+			if (artist.ensemble_id && artist.ensemble_name) {
+				const key = artist.ensemble_id
+				if (!grouped.has(key)) {
+					grouped.set(key, [])
+				}
+				grouped.get(key)!.push(artist)
+			} else {
+				ungrouped.push(artist)
+			}
+		}
+
+		return { grouped, ungrouped }
 	})
 
 	function getArtistDisplayName(artist: any): string {
@@ -338,15 +399,19 @@
 		onAssignmentsUpdate?.(localAssignments)
 	}
 
+
 	async function assignArtist(artistId: string) {
 		if (!artistId) return
 
 		updating = true
 		try {
+			// Check if it's an ensemble
 			const ensemble = allEnsembles.find(e => e.id === artistId)
 			
 			if (ensemble) {
-				// Handle ensemble assignment
+				// Handle ensemble assignment - add all members
+				const ensembleName = ensemble.name || 'Unknown Ensemble'
+				
 				const { data: members, error: membersError } = await supabase
 					.from('phwb_ensemble_members')
 					.select('artist_id, role, phwb_artists(id, full_name, artist_name, legal_first_name, legal_last_name)')
@@ -375,13 +440,15 @@
 							status: 'assigned' as const,
 							num_hours: 0,
 							hourly_rate: 0,
-							notes: ''
+							notes: '',
+							ensemble_id: artistId,
+							ensemble_name: ensembleName
 						}
 					})
 
 				localAssignments = [...localAssignments, ...newAssignments]
 			} else {
-				// Handle artist assignment
+				// Handle individual artist assignment
 				const artist = allArtists.find(a => a.id === artistId)
 				if (!artist) throw new Error('Artist not found')
 
@@ -466,6 +533,42 @@
 		}, 0)
 	}
 
+	// Calculate event duration in hours from start/end times
+	function calculateEventDuration(): number | null {
+		if (!eventStartTime || !eventEndTime) return null
+		try {
+			const [startHours, startMins] = eventStartTime.split(':').map(Number)
+			const [endHours, endMins] = eventEndTime.split(':').map(Number)
+			const startTotal = startHours * 60 + startMins
+			const endTotal = endHours * 60 + endMins
+			const durationMinutes = endTotal - startTotal
+			if (durationMinutes <= 0) return null
+			return durationMinutes / 60 // Convert to hours
+		} catch {
+			return null
+		}
+	}
+
+	// Sync all artist hours from event duration
+	async function syncHoursFromEvent() {
+		const duration = calculateEventDuration()
+		if (duration === null) {
+			error = 'Cannot calculate duration - event times not set'
+			return
+		}
+		
+		// Update all assignments with the calculated duration
+		for (const assignment of localAssignments) {
+			assignment.num_hours = duration
+		}
+		
+		await saveAssignments()
+	}
+
+	// Check if sync button should be enabled
+	const canSyncHours = $derived(eventStartTime && eventEndTime && localAssignments.length > 0)
+	const eventDuration = $derived(calculateEventDuration())
+
 	function formatInstruments(instruments: any): string {
 		if (!instruments) return ''
 		if (Array.isArray(instruments)) {
@@ -499,16 +602,42 @@
 		</div>
 	{:else}
 		<div class="flex flex-col lg:flex-row gap-2 items-start">
-			<!-- Left Panel: Available Artists -->
+			<!-- Left Panel: Available Artists/Ensembles -->
 			<div class="flex flex-col border border-base-300 rounded-lg max-h-[400px] flex-1 min-w-[200px] w-full lg:w-auto">
-				<div class="p-3 border-b border-base-300 flex-shrink-0">
-					<h4 class="font-semibold mb-2 text-sm">Available Artists & Ensembles</h4>
+				<div class="p-3 border-b border-base-300 flex-shrink-0 space-y-2">
+					<h4 class="font-semibold text-sm">Available {viewMode === 'ensembles' ? 'Ensembles' : 'Artists'}</h4>
+					<div class="tabs tabs-boxed tabs-sm">
+						<button
+							type="button"
+							class="tab tab-sm {viewMode === 'artists' ? 'tab-active' : ''}"
+							onclick={() => {
+								viewMode = 'artists'
+								selectedLeftArtistId = null
+								artistSearch = ''
+							}}
+							disabled={updating || isLoading}
+						>
+							Artists
+						</button>
+						<button
+							type="button"
+							class="tab tab-sm {viewMode === 'ensembles' ? 'tab-active' : ''}"
+							onclick={() => {
+								viewMode = 'ensembles'
+								selectedLeftArtistId = null
+								artistSearch = ''
+							}}
+							disabled={updating || isLoading}
+						>
+							Ensembles
+						</button>
+					</div>
 					<input
 						type="text"
 						bind:value={artistSearch}
-						placeholder="Search artists and ensembles..."
+						placeholder={viewMode === 'ensembles' ? 'Search ensembles...' : 'Search artists...'}
 						class="input input-bordered input-sm w-full"
-						disabled={updating || isLoading || readonly}
+						disabled={updating || isLoading}
 					/>
 				</div>
 				<div class="overflow-y-auto flex-1 min-h-0">
@@ -519,19 +648,26 @@
 					{:else if availableItems.length === 0}
 						<div class="p-4 text-center text-sm text-base-content/60">
 							{#if artistSearch}
-								No artists or ensembles found matching "{artistSearch}"
+								No {viewMode === 'ensembles' ? 'ensembles' : 'artists'} found matching "{artistSearch}"
+							{:else if viewMode === 'ensembles'}
+								No ensembles available
 							{:else}
-								All artists and ensembles are assigned
+								All artists are assigned
 							{/if}
 						</div>
 					{:else}
 						{#each availableItems as item}
-							{@const displayName = item.type === 'ensemble' ? item.name : getArtistDisplayName(item)}
+							{@const displayName = item.type === 'ensemble' ? (item.name || 'Unknown Ensemble') : getArtistDisplayName(item)}
+							{@const itemId = item.id}
+							{@const isSelected = itemId != null && selectedLeftArtistId === itemId}
 							<button
 								type="button"
-								class="w-full text-left px-3 py-2.5 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedLeftArtistId === item.id ? 'bg-primary/20' : ''}"
-								onclick={() => selectedLeftArtistId = selectedLeftArtistId === item.id ? null : item.id}
-								disabled={updating}
+								class="w-full text-left px-3 py-2.5 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {isSelected ? 'bg-primary/20' : ''}"
+								onclick={() => {
+									if (itemId != null) {
+										selectedLeftArtistId = isSelected ? null : itemId
+									}
+								}}
 								title={displayName}
 							>
 								<div class="flex items-center gap-2.5">
@@ -559,7 +695,7 @@
 									<div class="flex-1 min-w-0 overflow-hidden">
 										<div class="flex items-center gap-1.5 min-w-0">
 											{#if item.type === 'ensemble'}
-												<Users class="w-3 h-3 text-success flex-shrink-0" />
+												<Users class="w-3 h-3 text-primary flex-shrink-0" />
 											{/if}
 											<div class="font-medium text-sm break-words line-clamp-2" title={displayName}>
 												{displayName}
@@ -596,7 +732,7 @@
 					class="btn btn-primary btn-circle btn-sm"
 					onclick={() => selectedLeftArtistId && assignArtist(selectedLeftArtistId)}
 					disabled={!selectedLeftArtistId || updating}
-					title="Assign selected artist or ensemble"
+					title={viewMode === 'ensembles' ? 'Assign selected ensemble (adds all members)' : 'Assign selected artist'}
 				>
 					<ChevronRight class="w-4 h-4" />
 				</button>
@@ -604,7 +740,7 @@
 					class="btn btn-outline btn-circle btn-sm"
 					onclick={() => selectedCenterArtistId && unassignArtist(selectedCenterArtistId)}
 					disabled={!selectedCenterArtistId || updating}
-					title="Unassign selected artist or ensemble"
+					title="Unassign selected artist"
 				>
 					<ChevronLeft class="w-4 h-4" />
 				</button>
@@ -628,7 +764,81 @@
 							No artists in booking/hold/assigned
 						</div>
 					{:else}
-						{#each pendingArtists as artist}
+						<!-- Grouped by ensemble -->
+						{#each Array.from(groupedPendingArtists.grouped.entries()) as [ensembleId, ensembleArtists]}
+							{@const ensembleName = ensembleArtists[0]?.ensemble_name || 'Unknown Ensemble'}
+							<div class="border-b border-base-300 last:border-b-0">
+								<div class="px-3 py-2 bg-base-200/50 border-b border-base-300">
+									<div class="flex items-center gap-2">
+										<Users class="w-3.5 h-3.5 text-primary" />
+										<span class="text-xs font-semibold text-primary">{ensembleName}</span>
+										<span class="text-xs text-base-content/60">({ensembleArtists.length} {ensembleArtists.length === 1 ? 'member' : 'members'})</span>
+									</div>
+								</div>
+								{#each ensembleArtists as artist}
+									{@const cost = (artist.num_hours || 0) * (artist.hourly_rate || 0)}
+									{@const artistName = artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
+									<button
+										type="button"
+										class="w-full text-left px-3 py-2.5 pl-6 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedCenterArtistId === artist.artist_id ? 'bg-primary/20' : ''}"
+										onclick={() => selectedCenterArtistId = selectedCenterArtistId === artist.artist_id ? null : artist.artist_id}
+										disabled={updating}
+										title={artistName}
+									>
+										<div class="flex items-center gap-2.5">
+											{#if artist.profile_photo}
+												<div class="avatar flex-shrink-0">
+													<div class="w-7 h-7 rounded-full">
+														<img src={artist.profile_photo} alt={artistName} />
+													</div>
+												</div>
+											{:else}
+												<div class="avatar placeholder flex-shrink-0">
+													<div class="bg-neutral text-neutral-content rounded-full w-7 h-7">
+														<span class="text-xs">
+															{artistName.charAt(0).toUpperCase()}
+														</span>
+													</div>
+												</div>
+											{/if}
+											<div class="flex-1 min-w-0 overflow-hidden">
+												<div class="font-medium text-sm break-words line-clamp-2" title={artistName}>
+													{artistName}
+												</div>
+												{#if artist.artist_name && artist.artist_name !== artist.full_name}
+													<div class="text-xs text-base-content/60 line-clamp-1" title={artist.artist_name}>
+														{artist.artist_name}
+													</div>
+												{/if}
+												{#if artist.email}
+													<div class="text-xs text-base-content/60 line-clamp-1" title={artist.email}>{artist.email}</div>
+												{/if}
+												<div class="flex items-center gap-2 mt-1 flex-wrap">
+													{#if artist.role}
+														<span class="badge badge-outline badge-xs">{artist.role}</span>
+													{/if}
+													{#if cost > 0}
+														<span class="text-xs font-mono text-primary">${cost.toFixed(2)}</span>
+													{/if}
+												</div>
+											</div>
+											{#if !readonly}
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs flex-shrink-0"
+													onclick={(e) => openAssignmentModal(artist, e)}
+													title="Edit assignment details"
+												>
+													<Edit2 class="w-3 h-3" />
+												</button>
+											{/if}
+										</div>
+									</button>
+								{/each}
+							</div>
+						{/each}
+						<!-- Ungrouped artists (not part of an ensemble) -->
+						{#each groupedPendingArtists.ungrouped as artist}
 							{@const cost = (artist.num_hours || 0) * (artist.hourly_rate || 0)}
 							{@const artistName = artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
 							<button
@@ -727,7 +937,81 @@
 							No confirmed artists yet
 						</div>
 					{:else}
-						{#each confirmedArtists as artist}
+						<!-- Grouped by ensemble -->
+						{#each Array.from(groupedConfirmedArtists.grouped.entries()) as [ensembleId, ensembleArtists]}
+							{@const ensembleName = ensembleArtists[0]?.ensemble_name || 'Unknown Ensemble'}
+							<div class="border-b border-base-300 last:border-b-0">
+								<div class="px-3 py-2 bg-success/10 border-b border-base-300">
+									<div class="flex items-center gap-2">
+										<Users class="w-3.5 h-3.5 text-success" />
+										<span class="text-xs font-semibold text-success">{ensembleName}</span>
+										<span class="text-xs text-base-content/60">({ensembleArtists.length} {ensembleArtists.length === 1 ? 'member' : 'members'})</span>
+									</div>
+								</div>
+								{#each ensembleArtists as artist}
+									{@const cost = (artist.num_hours || 0) * (artist.hourly_rate || 0)}
+									{@const artistName = artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
+									<button
+										type="button"
+										class="w-full text-left px-3 py-2.5 pl-6 hover:bg-base-200 border-b border-base-300 last:border-b-0 transition-colors {selectedRightArtistId === artist.artist_id ? 'bg-primary/20' : ''}"
+										onclick={() => selectedRightArtistId = selectedRightArtistId === artist.artist_id ? null : artist.artist_id}
+										disabled={updating}
+										title={artistName}
+									>
+										<div class="flex items-center gap-2.5">
+											{#if artist.profile_photo}
+												<div class="avatar flex-shrink-0">
+													<div class="w-7 h-7 rounded-full">
+														<img src={artist.profile_photo} alt={artistName} />
+													</div>
+												</div>
+											{:else}
+												<div class="avatar placeholder flex-shrink-0">
+													<div class="bg-neutral text-neutral-content rounded-full w-7 h-7">
+														<span class="text-xs">
+															{artistName.charAt(0).toUpperCase()}
+														</span>
+													</div>
+												</div>
+											{/if}
+											<div class="flex-1 min-w-0 overflow-hidden">
+												<div class="font-medium text-sm break-words line-clamp-2" title={artistName}>
+													{artistName}
+												</div>
+												{#if artist.artist_name && artist.artist_name !== artist.full_name}
+													<div class="text-xs text-base-content/60 line-clamp-1" title={artist.artist_name}>
+														{artist.artist_name}
+													</div>
+												{/if}
+												{#if artist.email}
+													<div class="text-xs text-base-content/60 line-clamp-1" title={artist.email}>{artist.email}</div>
+												{/if}
+												<div class="flex items-center gap-2 mt-1 flex-wrap">
+													{#if artist.role}
+														<span class="badge badge-outline badge-xs">{artist.role}</span>
+													{/if}
+													{#if cost > 0}
+														<span class="text-xs font-mono text-primary">${cost.toFixed(2)}</span>
+													{/if}
+												</div>
+											</div>
+											{#if !readonly}
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs flex-shrink-0"
+													onclick={(e) => openAssignmentModal(artist, e)}
+													title="Edit assignment details"
+												>
+													<Edit2 class="w-3 h-3" />
+												</button>
+											{/if}
+										</div>
+									</button>
+								{/each}
+							</div>
+						{/each}
+						<!-- Ungrouped artists (not part of an ensemble) -->
+						{#each groupedConfirmedArtists.ungrouped as artist}
 							{@const cost = (artist.num_hours || 0) * (artist.hourly_rate || 0)}
 							{@const artistName = artist.full_name || artist.artist_name || artist.artist_name || 'Unknown Artist'}
 							<button
@@ -791,6 +1075,36 @@
 				</div>
 			</div>
 		</div>
+		
+		<!-- Sync Hours Button and Summary -->
+		{#if localAssignments.length > 0 && !readonly}
+			<div class="flex items-center justify-between mt-3 pt-3 border-t border-base-300">
+				<div class="flex items-center gap-4">
+					{#if canSyncHours}
+						<button
+							type="button"
+							class="btn btn-sm btn-outline"
+							onclick={syncHoursFromEvent}
+							disabled={updating}
+							title="Set all artist hours to event duration ({eventDuration?.toFixed(1)} hrs)"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+							</svg>
+							Sync Hours ({eventDuration?.toFixed(1)} hrs)
+						</button>
+					{:else if localAssignments.length > 0}
+						<span class="text-sm text-base-content/60">
+							Set event times to enable hour sync
+						</span>
+					{/if}
+				</div>
+				<div class="text-sm">
+					<span class="font-medium">Total Cost: </span>
+					<span class="font-mono text-primary">${getTotalCost().toFixed(2)}</span>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 

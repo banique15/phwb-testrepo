@@ -18,6 +18,7 @@ export interface RealtimeSubscriptionConfig {
 	onInsert?: (payload: any) => void
 	onUpdate?: (payload: any) => void 
 	onDelete?: (payload: any) => void
+	status?: (status: string) => void
 }
 
 export function createBaseStore<T extends Record<string, any>, TCreate, TUpdate>(
@@ -37,6 +38,8 @@ export function createBaseStore<T extends Record<string, any>, TCreate, TUpdate>
 
 	const state = writable<StoreState<T>>(initialState)
 	let realtimeSubscription: any = null
+
+	let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
 	const store = {
 		subscribe: state.subscribe,
@@ -265,14 +268,18 @@ export function createBaseStore<T extends Record<string, any>, TCreate, TUpdate>
 			state.update(s => ({ ...s, loading: true, error: null }))
 
 			try {
+				// Use maybeSingle() to handle cases where update affects 0 rows or multiple rows
 				const { data, error } = await supabase
 					.from(config.tableName)
 					.update(updates)
 					.eq('id', id)
 					.select()
-					.single()
+					.maybeSingle()
 
 				if (error) throw error
+				if (!data) {
+					throw new Error(`${config.tableName} with id ${id} not found or update affected no rows`)
+				}
 
 				state.update(s => ({
 					...s,
@@ -317,13 +324,15 @@ export function createBaseStore<T extends Record<string, any>, TCreate, TUpdate>
 
 		async getById(id: string | number) {
 			try {
+				// Use maybeSingle() to handle cases where item doesn't exist or multiple rows returned
 				const { data, error } = await supabase
 					.from(config.tableName)
 					.select('*')
 					.eq('id', id)
-					.single()
+					.maybeSingle()
 
 				if (error) throw error
+				if (!data) throw new Error(`${config.tableName} not found`)
 				return data
 			} catch (error) {
 				const errorId = errorStore.handleError(error, `Failed to fetch ${config.tableName} by id`)
@@ -332,96 +341,153 @@ export function createBaseStore<T extends Record<string, any>, TCreate, TUpdate>
 		},
 
 		subscribeToChanges(realtimeConfig?: RealtimeSubscriptionConfig) {
-			// Clean up existing subscription
+			// Clean up existing subscription and reconnect timeout
+			if (reconnectTimeout) {
+				clearTimeout(reconnectTimeout)
+				reconnectTimeout = null
+			}
 			if (realtimeSubscription) {
 				realtimeSubscription.unsubscribe()
 			}
 
-			realtimeSubscription = supabase
-				.channel(`${config.tableName}_changes`)
-				.on(
-					'postgres_changes',
-					{ 
-						event: 'INSERT', 
-						schema: 'public', 
-						table: config.tableName 
-					},
-					(payload) => {
-						if (realtimeConfig?.onInsert) {
-							realtimeConfig.onInsert(payload)
-						} else {
-							// Default behavior: add to beginning of list only if not already present
-							state.update(s => {
-								const newItem = payload.new as T
-								const exists = s.items.some(item => item.id === newItem.id)
+			let reconnectAttempts = 0
+			const maxReconnectAttempts = 5
 
-								if (exists) {
-									// Item already exists (likely added by create method), skip
-									return s
-								}
+			const setupSubscription = () => {
+				// Clean up existing subscription
+				if (realtimeSubscription) {
+					realtimeSubscription.unsubscribe()
+				}
 
-								return {
+				realtimeSubscription = supabase
+					.channel(`${config.tableName}_changes_${Date.now()}`)
+					.on(
+						'postgres_changes',
+						{ 
+							event: 'INSERT', 
+							schema: 'public', 
+							table: config.tableName 
+						},
+						(payload) => {
+							if (realtimeConfig?.onInsert) {
+								realtimeConfig.onInsert(payload)
+							} else {
+								// Default behavior: add to beginning of list only if not already present
+								state.update(s => {
+									const newItem = payload.new as T
+									const exists = s.items.some(item => item.id === newItem.id)
+
+									if (exists) {
+										// Item already exists (likely added by create method), skip
+										return s
+									}
+
+									return {
+										...s,
+										items: [newItem, ...s.items],
+										pagination: {
+											...s.pagination,
+											total: s.pagination.total + 1
+										}
+									}
+								})
+							}
+						}
+					)
+					.on(
+						'postgres_changes',
+						{ 
+							event: 'UPDATE', 
+							schema: 'public', 
+							table: config.tableName 
+						},
+						(payload) => {
+							if (realtimeConfig?.onUpdate) {
+								realtimeConfig.onUpdate(payload)
+							} else {
+								// Default behavior: update existing item
+								state.update(s => ({
 									...s,
-									items: [newItem, ...s.items],
+									items: s.items.map(item => 
+										item.id === (payload.new as T).id ? payload.new as T : item
+									)
+								}))
+							}
+						}
+					)
+					.on(
+						'postgres_changes',
+						{ 
+							event: 'DELETE', 
+							schema: 'public', 
+							table: config.tableName 
+						},
+						(payload) => {
+							if (realtimeConfig?.onDelete) {
+								realtimeConfig.onDelete(payload)
+							} else {
+								// Default behavior: remove from list
+								state.update(s => ({
+									...s,
+									items: s.items.filter(item => item.id !== (payload.old as T).id),
 									pagination: {
 										...s.pagination,
-										total: s.pagination.total + 1
+										total: s.pagination.total - 1
 									}
-								}
-							})
+								}))
+							}
 						}
-					}
-				)
-				.on(
-					'postgres_changes',
-					{ 
-						event: 'UPDATE', 
-						schema: 'public', 
-						table: config.tableName 
-					},
-					(payload) => {
-						if (realtimeConfig?.onUpdate) {
-							realtimeConfig.onUpdate(payload)
-						} else {
-							// Default behavior: update existing item
-							state.update(s => ({
-								...s,
-								items: s.items.map(item => 
-									item.id === (payload.new as T).id ? payload.new as T : item
-								)
-							}))
+					)
+					.subscribe((status) => {
+						// Call custom status callback if provided
+						if (realtimeConfig?.status) {
+							realtimeConfig.status(status)
 						}
-					}
-				)
-				.on(
-					'postgres_changes',
-					{ 
-						event: 'DELETE', 
-						schema: 'public', 
-						table: config.tableName 
-					},
-					(payload) => {
-						if (realtimeConfig?.onDelete) {
-							realtimeConfig.onDelete(payload)
-						} else {
-							// Default behavior: remove from list
-							state.update(s => ({
-								...s,
-								items: s.items.filter(item => item.id !== (payload.old as T).id),
-								pagination: {
-									...s.pagination,
-									total: s.pagination.total - 1
-								}
-							}))
-						}
-					}
-				)
-				.subscribe()
 
+						if (status === 'SUBSCRIBED') {
+							logger.debug(`Realtime subscription active for ${config.tableName}`)
+							reconnectAttempts = 0 // Reset on successful subscription
+						} else if (status === 'CHANNEL_ERROR') {
+							logger.error(`Realtime subscription error for ${config.tableName}`)
+							attemptReconnect()
+						} else if (status === 'TIMED_OUT') {
+							logger.warn(`Realtime subscription timed out for ${config.tableName}`)
+							attemptReconnect()
+						} else if (status === 'CLOSED') {
+							logger.debug(`Realtime subscription closed for ${config.tableName}`)
+							// Only attempt reconnect if it wasn't intentionally closed
+							if (reconnectAttempts < maxReconnectAttempts) {
+								attemptReconnect()
+							}
+						}
+					})
+			}
+
+			const attemptReconnect = () => {
+				if (reconnectAttempts >= maxReconnectAttempts) {
+					logger.error(`Max reconnection attempts reached for ${config.tableName}`)
+					return
+				}
+
+				reconnectAttempts++
+				const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000) // Exponential backoff, max 30s
+				
+				logger.debug(`Attempting to reconnect ${config.tableName} (attempt ${reconnectAttempts}/${maxReconnectAttempts}) in ${delay}ms`)
+				
+				reconnectTimeout = setTimeout(() => {
+					setupSubscription()
+				}, delay)
+			}
+
+			setupSubscription()
 			return realtimeSubscription
 		},
 
 		unsubscribeFromChanges() {
+			if (reconnectTimeout) {
+				clearTimeout(reconnectTimeout)
+				reconnectTimeout = null
+			}
 			if (realtimeSubscription) {
 				realtimeSubscription.unsubscribe()
 				realtimeSubscription = null

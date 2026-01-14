@@ -152,8 +152,12 @@
 		await onUpdateField('location_id', locationId)
 	}
 
-	async function handleProgramChange(e: CustomEvent<{ value: number | null }>) {
-		await onUpdateField('program', e.detail.value)
+	async function handleProgramChange(e: CustomEvent<{ value: number | undefined; program: any | null }>) {
+		// Only update if value is explicitly provided (not undefined from typing/blur)
+		// undefined means "no change", null means "clear selection"
+		if (e.detail.value !== undefined) {
+			await onUpdateField('program', e.detail.value ?? null)
+		}
 	}
 </script>
 
@@ -212,8 +216,8 @@
 					</div>
 				</div>
 
-				<!-- Date, Time, and Attendees -->
-				<div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+				<!-- Date, Start Time, and End Time -->
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
 					<div>
 						<InlineEditableField
 							value={event.date}
@@ -229,8 +233,7 @@
 						<InlineEditableField
 							value={event.start_time}
 							field="start_time"
-							type="text"
-							placeholder="HH:MM"
+							type="time"
 							label="Start Time"
 							onSave={(value) => onUpdateField('start_time', value)}
 							formatDisplay={(val) => formatTime(val)}
@@ -240,22 +243,10 @@
 						<InlineEditableField
 							value={event.end_time}
 							field="end_time"
-							type="text"
-							placeholder="HH:MM"
+							type="time"
 							label="End Time"
 							onSave={(value) => onUpdateField('end_time', value)}
 							formatDisplay={(val) => formatTime(val)}
-						/>
-					</div>
-					<div>
-						<InlineEditableField
-							value={event.number_of_attendees}
-							field="number_of_attendees"
-							type="number"
-							placeholder="0"
-							label="Attendees"
-							onSave={(value) => onUpdateField('number_of_attendees', value ? parseInt(value) : null)}
-							formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
 						/>
 					</div>
 				</div>
@@ -309,50 +300,9 @@
 								</span>
 							</label>
 						{/if}
-						{#if productionManagerContact && !loadingProductionManager}
-							<div class="mt-2 bg-base-200 rounded-lg p-2 text-xs">
-								<div class="flex items-start justify-between gap-2">
-									<div class="flex-1">
-										<div class="font-medium">{productionManagerContact.name}</div>
-										{#if productionManagerContact.title}
-											<div class="opacity-70 mt-1">{productionManagerContact.title}</div>
-										{/if}
-										<div class="flex flex-wrap gap-2 mt-2">
-											{#if productionManagerContact.email}
-												<a href="mailto:{productionManagerContact.email}" class="link link-primary text-xs">
-													{productionManagerContact.email}
-												</a>
-											{/if}
-											{#if productionManagerContact.phone}
-												<a href="tel:{productionManagerContact.phone}" class="link link-primary text-xs">
-													{productionManagerContact.phone}
-													{#if productionManagerContact.phone_ext}
-														ext. {productionManagerContact.phone_ext}
-													{/if}
-												</a>
-											{/if}
-										</div>
-									</div>
-									<div class="flex gap-1">
-										<button
-											type="button"
-											class="btn btn-xs btn-ghost btn-square"
-											onclick={handleRemoveContact}
-											title="Remove production manager contact"
-										>
-											<X class="w-3 h-3" />
-										</button>
-									</div>
-								</div>
-								<div class="mt-2 pt-2 border-t border-base-300">
-									<p class="text-xs opacity-60">
-										Use the selector above to change the contact, or click the X button to remove.
-									</p>
-								</div>
-							</div>
-						{/if}
 					</div>
 				</div>
+
 			</div>
 
 			<!-- Right Side: Event Image/Visual (1 column on large screens) - Only show if flyer exists -->

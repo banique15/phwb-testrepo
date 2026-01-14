@@ -78,11 +78,12 @@ export const profilesStore = {
 		profilesState.update(state => ({ ...state, loading: true, error: null }))
 		
 		try {
+			// Use maybeSingle() to handle cases where profile doesn't exist
 			const { data, error } = await supabase
 				.from('profiles')
 				.select('*')
 				.eq('id', id)
-				.single()
+				.maybeSingle()
 			
 			if (error) throw error
 			

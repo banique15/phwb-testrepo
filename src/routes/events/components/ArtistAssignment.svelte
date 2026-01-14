@@ -86,7 +86,7 @@
 	})
 	
 	// Filtered artists for search
-	let filteredArtists = $derived(() => {
+	let filteredArtists = $derived.by(() => {
 		let availableArtists = artists.filter(artist => {
 			// Exclude already assigned artists
 			return !localAssignments.some(assignment => String(assignment.artist_id) === String(artist.id))

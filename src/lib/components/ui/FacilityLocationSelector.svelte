@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte'
 	import { supabase } from '$lib/supabase'
 	import type { Facility } from '$lib/schemas/facility'
 	import type { Location } from '$lib/schemas/location'
@@ -92,7 +93,10 @@
 
 	// Load facility and location if value (location_id) is provided
 	async function loadInitialSelection() {
-		if (!value || selectedLocationId === value) return
+		if (!value) return
+		
+		// If locationId matches and facility is already loaded, skip
+		if (selectedLocationId === value && selectedFacilityId) return
 
 		try {
 			// First, load the location to get its facility_id
@@ -123,22 +127,38 @@
 	// Load facilities on mount and handle initial value
 	$effect(async () => {
 		await loadFacilities()
-		if (value && value !== selectedLocationId) {
+		// Load initial selection if value is provided and doesn't match current selection
+		// Also load if value matches but facility isn't set (component stayed mounted)
+		if (value && (value !== selectedLocationId || (value === selectedLocationId && !selectedFacilityId))) {
 			await loadInitialSelection()
 		}
 	})
 
+	// Track if we're in the middle of a selection to prevent clearing
+	let isSelecting = $state(false)
+
 	// Watch for value changes from parent
 	$effect(() => {
-		if (value !== selectedLocationId) {
-			if (value) {
+		// Use untrack to prevent infinite loops and only react to actual value prop changes
+		const currentValue = value
+		untrack(() => {
+			// Only sync if value actually changed from parent (not from our own selection)
+			if (currentValue !== selectedLocationId && !isSelecting) {
+				if (currentValue) {
+					// Parent set a new location value - load it
+					loadInitialSelection()
+				} else if (currentValue === null && selectedLocationId !== null) {
+					// Parent explicitly cleared the value - clear everything
+					selectedFacilityId = null
+					locations = []
+					selectedLocationId = null
+				}
+			} else if (currentValue && currentValue === selectedLocationId && !selectedFacilityId) {
+				// Value matches but facility isn't loaded - ensure it's loaded
+				// This can happen when component stays mounted and value is preserved
 				loadInitialSelection()
-			} else {
-				selectedFacilityId = null
-				locations = []
-				selectedLocationId = null
 			}
-		}
+		})
 	})
 
 	// Handle facility selection
@@ -160,14 +180,29 @@
 
 	// Handle location selection
 	function handleLocationChange(locationId: number | null) {
+		isSelecting = true
 		selectedLocationId = locationId
 		const selectedLocation = locationId 
 			? locations.find(l => l.id === locationId) || null
 			: null
 
+		// Ensure facility is preserved when selecting a location
+		// If we have a location but no facility, load it from the location
+		if (locationId && selectedLocation && !selectedFacilityId) {
+			if (selectedLocation.facility_id) {
+				selectedFacilityId = selectedLocation.facility_id
+				loadLocations(selectedLocation.facility_id)
+			}
+		}
+
 		if (onchange) {
 			onchange(locationId, selectedLocation || undefined)
 		}
+		
+		// Reset selecting flag after a brief delay to allow parent to update
+		setTimeout(() => {
+			isSelecting = false
+		}, 100)
 	}
 
 	// Handle facility created

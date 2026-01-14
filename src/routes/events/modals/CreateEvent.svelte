@@ -502,6 +502,8 @@
 					onAssignmentsUpdate={handleAssignmentsUpdate}
 					mode="create"
 					readonly={submitting}
+					eventStartTime={startTime}
+					eventEndTime={endTime}
 				/>
 			</div>
 

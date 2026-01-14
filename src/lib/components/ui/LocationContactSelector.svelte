@@ -111,34 +111,56 @@
 		}
 		return display
 	}
+
+	function clearSelection() {
+		if (onchange) {
+			onchange(null)
+		}
+	}
 </script>
 
 <div class="form-control w-full">
-	<select
-		class="select select-bordered w-full"
-		class:select-error={error}
-		class:opacity-50={disabled}
-		{disabled}
-		{required}
-		value={value ?? ''}
-		onchange={handleChange}
-	>
-		<option value="" disabled selected={!value}>
-			{loading ? 'Loading contacts...' : placeholder}
-		</option>
+	<div class="relative">
+		<select
+			class="select select-bordered w-full"
+			class:select-error={error}
+			class:opacity-50={disabled}
+			class:pr-16={value && !disabled}
+			{disabled}
+			{required}
+			value={value ?? ''}
+			onchange={handleChange}
+		>
+			<option value="" disabled selected={!value}>
+				{loading ? 'Loading contacts...' : placeholder}
+			</option>
 
-		{#if !loading}
-			{#each contacts as contact}
-				<option value={contact.id} selected={value === contact.id}>
-					{formatContactDisplay(contact)}
-				</option>
-			{/each}
+			{#if !loading}
+				{#each contacts as contact}
+					<option value={contact.id} selected={value === contact.id}>
+						{formatContactDisplay(contact)}
+					</option>
+				{/each}
 
-			{#if contacts.length === 0}
-				<option value="" disabled>No contacts available</option>
+				{#if contacts.length === 0}
+					<option value="" disabled>No contacts available</option>
+				{/if}
 			{/if}
+		</select>
+
+		<!-- Clear button -->
+		{#if value && !disabled}
+			<button
+				type="button"
+				class="absolute right-10 top-1/2 transform -translate-y-1/2 text-base-content/50 hover:text-base-content z-10"
+				onclick={clearSelection}
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
 		{/if}
-	</select>
+	</div>
 
 	{#if error}
 		<label class="label">

@@ -20,6 +20,7 @@
 	import CreateFacility from "./components/modals/CreateFacility.svelte";
 	import DeleteFacility from "./components/modals/DeleteFacility.svelte";
 	import CreateLocation from "./components/modals/CreateLocation.svelte";
+	import EditLocation from "./components/modals/EditLocation.svelte";
 	import DeleteLocation from "./components/modals/DeleteLocation.svelte";
 	import FacilitiesFilters from "./components/FacilitiesFilters.svelte";
 	import ManageTypesModal from "./components/modals/ManageTypesModal.svelte";
@@ -74,6 +75,7 @@
 	let isCreateFacilityModalOpen = $state(false);
 	let isDeleteFacilityModalOpen = $state(false);
 	let isCreateLocationModalOpen = $state(false);
+	let isEditLocationModalOpen = $state(false);
 	let isDeleteLocationModalOpen = $state(false);
 	let isManageTypesModalOpen = $state(false);
 	let clientLoading = $state(false);
@@ -360,6 +362,29 @@
 		isCreateLocationModalOpen = false;
 		console.log(
 			"Location created successfully:",
+			event.detail.location.name,
+		);
+	}
+
+	function openEditLocationModal(locationId: number | null) {
+		if (locationId === null) return;
+		const location = facilityLocations.find(l => l.id === locationId);
+		if (location) {
+			selectedLocation = location;
+			isEditLocationModalOpen = true;
+		}
+	}
+
+	async function handleLocationUpdated(
+		event: CustomEvent<{ location: Location }>,
+	) {
+		if (selectedFacility?.id) {
+			await loadFacilityLocations(selectedFacility.id);
+		}
+		isEditLocationModalOpen = false;
+		selectedLocation = null;
+		console.log(
+			"Location updated successfully:",
 			event.detail.location.name,
 		);
 	}
@@ -733,6 +758,7 @@
 									onSelectLocation={handleSelectLocationContext}
 									onDelete={openDeleteFacilityModal}
 									onAddLocation={openCreateLocationModal}
+									onEditLocation={openEditLocationModal}
 								/>
 							</div>
 						{/if}
@@ -767,6 +793,16 @@
 		facilityId={selectedFacility?.id}
 		on:close={() => (isCreateLocationModalOpen = false)}
 		on:success={handleLocationCreated}
+	/>
+
+	<EditLocation
+		open={isEditLocationModalOpen}
+		location={selectedLocation}
+		on:close={() => {
+			isEditLocationModalOpen = false;
+			selectedLocation = null;
+		}}
+		on:success={handleLocationUpdated}
 	/>
 
 	<DeleteLocation

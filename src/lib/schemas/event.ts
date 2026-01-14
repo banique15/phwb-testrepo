@@ -27,6 +27,9 @@ export const eventSchema = z.object({
 	location_detail: z.string().max(200, 'Location detail must be less than 200 characters').optional(),
 	digital_flyer_link: z.string().url('Invalid URL format').or(z.literal('')).optional(),
 	production_manager_contact_id: z.number().int().positive('Production manager contact ID must be a positive integer').optional().nullable(),
+	// Production Manager payroll fields
+	pm_hours: z.number().min(0, 'PM hours must be non-negative').optional().nullable(),
+	pm_rate: z.number().min(0, 'PM rate must be non-negative').optional().nullable(),
 })
 
 export const createEventSchema = eventSchema.omit({

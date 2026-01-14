@@ -10,6 +10,7 @@
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
 	import ProgramSelector from '$lib/components/ui/ProgramSelector.svelte'
 	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
+	import TimePicker from '$lib/components/ui/TimePicker.svelte'
 	import CreateEnsemble from '../../ensembles/components/modals/CreateEnsemble.svelte'
 	import CreateLocationContact from '../../facilities/components/modals/contacts/CreateLocationContact.svelte'
 	import type { Ensemble } from '$lib/schemas/ensemble'
@@ -44,7 +45,10 @@
 		artist_assignments: event?.artists?.assignments || [],
 		selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
 		number_of_attendees: event?.number_of_attendees || undefined,
-		production_manager_contact_id: event?.production_manager_contact_id || null
+		number_of_musicians: event?.number_of_musicians || undefined,
+		production_manager_contact_id: event?.production_manager_contact_id || null,
+		pm_hours: event?.pm_hours || undefined,
+		pm_rate: event?.pm_rate || undefined
 	})
 	
 	let loading = $state(false)
@@ -149,6 +153,10 @@
 		selectedEnsembleId = ensembleId
 		
 		try {
+			// Get ensemble name
+			const ensemble = ensembles.find(e => e.id === ensembleId)
+			const ensembleName = ensemble?.name || 'Unknown Ensemble'
+			
 			// Fetch active ensemble members with artist data
 			const { data: members, error: membersError } = await supabase
 				.from('phwb_ensemble_members')
@@ -163,7 +171,7 @@
 			}
 
 			if (members && members.length > 0) {
-				// Create assignments for all ensemble members
+				// Create assignments for all ensemble members with ensemble metadata
 				const newAssignments = members.map((member: any) => {
 					const artist = member.phwb_artists
 					return {
@@ -173,7 +181,9 @@
 						status: 'pending' as const,
 						num_hours: 0,
 						hourly_rate: 0,
-						notes: ''
+						notes: '',
+						ensemble_id: ensembleId,
+						ensemble_name: ensembleName
 					}
 				})
 
@@ -325,7 +335,10 @@
 			artist_assignments: event?.artists?.assignments || [],
 			selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
 			number_of_attendees: event?.number_of_attendees || undefined,
-			production_manager_contact_id: event?.production_manager_contact_id || null
+			number_of_musicians: event?.number_of_musicians || undefined,
+			production_manager_contact_id: event?.production_manager_contact_id || null,
+			pm_hours: event?.pm_hours || undefined,
+			pm_rate: event?.pm_rate || undefined
 		}
 		errors = {}
 		submitError = ''
@@ -385,7 +398,10 @@
 				schedule: formData.schedule,
 				requirements: formData.requirements,
 				number_of_attendees: formData.number_of_attendees,
-				production_manager_contact_id: formData.production_manager_contact_id
+				number_of_musicians: formData.number_of_musicians,
+				production_manager_contact_id: formData.production_manager_contact_id,
+				pm_hours: formData.pm_hours,
+				pm_rate: formData.pm_rate
 			}))
 			
 			// Handle artist assignments - ensure it's always an array
@@ -526,11 +542,9 @@
 						<label class="label" for="start_time">
 							<span class="label-text">Start Time</span>
 						</label>
-						<input
-							id="start_time"
-							type="time"
+						<TimePicker
 							bind:value={formData.start_time}
-							class="input input-bordered {errors.start_time ? 'input-error' : ''}"
+							error={!!errors.start_time}
 						/>
 						{#if errors.start_time}
 							<label class="label">
@@ -544,11 +558,9 @@
 						<label class="label" for="end_time">
 							<span class="label-text">End Time</span>
 						</label>
-						<input
-							id="end_time"
-							type="time"
+						<TimePicker
 							bind:value={formData.end_time}
-							class="input input-bordered {errors.end_time ? 'input-error' : ''}"
+							error={!!errors.end_time}
 						/>
 						{#if errors.end_time}
 							<label class="label">
@@ -576,6 +588,79 @@
 								<span class="label-text-alt text-error">{errors.number_of_attendees}</span>
 							</label>
 						{/if}
+					</div>
+					<!-- Number of Artists/Musicians -->
+					<div class="form-control">
+						<label class="label" for="number_of_musicians">
+							<span class="label-text">Number of Artists/Musicians</span>
+						</label>
+						<input
+							id="number_of_musicians"
+							type="number"
+							bind:value={formData.number_of_musicians}
+							class="input input-bordered {errors.number_of_musicians ? 'input-error' : ''}"
+							placeholder="Enter number of artists/musicians performing"
+							min="0"
+							step="1"
+						/>
+						{#if errors.number_of_musicians}
+							<label class="label">
+								<span class="label-text-alt text-error">{errors.number_of_musicians}</span>
+							</label>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Production Manager Hours Section -->
+				<div class="border-t border-base-300 pt-4 mt-4">
+					<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+						<div class="form-control">
+							<label class="label" for="pm_hours">
+								<span class="label-text">PM Hours</span>
+							</label>
+							<input
+								id="pm_hours"
+								type="number"
+								bind:value={formData.pm_hours}
+								class="input input-bordered {errors.pm_hours ? 'input-error' : ''}"
+								placeholder="0"
+								min="0"
+								step="0.5"
+							/>
+							{#if errors.pm_hours}
+								<label class="label">
+									<span class="label-text-alt text-error">{errors.pm_hours}</span>
+								</label>
+							{/if}
+						</div>
+						<div class="form-control">
+							<label class="label" for="pm_rate">
+								<span class="label-text">PM Rate ($/hr)</span>
+							</label>
+							<input
+								id="pm_rate"
+								type="number"
+								bind:value={formData.pm_rate}
+								class="input input-bordered {errors.pm_rate ? 'input-error' : ''}"
+								placeholder="0.00"
+								min="0"
+								step="0.01"
+							/>
+							{#if errors.pm_rate}
+								<label class="label">
+									<span class="label-text-alt text-error">{errors.pm_rate}</span>
+								</label>
+							{/if}
+						</div>
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">PM Total</span>
+							</label>
+							<div class="input input-bordered bg-base-200 flex items-center">
+								<span class="font-mono">${((formData.pm_hours || 0) * (formData.pm_rate || 0)).toFixed(2)}</span>
+							</div>
+						</div>
 					</div>
 				</div>
 				
@@ -757,7 +842,9 @@
 					assignments={formData.artist_assignments}
 					onAssignmentsUpdate={handleArtistAssignmentsUpdate}
 					mode={isEdit ? 'edit' : 'create'}
-					readonly={loading}
+					readonly={false}
+					eventStartTime={formData.start_time}
+					eventEndTime={formData.end_time}
 				/>
 			</div>
 		{:else if activeTab === 'status'}

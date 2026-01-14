@@ -41,7 +41,7 @@
 	let sortBy = $state<SortOption>('upcoming')
 
 	const sortOptions: { value: SortOption; label: string }[] = [
-		{ value: 'upcoming', label: 'Upcoming First' },
+		{ value: 'upcoming', label: 'Upcoming' },
 		{ value: 'recent', label: 'Most Recent First' },
 		{ value: 'status', label: 'By Status' },
 		{ value: 'venue', label: 'By Venue' },
@@ -63,6 +63,13 @@
 
 	// Bulk selection state
 	let selectedEventIds = $state<Set<number>>(new Set())
+
+	// Calendar view panel state for resizable layout
+	let rightPanelExpanded = $state(false)
+	let rightPanelWidth = $state(33) // Percentage, default 33% (1/3)
+	const MIN_PANEL_WIDTH = 400 // Minimum width in pixels
+	const MAX_PANEL_WIDTH = 60 // Maximum percentage
+	const DEFAULT_PANEL_WIDTH = 33 // Default percentage
 
 	const STORAGE_KEY = 'phwb-selected-event'
 
@@ -825,9 +832,12 @@
 					</div>
 				</div>
 				<div class="flex-1 min-h-0 p-6">
-					<div class="flex flex-col lg:flex-row gap-6 h-full min-h-0">
+					<div class="flex flex-col lg:flex-row gap-0 h-full min-h-0 relative">
 						<!-- Calendar -->
-						<div class="lg:flex-1 h-full">
+						<div 
+							class="h-full transition-all duration-300 ease-in-out {showCreateForm || selectedEvent ? 'hidden lg:block' : ''}"
+							style="width: {rightPanelExpanded || showCreateForm || selectedEvent ? `calc(100% - ${rightPanelWidth}% - 0.5rem)` : '100%'};"
+						>
 							<div class="card bg-base-100 shadow-xl h-full">
 								<div class="card-body">
 									<CalendarView
@@ -839,16 +849,86 @@
 							</div>
 						</div>
 
+						<!-- Resize Handle -->
+						{#if (showCreateForm || selectedEvent) && browser}
+							<div
+								class="hidden lg:flex w-2 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors group relative z-10"
+								onmousedown={(e) => {
+									e.preventDefault()
+									const startX = e.clientX
+									const startWidth = rightPanelWidth
+									const container = (e.currentTarget as HTMLElement).parentElement
+									if (!container) return
+									
+									const handleMouseMove = (moveEvent: MouseEvent) => {
+										const deltaX = moveEvent.clientX - startX
+										const containerWidth = container.offsetWidth
+										const deltaPercent = (deltaX / containerWidth) * 100
+										const newWidth = Math.max(25, Math.min(MAX_PANEL_WIDTH, startWidth - deltaPercent))
+										rightPanelWidth = newWidth
+										rightPanelExpanded = newWidth > DEFAULT_PANEL_WIDTH
+									}
+									
+									const handleMouseUp = () => {
+										document.removeEventListener('mousemove', handleMouseMove)
+										document.removeEventListener('mouseup', handleMouseUp)
+									}
+									
+									document.addEventListener('mousemove', handleMouseMove)
+									document.addEventListener('mouseup', handleMouseUp)
+								}}
+								title="Drag to resize"
+							>
+								<div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 bg-base-300 group-hover:bg-primary rounded"></div>
+							</div>
+						{/if}
+
 						<!-- Detail View (if event selected or creating new event) -->
 						{#if showCreateForm || selectedEvent}
-							<div class="lg:w-1/3 lg:flex-none h-full">
+							<div 
+								class="h-full transition-all duration-300 ease-in-out flex-shrink-0 w-full lg:w-auto"
+								style="width: {`${rightPanelWidth}%`}; min-width: {MIN_PANEL_WIDTH}px;"
+							>
 								<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
-									<div class="card-body flex flex-col h-full min-h-0">
+									<div class="card-body flex flex-col h-full min-h-0 p-4">
+										<!-- Expand/Collapse Toggle Button -->
+										<div class="flex justify-end mb-2">
+											<button
+												class="btn btn-ghost btn-xs btn-circle"
+												onclick={() => {
+													if (rightPanelExpanded) {
+														rightPanelWidth = DEFAULT_PANEL_WIDTH
+														rightPanelExpanded = false
+													} else {
+														rightPanelWidth = 50
+														rightPanelExpanded = true
+													}
+												}}
+												title={rightPanelExpanded ? 'Collapse panel' : 'Expand panel'}
+											>
+												<svg 
+													xmlns="http://www.w3.org/2000/svg" 
+													class="h-4 w-4" 
+													fill="none" 
+													viewBox="0 0 24 24" 
+													stroke="currentColor"
+													class:rotate-180={rightPanelExpanded}
+												>
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+												</svg>
+											</button>
+										</div>
 										<div class="overflow-y-auto flex-1 min-h-0">
 											{#if showCreateForm}
 												<EventCreateForm
 													onSuccess={handleCreateFormSuccess}
 													onCancel={handleCreateFormCancel}
+													onFieldFocus={() => {
+														if (!rightPanelExpanded) {
+															rightPanelWidth = 50
+															rightPanelExpanded = true
+														}
+													}}
 												/>
 											{:else if selectedEvent}
 												<!-- Header Card -->
@@ -918,10 +998,10 @@
 									class="btn btn-xs border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
 									title="Sort events"
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
 									</svg>
-									<span class="hidden sm:inline ml-1">{sortOptions.find(o => o.value === sortBy)?.label || 'Sort'}</span>
+									<span class="hidden sm:inline ml-1 whitespace-nowrap truncate max-w-[100px]">{sortOptions.find(o => o.value === sortBy)?.label || 'Sort'}</span>
 								</button>
 								<ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 border border-base-300 rounded-box w-48 mt-1">
 									{#each sortOptions as option}

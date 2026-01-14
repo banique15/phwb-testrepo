@@ -244,7 +244,6 @@
 						class="input input-bordered {formErrors.start_date ? 'input-error' : ''}"
 						value={formData.start_date || ''}
 						oninput={(e) => handleInputChange('start_date', e.currentTarget.value)}
-						min={today}
 					/>
 					{#if formErrors.start_date}
 						<label class="label">

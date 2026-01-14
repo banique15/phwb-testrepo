@@ -9,7 +9,7 @@
 	let { requirements }: Props = $props()
 	
 	// Parse requirements data safely
-	let requirementsList = $derived(() => {
+	let requirementsList = $derived.by(() => {
 		if (!requirements) return []
 		
 		// Handle different possible formats
