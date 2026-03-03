@@ -13,7 +13,7 @@ export const payrollSchema = z.object({
 	total_pay: z.number().min(0, 'Total pay must be non-negative').optional(),
 	insperity_hours: z.number().min(0, 'Insperity hours must be non-negative').optional(),
 	paid_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Paid date must be in YYYY-MM-DD format').optional(),
-	status: z.enum(['Planned', 'Approved', 'Paid', 'Completed', 'Cancelled']),
+	status: z.enum(['Planned', 'Approved', 'Paid', 'Cancelled']),
 	event_id: z.number().optional(),
 	// New fields for CSV import transition support
 	employee_contractor_status: z.enum(['employee', 'contractor', 'roster_artist']).optional(),
@@ -102,7 +102,6 @@ export const PaymentStatus = {
 	PLANNED: 'Planned' as const,
 	APPROVED: 'Approved' as const,
 	PAID: 'Paid' as const,
-	COMPLETED: 'Completed' as const,
 	CANCELLED: 'Cancelled' as const,
 } as const
 

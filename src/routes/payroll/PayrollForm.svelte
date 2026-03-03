@@ -30,7 +30,7 @@
 		additional_rate: undefined as number | undefined,
 		additional_pay: 0,
 		additional_pay_reason: '',
-		status: 'Planned' as 'Planned' | 'Approved' | 'Paid' | 'Completed' | 'Cancelled',
+		status: 'Planned' as 'Planned' | 'Approved' | 'Paid' | 'Cancelled',
 		payment_type: undefined as 'performance' | 'training' | 'special_event' | 'other' | undefined,
 		employee_contractor_status: undefined as 'employee' | 'contractor' | 'roster_artist' | undefined,
 		invoice_number: '',
@@ -57,7 +57,7 @@
 				additional_rate: entry.additional_rate,
 				additional_pay: entry.additional_pay || 0,
 				additional_pay_reason: entry.additional_pay_reason || '',
-				status: (entry.status || 'Planned') as 'Planned' | 'Approved' | 'Paid' | 'Completed' | 'Cancelled',
+				status: (entry.status || 'Planned') as 'Planned' | 'Approved' | 'Paid' | 'Cancelled',
 				payment_type: entry.payment_type as 'performance' | 'training' | 'special_event' | 'other' | undefined,
 				employee_contractor_status: entry.employee_contractor_status || undefined,
 				invoice_number: entry.invoice_number || '',
@@ -148,7 +148,6 @@
 				'Planned',
 				'Approved',
 				'Paid',
-				'Completed',
 				'Cancelled'
 			].includes(value as string)) {
 				formData[field] = value as typeof formData[typeof field]
