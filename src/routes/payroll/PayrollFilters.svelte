@@ -36,12 +36,13 @@
 	let localDateEnd = $state(dateRangeEnd)
 	let isExpanded = $state(false)
 
-	// Status options
+	// Status options (matching PaymentStatus enum)
 	const statusOptions = [
 		{ value: '', label: 'All Statuses' },
 		{ value: 'Planned', label: 'Planned' },
-		{ value: 'Unpaid', label: 'Unpaid' },
+		{ value: 'Approved', label: 'Approved' },
 		{ value: 'Paid', label: 'Paid' },
+		{ value: 'Completed', label: 'Completed' },
 		{ value: 'Cancelled', label: 'Cancelled' }
 	]
 
@@ -217,7 +218,88 @@
 				</div>
 			</div>
 
-			<!-- Filter presets -->
+			<!-- Quick Date Ranges -->
+			<div class="mt-4">
+				<label class="block text-sm font-medium mb-2">Quick Date Ranges</label>
+				<div class="flex flex-wrap gap-2">
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							const now = new Date()
+							localDateStart = now.toISOString().split('T')[0]
+							localDateEnd = now.toISOString().split('T')[0]
+							applyFilters()
+						}}
+					>
+						Today
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							const now = new Date()
+							const day = now.getDay()
+							const monday = new Date(now.getTime() - (day === 0 ? 6 : day - 1) * 24 * 60 * 60 * 1000)
+							const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000)
+							localDateStart = monday.toISOString().split('T')[0]
+							localDateEnd = sunday.toISOString().split('T')[0]
+							applyFilters()
+						}}
+					>
+						This Week
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							const now = new Date()
+							const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+							const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+							localDateStart = firstDay.toISOString().split('T')[0]
+							localDateEnd = lastDay.toISOString().split('T')[0]
+							applyFilters()
+						}}
+					>
+						This Month
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							const now = new Date()
+							const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+							localDateStart = sevenDaysAgo.toISOString().split('T')[0]
+							localDateEnd = now.toISOString().split('T')[0]
+							applyFilters()
+						}}
+					>
+						Last 7 Days
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							const now = new Date()
+							const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+							localDateStart = thirtyDaysAgo.toISOString().split('T')[0]
+							localDateEnd = now.toISOString().split('T')[0]
+							applyFilters()
+						}}
+					>
+						Last 30 Days
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							const now = new Date()
+							const firstDay = new Date(now.getFullYear(), 0, 1)
+							localDateStart = firstDay.toISOString().split('T')[0]
+							localDateEnd = now.toISOString().split('T')[0]
+							applyFilters()
+						}}
+					>
+						Year to Date
+					</button>
+				</div>
+			</div>
+
+			<!-- Status + Type Presets -->
 			<div class="mt-4">
 				<label class="block text-sm font-medium mb-2">Quick Filters</label>
 				<div class="flex flex-wrap gap-2">
@@ -228,7 +310,16 @@
 							applyFilters()
 						}}
 					>
-						Unpaid
+						Unpaid Only
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							localStatus = 'Approved'
+							applyFilters()
+						}}
+					>
+						Approved Only
 					</button>
 					<button 
 						class="btn btn-outline btn-xs"
@@ -260,6 +351,15 @@
 						}}
 					>
 						Contractors Only
+					</button>
+					<button 
+						class="btn btn-outline btn-xs"
+						onclick={() => {
+							localEmployeeContractor = 'employee'
+							applyFilters()
+						}}
+					>
+						Employees Only
 					</button>
 					<button 
 						class="btn btn-outline btn-xs"

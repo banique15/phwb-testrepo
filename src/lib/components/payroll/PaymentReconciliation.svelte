@@ -20,13 +20,20 @@
 	let reconciliationNotes: Record<number, string> = {}
 	let showBulkMode = false
 
-	$: filteredPayments = payments.filter(p => 
-		p.status === PaymentStatus.PAID && 
-		!p.reconciled &&
-		(p.artist_id?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-		 p.payment_reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		 p.batch_id?.toLowerCase().includes(searchTerm.toLowerCase()))
-	)
+	$: filteredPayments = payments.filter(p => {
+		if (p.status !== PaymentStatus.PAID || p.reconciled) return false
+		if (!searchTerm) return true
+		
+		const searchLower = searchTerm.toLowerCase()
+		const artistName = p.artists?.full_name || 
+			(p.artists?.legal_first_name && p.artists?.legal_last_name 
+				? `${p.artists.legal_first_name} ${p.artists.legal_last_name}` 
+				: '')
+		
+		return artistName.toLowerCase().includes(searchLower) ||
+			p.payment_reference?.toLowerCase().includes(searchLower) ||
+			p.batch_id?.toLowerCase().includes(searchLower)
+	})
 
 	$: selectedPaymentsList = Array.from(selectedPayments).map(id => 
 		filteredPayments.find(p => p.id === id)
@@ -230,7 +237,10 @@
 									{/if}
 									<td>
 										<div class="font-medium">
-											{payment.artist_id || 'Unknown Artist'}
+											{payment.artists?.full_name || 
+											 (payment.artists?.legal_first_name && payment.artists?.legal_last_name 
+												? `${payment.artists.legal_first_name} ${payment.artists.legal_last_name}` 
+												: 'Unknown Artist')}
 										</div>
 									</td>
 									<td>{formatDate(payment.event_date)}</td>

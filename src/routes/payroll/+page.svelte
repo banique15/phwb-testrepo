@@ -8,6 +8,7 @@
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import PayrollHeaderCard from './components/PayrollHeaderCard.svelte'
 	import PayrollTabs from './components/PayrollTabs.svelte'
+	import { toast } from '$lib/stores/toast'
 
 	// State management
 	let payrollEntries = $state<Payroll[]>([])
@@ -21,6 +22,7 @@
 	let showExportModal = $state(false)
 	let showAuditModal = $state(false)
 	let showReconcileModal = $state(false)
+	let showGenerationModal = $state(false)
 	let auditPaymentId = $state(0)
 	
 	// Pagination and filters
@@ -169,11 +171,12 @@
 		const filteredEntries = applyMetricsFilters(allPayrollRecords)
 		
 		const paid = filteredEntries.filter(e => e.status === 'Paid')
-		const unpaid = filteredEntries.filter(e => e.status === 'Unpaid')
 		const planned = filteredEntries.filter(e => e.status === 'Planned')
 		const approved = filteredEntries.filter(e => e.status === 'Approved')
 		const completed = filteredEntries.filter(e => e.status === 'Completed')
 		const unreconciled = filteredEntries.filter(e => e.status === 'Paid' && !e.reconciled)
+		// "Unpaid" = entries that are not yet paid (Planned or Approved)
+		const unpaid = filteredEntries.filter(e => e.status === 'Planned' || e.status === 'Approved')
 		
 		stats = {
 			totalPaid: paid.reduce((sum, e) => sum + (e.total_pay || 0), 0),
@@ -212,7 +215,9 @@
 			}
 
 			filtered = filtered.filter(entry => {
-				const entryDate = new Date(entry.event_date || entry.created_at)
+				const dateStr = entry.event_date || entry.created_at || ''
+				if (!dateStr) return true
+				const entryDate = new Date(dateStr)
 				return entryDate >= startDate
 			})
 		}
@@ -308,6 +313,7 @@
 	async function handleBulkAction(event: CustomEvent<{ action: string; entryIds: number[] }>) {
 		try {
 			const { action, entryIds } = event.detail
+			const count = entryIds.length
 			
 			switch (action) {
 				case 'markPaid':
@@ -317,21 +323,25 @@
 							paid_date: new Date().toISOString().split('T')[0] 
 						})
 					}
+					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} marked as paid`)
 					break
 				case 'markUnpaid':
 					for (const id of entryIds) {
-						await payrollStore.update(id, { status: 'Unpaid', paid_date: undefined })
+						await payrollStore.update(id, { status: 'Planned', paid_date: undefined })
 					}
+					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} marked as unpaid`)
 					break
 				case 'approve':
 					for (const id of entryIds) {
-						await payrollStore.update(id, { status: 'Unpaid' })
+						await payrollStore.update(id, { status: 'Approved' })
 					}
+					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} approved for payment`)
 					break
 				case 'delete':
 					for (const id of entryIds) {
 						await payrollStore.delete(id)
 					}
+					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} deleted`)
 					break
 			}
 			
@@ -341,6 +351,7 @@
 			await refreshAllRecords()
 		} catch (err) {
 			console.error('Failed to perform bulk action:', err)
+			toast.error('Failed to perform bulk action. Please try again.')
 		}
 	}
 
@@ -349,132 +360,6 @@
 			style: 'currency',
 			currency: 'USD'
 		}).format(amount)
-	}
-
-	async function generatePayrollFromEvents() {
-		try {
-			loading = true
-			error = null
-			
-			// Get current user info
-			const { data: { user } } = await supabase.auth.getUser()
-			if (!user) {
-				throw new Error('User not authenticated')
-			}
-			
-			// Fetch completed events that don't have payroll entries yet
-			const { data: completedEvents, error: eventsError } = await supabase
-				.from('phwb_events')
-				.select('*')
-				.eq('status', 'completed')
-				.not('artists', 'is', null)
-			
-			if (eventsError) throw eventsError
-			
-			if (!completedEvents || completedEvents.length === 0) {
-				alert('No completed events found to generate payroll from.')
-				return
-			}
-			
-			// Get all existing payroll entries to check for duplicates
-			const { data: existingPayroll, error: payrollError } = await supabase
-				.from('phwb_payroll')
-				.select('source_event_id')
-				.not('source_event_id', 'is', null)
-			
-			if (payrollError) throw payrollError
-			
-			const existingEventIds = new Set(existingPayroll?.map(p => p.source_event_id) || [])
-			
-			// Filter out events that already have payroll entries
-			const eventsToProcess = completedEvents.filter(event => !existingEventIds.has(event.id))
-			
-			if (eventsToProcess.length === 0) {
-				alert('All completed events already have payroll entries.')
-				return
-			}
-			
-			let createdCount = 0
-			const errors: string[] = []
-			
-			// Process each event
-			for (const event of eventsToProcess) {
-				// Create payroll entries for artist assignments
-				if (event.artists?.assignments && Array.isArray(event.artists.assignments)) {
-					for (const assignment of event.artists.assignments) {
-						try {
-							// Create payroll entry for each artist assignment
-							const payrollData: CreatePayroll = {
-								event_date: event.date,
-								artist_id: assignment.artist_id,
-								venue_id: event.venue || undefined,
-								event_id: event.id,
-								hours: assignment.num_hours || 3, // Default 3 hours if not specified
-								rate: assignment.hourly_rate || 50, // Default rate if not specified
-								additional_pay: 0,
-								status: 'Planned',
-								employee_contractor_status: 'contractor', // Default status
-								payment_type: 'performance', // Default type
-								created_by: user.email || user.id,
-								creation_method: 'event-automation',
-								source_event_id: event.id,
-								notes: `Auto-generated from event: ${event.title}`
-							}
-							
-							const created = await payrollStore.create(payrollData)
-							if (created) createdCount++
-						} catch (err) {
-							console.error('Error creating payroll entry:', err)
-							errors.push(`Failed to create entry for artist ${assignment.artist_id} in event ${event.title}`)
-						}
-					}
-				}
-				
-				// Create payroll entry for Production Manager if pm_hours is set
-				if (event.pm_hours && event.pm_hours > 0) {
-					try {
-						const pmPayrollData: CreatePayroll = {
-							event_date: event.date,
-							artist_id: 'PM', // Placeholder for PM - could be linked to production_manager_contact_id if they're an artist
-							venue_id: event.venue || undefined,
-							event_id: event.id,
-							hours: event.pm_hours,
-							rate: event.pm_rate || 50, // Default rate if not specified
-							additional_pay: 0,
-							status: 'Planned',
-							employee_contractor_status: 'contractor',
-							payment_type: 'other', // PM work is categorized as 'other'
-							created_by: user.email || user.id,
-							creation_method: 'event-automation',
-							source_event_id: event.id,
-							notes: `Production Manager - Auto-generated from event: ${event.title}`
-						}
-						
-						const created = await payrollStore.create(pmPayrollData)
-						if (created) createdCount++
-					} catch (err) {
-						console.error('Error creating PM payroll entry:', err)
-						errors.push(`Failed to create PM entry for event ${event.title}`)
-					}
-				}
-			}
-			
-			// Refresh data
-			await loadPayrollData()
-			await refreshAllRecords()
-			
-			// Show result
-			if (errors.length > 0) {
-				alert(`Created ${createdCount} payroll entries with ${errors.length} errors:\n${errors.join('\n')}`)
-			} else {
-				alert(`Successfully created ${createdCount} payroll entries from ${eventsToProcess.length} events.`)
-			}
-		} catch (err) {
-			console.error('Failed to generate payroll from events:', err)
-			alert('Failed to generate payroll entries. Please try again.')
-		} finally {
-			loading = false
-		}
 	}
 
 	// Payment workflow handlers
@@ -500,6 +385,10 @@
 		showReconcileModal = true
 	}
 
+	function openGenerationModal() {
+		showGenerationModal = true
+	}
+
 	function showAuditLog(paymentId: number) {
 		auditPaymentId = paymentId
 		showAuditModal = true
@@ -510,6 +399,7 @@
 		// Refresh both table and metrics since data changed
 		await loadPayrollData()
 		await refreshAllRecords()
+		toast.success('Payments approved successfully')
 	}
 
 	async function handlePaymentProcessed() {
@@ -517,17 +407,25 @@
 		// Refresh both table and metrics since data changed
 		await loadPayrollData()
 		await refreshAllRecords()
+		toast.success('Payments processed successfully')
 	}
 
 	async function handlePaymentReconciled() {
 		// Refresh both table and metrics since data changed
 		await loadPayrollData()
 		await refreshAllRecords()
+		toast.success('Payments reconciled successfully')
 	}
 
 	async function handlePaymentExported() {
-		// Could show a success toast
-		console.log('Payments exported successfully')
+		toast.success('Payments exported successfully')
+	}
+
+	async function handlePayrollGenerated() {
+		// Refresh both table and metrics since data changed
+		await loadPayrollData()
+		await refreshAllRecords()
+		toast.success('Payroll entries generated successfully')
 	}
 </script>
 
@@ -586,6 +484,7 @@
 					showExportModal={showExportModal}
 					showAuditModal={showAuditModal}
 					showReconcileModal={showReconcileModal}
+					showGenerationModal={showGenerationModal}
 					{auditPaymentId}
 					getSelectedPayments={getSelectedPayments}
 					onCloseApproval={() => showApprovalModal = false}
@@ -593,15 +492,18 @@
 					onCloseExport={() => showExportModal = false}
 					onCloseAudit={() => showAuditModal = false}
 					onCloseReconcile={() => showReconcileModal = false}
+					onCloseGeneration={() => showGenerationModal = false}
 					onOpenApproval={openApprovalModal}
 					onOpenBatch={openBatchModal}
 					onOpenExport={openExportModal}
 					onOpenAudit={showAuditLog}
 					onOpenReconcile={openReconcileModal}
+					onOpenGeneration={openGenerationModal}
 					onPaymentApproved={handlePaymentApproved}
 					onPaymentProcessed={handlePaymentProcessed}
 					onPaymentReconciled={handlePaymentReconciled}
 					onPaymentExported={handlePaymentExported}
+					onPayrollGenerated={handlePayrollGenerated}
 				/>
 			</div>
 		</div>

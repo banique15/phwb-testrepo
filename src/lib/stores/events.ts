@@ -9,6 +9,7 @@ import { lookupUtils, enhancedLookup } from './lookup'
 import type { Facility } from '$lib/schemas/facility'
 import type { Location } from '$lib/schemas/location'
 import type { Artist } from '$lib/schemas/artist'
+import { generatePayrollForEvent } from '$lib/services/payroll-generator'
 
 // Enhanced event type with resolved names
 export interface EnhancedEvent extends Event {
@@ -503,3 +504,34 @@ export const {
 
 // Export enhanced store as a separate interface (for migration)
 export const eventsEnhancedStore = eventsStore.enhanced
+
+/**
+ * Complete an event and auto-generate payroll entries
+ * This should be called when an event is marked as completed
+ */
+export async function completeEventWithPayroll(
+	eventId: number,
+	userId?: string
+): Promise<{ event: EnhancedEvent; payrollGenerated: boolean; payrollErrors: string[] }> {
+	try {
+		// First, update the event status to 'completed'
+		const updatedEvent = await eventsStore.enhanced.update(eventId, { status: 'completed' })
+
+		// Then, generate payroll for this event
+		const payrollResult = await generatePayrollForEvent(eventId, { 
+			dryRun: false, 
+			userId 
+		})
+
+		logger.info('Payroll generation result:', payrollResult)
+
+		return {
+			event: updatedEvent,
+			payrollGenerated: payrollResult.success && payrollResult.entriesCreated > 0,
+			payrollErrors: payrollResult.errors
+		}
+	} catch (error) {
+		logger.error('Failed to complete event with payroll:', error)
+		throw error
+	}
+}

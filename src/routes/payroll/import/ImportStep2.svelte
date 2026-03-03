@@ -34,7 +34,7 @@
 		{ key: 'status', label: 'Status', description: 'Payment status (Planned, Paid, Unpaid, Cancelled)' },
 		{ key: 'paid_date', label: 'Paid Date', description: 'Date when payment was made' },
 		{ key: 'event_id', label: 'Event ID', description: 'Optional event identifier' },
-		{ key: 'insperity_hours', label: 'Insperity Hours', description: 'Hours for Insperity processing' }
+		{ key: 'insperity_hours', label: 'Artist Service Hours', description: 'Artist service hours for payroll processing' }
 	]
 
 	onMount(() => {

@@ -7,6 +7,7 @@
 		onfocus?: () => void
 		class?: string
 		error?: boolean
+		defaultPeriod?: 'AM' | 'PM'
 	}
 
 	let {
@@ -16,7 +17,8 @@
 		onchange,
 		onfocus,
 		class: className = '',
-		error = false
+		error = false,
+		defaultPeriod = 'AM'
 	}: Props = $props()
 
 	// Convert 24-hour format (HH:MM) to 12-hour format
@@ -48,7 +50,7 @@
 	let parsed = $state(parse24Hour(value))
 	let selectedHour = $state(parsed?.hour || 12)
 	let selectedMinute = $state(parsed?.minute || 0)
-	let selectedPeriod = $state<'AM' | 'PM'>(parsed?.period || 'AM')
+	let selectedPeriod = $state<'AM' | 'PM'>(parsed?.period || defaultPeriod)
 
 	// Update when value prop changes externally
 	$effect(() => {
@@ -61,7 +63,7 @@
 			// Reset to default if value is cleared
 			selectedHour = 12
 			selectedMinute = 0
-			selectedPeriod = 'AM'
+			selectedPeriod = defaultPeriod
 		}
 	})
 
@@ -91,10 +93,10 @@
 	}
 </script>
 
-<div class="flex gap-2 items-center {className}">
+<div class="flex gap-1 items-center min-w-0 {className}">
 	<!-- Hour -->
 	<select
-		class="select select-bordered select-sm flex-1 {error ? 'select-error' : ''}"
+		class="select select-bordered select-sm flex-1 min-w-0 {error ? 'select-error' : ''}"
 		value={selectedHour}
 		onchange={handleHourChange}
 		{disabled}
@@ -106,11 +108,11 @@
 		{/each}
 	</select>
 
-	<span class="text-base-content/60">:</span>
+	<span class="text-base-content/60 flex-shrink-0">:</span>
 
 	<!-- Minute -->
 	<select
-		class="select select-bordered select-sm flex-1 {error ? 'select-error' : ''}"
+		class="select select-bordered select-sm flex-1 min-w-0 {error ? 'select-error' : ''}"
 		value={selectedMinute}
 		onchange={handleMinuteChange}
 		{disabled}
@@ -124,7 +126,7 @@
 
 	<!-- AM/PM -->
 	<select
-		class="select select-bordered select-sm w-20 {error ? 'select-error' : ''}"
+		class="select select-bordered select-sm w-16 flex-shrink-0 {error ? 'select-error' : ''}"
 		value={selectedPeriod}
 		onchange={handlePeriodChange}
 		{disabled}

@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte'
+	import { toast } from '$lib/stores/toast'
+	import type { Payroll } from '$lib/schemas/payroll'
 
 	interface Props {
 		selectedCount: number
 		selectedEntries: number[]
+		payrollData?: Payroll[]
 	}
 
 	let {
 		selectedCount = 0,
-		selectedEntries = []
+		selectedEntries = [],
+		payrollData = []
 	}: Props = $props()
 
 	const dispatch = createEventDispatcher<{
@@ -45,10 +49,154 @@
 		}
 	}
 
-	// Export data (placeholder for future implementation)
-	function handleExport() {
-		// TODO: Implement CSV/Excel export functionality
-		console.log('Export functionality to be implemented')
+	// Get selected payroll entries
+	function getSelectedEntries(): Payroll[] {
+		return payrollData.filter(p => selectedEntries.includes(p.id!))
+	}
+
+	// Export to CSV
+	function exportToCSV() {
+		const entries = getSelectedEntries()
+		if (entries.length === 0) {
+			toast.warning('No entries selected for export')
+			return
+		}
+
+		const headers = ['Date', 'Artist', 'Venue', 'Hours', 'Rate', 'Additional Pay', 'Total Pay', 'Status', 'Payment Type', 'Notes']
+		const rows = entries.map(e => [
+			e.event_date,
+			e.artists?.full_name || e.artists?.legal_first_name ? `${e.artists?.legal_first_name} ${e.artists?.legal_last_name}` : 'N/A',
+			e.venues?.name || '',
+			e.hours?.toString() || '0',
+			e.rate?.toString() || '0',
+			e.additional_pay?.toString() || '0',
+			e.total_pay?.toString() || '0',
+			e.status || '',
+			e.payment_type || '',
+			e.notes || ''
+		])
+
+		const csvContent = [headers, ...rows]
+			.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
+			.join('\n')
+
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+		const link = document.createElement('a')
+		const url = URL.createObjectURL(blob)
+		link.setAttribute('href', url)
+		link.setAttribute('download', `payroll_export_${new Date().toISOString().split('T')[0]}.csv`)
+		link.style.visibility = 'hidden'
+		document.body.appendChild(link)
+		link.click()
+		document.body.removeChild(link)
+
+		toast.success(`Exported ${entries.length} entries to CSV`)
+	}
+
+	// Export to Excel (uses CSV for compatibility)
+	function exportToExcel() {
+		const entries = getSelectedEntries()
+		if (entries.length === 0) {
+			toast.warning('No entries selected for export')
+			return
+		}
+
+		const headers = ['Date', 'Artist', 'Venue', 'Hours', 'Rate', 'Additional Pay', 'Total Pay', 'Status', 'Payment Type', 'Notes']
+		const rows = entries.map(e => [
+			e.event_date,
+			e.artists?.full_name || e.artists?.legal_first_name ? `${e.artists?.legal_first_name} ${e.artists?.legal_last_name}` : 'N/A',
+			e.venues?.name || '',
+			e.hours?.toString() || '0',
+			e.rate?.toString() || '0',
+			e.additional_pay?.toString() || '0',
+			e.total_pay?.toString() || '0',
+			e.status || '',
+			e.payment_type || '',
+			e.notes || ''
+		])
+
+		// Tab-separated for Excel compatibility
+		const xlsContent = [headers, ...rows]
+			.map(row => row.join('\t'))
+			.join('\n')
+
+		const blob = new Blob([xlsContent], { type: 'application/vnd.ms-excel' })
+		const link = document.createElement('a')
+		const url = URL.createObjectURL(blob)
+		link.setAttribute('href', url)
+		link.setAttribute('download', `payroll_export_${new Date().toISOString().split('T')[0]}.xls`)
+		link.style.visibility = 'hidden'
+		document.body.appendChild(link)
+		link.click()
+		document.body.removeChild(link)
+
+		toast.success(`Exported ${entries.length} entries to Excel`)
+	}
+
+	// Print report
+	function printReport() {
+		const entries = getSelectedEntries()
+		if (entries.length === 0) {
+			toast.warning('No entries selected for printing')
+			return
+		}
+
+		const totalAmount = entries.reduce((sum, e) => sum + (e.total_pay || 0), 0)
+		const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+
+		const printContent = `
+			<html>
+			<head>
+				<title>Payroll Report</title>
+				<style>
+					body { font-family: Arial, sans-serif; padding: 20px; }
+					h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
+					table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+					th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+					th { background-color: #f5f5f5; }
+					.total { font-weight: bold; text-align: right; margin-top: 20px; font-size: 1.2em; }
+				</style>
+			</head>
+			<body>
+				<h1>Payroll Report</h1>
+				<p>Generated: ${new Date().toLocaleString()}</p>
+				<table>
+					<thead>
+						<tr>
+							<th>Date</th>
+							<th>Artist</th>
+							<th>Venue</th>
+							<th>Duration</th>
+							<th>Rate</th>
+							<th>Total</th>
+							<th>Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						${entries.map(e => `
+							<tr>
+								<td>${e.event_date}</td>
+								<td>${e.artists?.full_name || (e.artists?.legal_first_name ? `${e.artists.legal_first_name} ${e.artists.legal_last_name}` : 'N/A')}</td>
+								<td>${e.venues?.name || '-'}</td>
+								<td>${e.hours || 0}</td>
+								<td>${formatCurrency(e.rate || 0)}</td>
+								<td>${formatCurrency(e.total_pay || 0)}</td>
+								<td>${e.status || '-'}</td>
+							</tr>
+						`).join('')}
+					</tbody>
+				</table>
+				<div class="total">Total: ${formatCurrency(totalAmount)}</div>
+			</body>
+			</html>
+		`
+
+		const printWindow = window.open('', '_blank')
+		if (printWindow) {
+			printWindow.document.write(printContent)
+			printWindow.document.close()
+			printWindow.print()
+		}
 	}
 </script>
 
@@ -119,7 +267,7 @@
 					</div>
 					<ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-48 z-10">
 						<li>
-							<button onclick={handleExport} class="flex items-center gap-2">
+							<button onclick={exportToCSV} class="flex items-center gap-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
 								</svg>
@@ -127,7 +275,7 @@
 							</button>
 						</li>
 						<li>
-							<button onclick={handleExport} class="flex items-center gap-2">
+							<button onclick={exportToExcel} class="flex items-center gap-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
 								</svg>
@@ -135,7 +283,7 @@
 							</button>
 						</li>
 						<li>
-							<button onclick={handleExport} class="flex items-center gap-2">
+							<button onclick={printReport} class="flex items-center gap-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
 								</svg>

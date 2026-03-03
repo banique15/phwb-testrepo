@@ -235,7 +235,7 @@
 		<!-- Right Column -->
 		<div class="space-y-4">
 			<FormField
-				label="Hours"
+				label="Duration"
 				type="number"
 				value={formData.hours}
 				error={errors.hours}
@@ -371,14 +371,14 @@
 					onchange={(value) => updateField('invoice_number', value)}
 				/>
 
-				<FormField
-					label="Insperity Hours"
+			<FormField
+				label="Artist Service Hours"
 					type="number"
 					value={formData.insperity_hours ?? ''}
 					error={errors.insperity_hours}
 					min="0"
 					step="0.5"
-					placeholder="Hours for Insperity system"
+					placeholder="Artist service hours"
 					onchange={(value) => updateField('insperity_hours', value ? Number(value) : undefined)}
 				/>
 

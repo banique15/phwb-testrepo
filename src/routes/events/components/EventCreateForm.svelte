@@ -9,11 +9,9 @@
 	import 'driver.js/dist/driver.css'
 	import { startCreateEventTour } from '$lib/tours/createEventTour'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
-	import CreateFacility from '../../facilities/components/modals/CreateFacility.svelte'
-	import CreateLocation from '../../facilities/components/modals/CreateLocation.svelte'
+	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
 	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
 	import TimePicker from '$lib/components/ui/TimePicker.svelte'
-	import { Plus } from 'lucide-svelte'
 
 	interface Props {
 		onSuccess?: (createdEvent?: EnhancedEvent) => void
@@ -40,6 +38,7 @@
 	let numberOfMusicians = $state<number | null>(null)
 	let pmHours = $state<number | null>(null)
 	let pmRate = $state<number | null>(null)
+	let productionManagerContactId = $state<number | null>(null)
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -48,9 +47,6 @@
 	// UI state
 	let submitting = $state(false)
 	let error = $state<string | null>(null)
-	let isCreateFacilityModalOpen = $state(false)
-	let isCreateLocationModalOpen = $state(false)
-	let newlyCreatedFacilityId = $state<number | null>(null)
 	let locationSelectorRef: any = $state(null)
 
 	const statusOptions = [
@@ -116,47 +112,6 @@
 		selectedLocation = location || null
 	}
 
-	async function handleFacilityCreated(event: CustomEvent<{ facility: any }>) {
-		const newFacility = event.detail.facility
-		newlyCreatedFacilityId = newFacility?.id || null
-		isCreateFacilityModalOpen = false
-		
-		// If we have a new facility, open the location creation modal
-		if (newlyCreatedFacilityId) {
-			isCreateLocationModalOpen = true
-		}
-	}
-
-	async function handleLocationCreated(event: CustomEvent<{ location: any }>) {
-		const newLocation = event.detail.location
-		isCreateLocationModalOpen = false
-		newlyCreatedFacilityId = null
-		
-		// Refresh the location selector and select the new location
-		if (newLocation?.id) {
-			// Refresh the location selector's cache
-			if (locationSelectorRef?.refresh) {
-				await locationSelectorRef.refresh()
-			}
-			
-			// Reload the location with facility data
-			const { data, error } = await supabase
-				.from('phwb_locations')
-				.select(`
-					*,
-					facility:phwb_facilities!inner(id, name, address, type)
-				`)
-				.eq('id', newLocation.id)
-				.single()
-			
-			if (!error && data) {
-				locationId = newLocation.id
-				selectedLocation = data as LocationWithFacility
-				handleLocationChange(newLocation.id, data as LocationWithFacility)
-			}
-		}
-	}
-
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault()
 
@@ -185,35 +140,32 @@
 			let finalTitle = title.trim()
 			
 			// For drafts, generate a simple title if missing
-			if (!finalTitle) {
-				if (status === 'draft') {
-					if (selectedLocation) {
-						const locationName = selectedLocation.name
-						const facilityName = selectedLocation.facility?.name || 'Unknown Facility'
-						finalTitle = `Draft Event @ ${locationName} (${facilityName})`
-					} else {
-						finalTitle = 'Draft Event'
-					}
-				} else {
-					// For non-drafts, require location and program for title generation
-					const locationName = selectedLocation?.name || 'Unknown Location'
-					const facilityName = selectedLocation?.facility?.name || ''
-					const locationDisplay = facilityName ? `${locationName} (${facilityName})` : locationName
-					const selectedArtistNames = artistAssignments
-						.map(assignment => assignment.artist_name)
-						.filter(name => name && name !== 'Unknown')
+		if (!finalTitle) {
+			const facilityName = selectedLocation?.facility?.name || ''
 
-					if (selectedArtistNames.length === 0) {
-						finalTitle = `Event @ ${locationDisplay}`
-					} else if (selectedArtistNames.length === 1) {
-						finalTitle = `${selectedArtistNames[0]} @ ${locationDisplay}`
-					} else if (selectedArtistNames.length === 2) {
-						finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} @ ${locationDisplay}`
-					} else {
-						finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} @ ${locationDisplay}`
-					}
+			if (status === 'draft') {
+				if (facilityName) {
+					finalTitle = `Draft Event - ${facilityName}`
+				} else {
+					finalTitle = 'Draft Event'
+				}
+			} else {
+				const locationDisplay = facilityName || 'Unknown Facility'
+				const selectedArtistNames = artistAssignments
+					.map(assignment => assignment.artist_name)
+					.filter(name => name && name !== 'Unknown')
+
+				if (selectedArtistNames.length === 0) {
+					finalTitle = `Event - ${locationDisplay}`
+				} else if (selectedArtistNames.length === 1) {
+					finalTitle = `${selectedArtistNames[0]} - ${locationDisplay}`
+				} else if (selectedArtistNames.length === 2) {
+					finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} - ${locationDisplay}`
+				} else {
+					finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} - ${locationDisplay}`
 				}
 			}
+		}
 
 			// Ensure date exists (required for all events)
 			const eventDate = date || new Date().toISOString().split('T')[0]
@@ -231,8 +183,9 @@
 				...(notes && { notes }),
 				...(numberOfAttendees !== null && { number_of_attendees: numberOfAttendees }),
 				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
-				...(pmHours !== null && { pm_hours: pmHours }),
-				...(pmRate !== null && { pm_rate: pmRate }),
+			...(pmHours !== null && { pm_hours: pmHours }),
+			...(pmRate !== null && { pm_rate: pmRate }),
+			...(productionManagerContactId && { production_manager_contact_id: productionManagerContactId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -353,79 +306,57 @@
 				{/if}
 			</div>
 
-			<!-- Location -->
-			<div class="form-control" data-tour="location-selector">
-				<div class="flex flex-col sm:flex-row gap-2">
-					<div class="flex-1 min-w-0">
-						<FacilityLocationSelector
-							bind:this={locationSelectorRef}
-							value={locationId}
-							placeholder="Select facility and location"
-							disabled={submitting}
-							required
-							onchange={handleLocationChange}
-						/>
-					</div>
-					<button
-						type="button"
-						class="btn btn-outline btn-sm"
-						onclick={() => isCreateLocationModalOpen = true}
-						disabled={submitting}
-						title="Create new location"
-					>
-						<Plus class="w-4 h-4" />
-					</button>
-					<button
-						type="button"
-						class="btn btn-outline btn-sm"
-						onclick={() => isCreateFacilityModalOpen = true}
-						disabled={submitting}
-						title="Create new facility"
-					>
-						<Plus class="w-4 h-4" />
-						<span class="hidden sm:inline">Facility</span>
-					</button>
-				</div>
+		<!-- Location -->
+		<div class="form-control" data-tour="location-selector">
+			<FacilityLocationSelector
+				bind:this={locationSelectorRef}
+				value={locationId}
+				placeholder="Select facility and location"
+				disabled={submitting}
+				required
+				onchange={handleLocationChange}
+			/>
+		</div>
+
+		<!-- Date and Times -->
+		<div class="grid grid-cols-1 sm:grid-cols-3 gap-2" data-tour="date-time">
+			<div class="form-control min-w-0">
+				<label class="label">
+					<span class="label-text">Date <span class="text-error">*</span></span>
+				</label>
+				<input
+					type="date"
+					bind:value={date}
+					class="input input-bordered input-sm w-full"
+					required
+					disabled={submitting}
+					onfocus={() => onFieldFocus?.()}
+				/>
 			</div>
 
-			<!-- Date and Times -->
-			<div class="grid grid-cols-1 sm:grid-cols-3 gap-2" data-tour="date-time">
-				<div class="form-control">
-					<label class="label">
-						<span class="label-text">Date <span class="text-error">*</span></span>
-					</label>
-					<input
-						type="date"
-						bind:value={date}
-						class="input input-bordered input-sm w-full"
-						required
-						disabled={submitting}
-						onfocus={() => onFieldFocus?.()}
-					/>
-				</div>
+			<div class="form-control min-w-0">
+				<label class="label">
+					<span class="label-text">Start Time</span>
+				</label>
+				<TimePicker
+					bind:value={startTime}
+					disabled={submitting}
+					onfocus={() => onFieldFocus?.()}
+					error={!!timeError}
+				/>
+			</div>
 
-				<div class="form-control">
-					<label class="label">
-						<span class="label-text">Start Time</span>
-					</label>
-					<TimePicker
-						bind:value={startTime}
-						disabled={submitting}
-						onfocus={() => onFieldFocus?.()}
-						error={!!timeError}
-					/>
-				</div>
-
-				<div class="form-control">
-					<label class="label">
-						<span class="label-text">End Time</span>
-					</label>
-					<TimePicker
-						bind:value={endTime}
-						disabled={submitting || !startTime}
-						onfocus={() => onFieldFocus?.()}
-						error={!!timeError}
-					/>
+			<div class="form-control min-w-0">
+				<label class="label">
+					<span class="label-text">End Time</span>
+				</label>
+				<TimePicker
+					bind:value={endTime}
+					disabled={submitting || !startTime}
+					onfocus={() => onFieldFocus?.()}
+					error={!!timeError}
+					defaultPeriod="PM"
+				/>
 					{#if timeError}
 						<label class="label">
 							<span class="label-text-alt text-error">{timeError}</span>
@@ -509,9 +440,25 @@
 					/>
 				</div>
 
-				<!-- Production Manager Payroll Section -->
-				<div class="border-t border-base-300 pt-4 mt-4">
-					<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
+			<!-- Production Manager -->
+			<div class="border-t border-base-300 pt-4 mt-4">
+				<h4 class="font-medium text-sm mb-3">Production Manager</h4>
+				<div class="form-control mb-4">
+					<LocationContactSelector
+						value={productionManagerContactId}
+						locationId={locationId}
+						onchange={(contactId) => productionManagerContactId = contactId}
+						placeholder={locationId ? "Select a production manager (optional)" : "Select a location first"}
+						disabled={submitting || !locationId}
+					/>
+					{#if !locationId}
+						<label class="label">
+							<span class="label-text-alt text-warning">Select a facility/location first to see available contacts</span>
+						</label>
+					{/if}
+				</div>
+
+				<h5 class="font-medium text-sm mb-3">PM Payroll</h5>
 					<div class="grid grid-cols-3 gap-4">
 						<div class="form-control">
 							<label class="label">
@@ -595,24 +542,4 @@
 		</form>
 	</div>
 
-	<!-- Create Facility Modal -->
-	<CreateFacility
-		open={isCreateFacilityModalOpen}
-		on:close={() => {
-			isCreateFacilityModalOpen = false
-			newlyCreatedFacilityId = null
-		}}
-		on:success={handleFacilityCreated}
-	/>
-
-	<!-- Create Location Modal -->
-	<CreateLocation
-		open={isCreateLocationModalOpen}
-		facilityId={newlyCreatedFacilityId || undefined}
-		on:close={() => {
-			isCreateLocationModalOpen = false
-			newlyCreatedFacilityId = null
-		}}
-		on:success={handleLocationCreated}
-	/>
 </div>

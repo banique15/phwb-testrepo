@@ -475,33 +475,46 @@
 								{/if}
 							</div>
 
-							<div class="form-control">
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">Metropolitan Hub</span>
+							</label>
+							<input
+								type="text"
+								class="input input-bordered {formErrors.metropolitan_hub ? 'input-error' : ''}"
+								value={formData.metropolitan_hub || ''}
+								placeholder="Enter or select metropolitan hub"
+								list="metro-hub-options"
+								oninput={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
+							/>
+							<datalist id="metro-hub-options">
+								<option value="New York"></option>
+								<option value="Los Angeles"></option>
+								<option value="Chicago"></option>
+								<option value="Houston"></option>
+								<option value="Philadelphia"></option>
+								<option value="Phoenix"></option>
+								<option value="San Antonio"></option>
+								<option value="San Diego"></option>
+								<option value="Dallas"></option>
+								<option value="San Jose"></option>
+								<option value="Miami"></option>
+								<option value="Boston"></option>
+								<option value="Washington DC"></option>
+								<option value="Atlanta"></option>
+								<option value="San Francisco"></option>
+								<option value="Seattle"></option>
+								<option value="Denver"></option>
+								<option value="Nashville"></option>
+								<option value="Austin"></option>
+								<option value="Detroit"></option>
+							</datalist>
+							{#if formErrors.metropolitan_hub}
 								<label class="label">
-									<span class="label-text">Metropolitan Hub</span>
+									<span class="label-text-alt text-error">{formErrors.metropolitan_hub}</span>
 								</label>
-								<select 
-									class="select select-bordered {formErrors.metropolitan_hub ? 'select-error' : ''}"
-									value={formData.metropolitan_hub || ''}
-									onchange={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
-								>
-									<option value="">Select metropolitan hub</option>
-									<option value="New York">New York</option>
-									<option value="Los Angeles">Los Angeles</option>
-									<option value="Chicago">Chicago</option>
-									<option value="Houston">Houston</option>
-									<option value="Philadelphia">Philadelphia</option>
-									<option value="Phoenix">Phoenix</option>
-									<option value="San Antonio">San Antonio</option>
-									<option value="San Diego">San Diego</option>
-									<option value="Dallas">Dallas</option>
-									<option value="San Jose">San Jose</option>
-								</select>
-								{#if formErrors.metropolitan_hub}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.metropolitan_hub}</span>
-									</label>
-								{/if}
-							</div>
+							{/if}
+						</div>
 
 							<div class="form-control">
 								<MultiSelect
@@ -586,29 +599,59 @@
 							</div>
 						</div>
 
-						<div class="flex flex-col sm:flex-row gap-4 justify-center">
-							<div class="form-control">
-								<label class="label cursor-pointer">
-									<span class="label-text mr-4">Can Sight Read</span>
+					<div class="flex flex-col sm:flex-row gap-6 justify-center">
+						<div class="form-control">
+							<span class="label-text font-medium mb-2">Can Sight Read</span>
+							<div class="flex gap-4">
+								<label class="label cursor-pointer gap-2">
 									<input 
-										type="checkbox" 
-										class="toggle toggle-primary"
-										bind:checked={formData.sightreads}
+										type="radio" 
+										name="sightreads"
+										class="radio radio-primary radio-sm"
+										checked={formData.sightreads === true}
+										onchange={() => formData.sightreads = true}
 									/>
+									<span class="label-text">Yes</span>
 								</label>
-							</div>
-
-							<div class="form-control">
-								<label class="label cursor-pointer">
-									<span class="label-text mr-4">Can Be Soloist</span>
+								<label class="label cursor-pointer gap-2">
 									<input 
-										type="checkbox" 
-										class="toggle toggle-primary"
-										bind:checked={formData.can_be_soloist}
+										type="radio" 
+										name="sightreads"
+										class="radio radio-primary radio-sm"
+										checked={formData.sightreads === false}
+										onchange={() => formData.sightreads = false}
 									/>
+									<span class="label-text">No</span>
 								</label>
 							</div>
 						</div>
+
+						<div class="form-control">
+							<span class="label-text font-medium mb-2">Can Be Soloist</span>
+							<div class="flex gap-4">
+								<label class="label cursor-pointer gap-2">
+									<input 
+										type="radio" 
+										name="can_be_soloist"
+										class="radio radio-primary radio-sm"
+										checked={formData.can_be_soloist === true}
+										onchange={() => formData.can_be_soloist = true}
+									/>
+									<span class="label-text">Yes</span>
+								</label>
+								<label class="label cursor-pointer gap-2">
+									<input 
+										type="radio" 
+										name="can_be_soloist"
+										class="radio radio-primary radio-sm"
+										checked={formData.can_be_soloist === false}
+										onchange={() => formData.can_be_soloist = false}
+									/>
+									<span class="label-text">No</span>
+								</label>
+							</div>
+						</div>
+					</div>
 					</div>
 				{/if}
 

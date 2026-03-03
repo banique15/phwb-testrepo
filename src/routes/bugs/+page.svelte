@@ -170,12 +170,12 @@
 	function getStatusBadgeClass(status: BugType['status']): string {
 		const classes: Record<string, string> = {
 			new: 'badge-info',
-			triage: 'badge-warning',
+			planning: 'badge-warning',
 			in_progress: 'badge-primary',
 			testing: 'badge-secondary',
+			review: 'badge-accent',
 			resolved: 'badge-success',
-			closed: 'badge-neutral',
-			reopened: 'badge-error'
+			closed: 'badge-neutral'
 		}
 		return classes[status] || 'badge-neutral'
 	}
@@ -183,12 +183,12 @@
 	function getStatusLabel(status: BugType['status']): string {
 		const labels: Record<string, string> = {
 			new: 'New',
-			triage: 'Triage',
+			planning: 'Planning',
 			in_progress: 'In Progress',
 			testing: 'Testing',
+			review: 'Review',
 			resolved: 'Resolved',
-			closed: 'Closed',
-			reopened: 'Reopened'
+			closed: 'Closed'
 		}
 		return labels[status] || status
 	}
@@ -207,20 +207,6 @@
 		return priority.charAt(0).toUpperCase() + priority.slice(1)
 	}
 
-	function getSeverityBadgeClass(severity: BugType['severity']): string {
-		const classes: Record<string, string> = {
-			cosmetic: 'badge-outline',
-			minor: 'badge-info',
-			moderate: 'badge-warning',
-			major: 'badge-error',
-			critical: 'badge-error'
-		}
-		return classes[severity] || 'badge-neutral'
-	}
-
-	function getSeverityLabel(severity: BugType['severity']): string {
-		return severity.charAt(0).toUpperCase() + severity.slice(1)
-	}
 
 	function formatDate(dateString: string | undefined): string {
 		if (!dateString) return 'N/A'
@@ -263,12 +249,12 @@
 	const bugsByStatus = $derived.by(() => {
 		const grouped: Record<string, BugType[]> = {
 			new: [],
-			triage: [],
+			planning: [],
 			in_progress: [],
 			testing: [],
+			review: [],
 			resolved: [],
-			closed: [],
-			reopened: []
+			closed: []
 		}
 		
 		bugs.forEach(bug => {
@@ -290,7 +276,7 @@
 	})
 
 	// Status order for kanban columns
-	const statusOrder: BugType['status'][] = ['new', 'triage', 'in_progress', 'testing', 'resolved', 'closed', 'reopened']
+	const statusOrder: BugType['status'][] = ['new', 'planning', 'in_progress', 'testing', 'review', 'resolved', 'closed']
 
 	// Set up realtime subscription
 	onMount(() => {
@@ -315,7 +301,7 @@
 				
 				// Update statistics
 				statistics.total += 1
-				if (['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(newBug.status)) {
+				if (['new', 'planning', 'in_progress', 'testing', 'review'].includes(newBug.status)) {
 					statistics.open += 1
 				}
 				if (newBug.status === 'in_progress') {
@@ -358,7 +344,7 @@
 				// Update statistics based on status changes
 				if (oldStatus && oldStatus !== updatedBug.status) {
 					// Remove from old status
-					if (['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(oldStatus)) {
+					if (['new', 'planning', 'in_progress', 'testing', 'review'].includes(oldStatus)) {
 						statistics.open -= 1
 					}
 					if (oldStatus === 'in_progress') {
@@ -369,7 +355,7 @@
 					}
 					
 					// Add to new status
-					if (['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(updatedBug.status)) {
+					if (['new', 'planning', 'in_progress', 'testing', 'review'].includes(updatedBug.status)) {
 						statistics.open += 1
 					}
 					if (updatedBug.status === 'in_progress') {
@@ -415,7 +401,7 @@
 				
 				// Update statistics
 				statistics.total -= 1
-				if (['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(deletedBug.status)) {
+				if (['new', 'planning', 'in_progress', 'testing', 'review'].includes(deletedBug.status)) {
 					statistics.open -= 1
 				}
 				if (deletedBug.status === 'in_progress') {
@@ -454,7 +440,7 @@
 			<div>
 				<h1 class="text-3xl font-bold flex items-center gap-2">
 					<Bug class="w-8 h-8" />
-					Bug Reports
+					Issues
 				</h1>
 				<p class="text-base-content/60 mt-1">
 					{statistics.total} total • {statistics.open} open • {statistics.inProgress} in progress
@@ -499,7 +485,7 @@
 					onclick={() => showCreateForm = true}
 				>
 					<Plus class="w-5 h-5" />
-					Report Bug
+					New Issue
 				</button>
 			</div>
 		</div>
@@ -514,7 +500,7 @@
 						<input
 							type="text"
 							class="grow"
-							placeholder="Search bugs..."
+							placeholder="Search issues..."
 							bind:value={searchQuery}
 							oninput={() => updateFilters(true)}
 						/>
@@ -528,27 +514,27 @@
 				>
 					<Filter class="w-4 h-4" />
 					Filters
-					{#if statusFilter || priorityFilter || severityFilter || categoryFilter || assignedToFilter || reportedByFilter}
+					{#if statusFilter || priorityFilter || categoryFilter || assignedToFilter || reportedByFilter}
 						<span class="badge badge-sm badge-primary ml-2">
-							{[statusFilter, priorityFilter, severityFilter, categoryFilter, assignedToFilter, reportedByFilter].filter(Boolean).length}
+							{[statusFilter, priorityFilter, categoryFilter, assignedToFilter, reportedByFilter].filter(Boolean).length}
 						</span>
 					{/if}
 				</button>
 			</div>
 
-			<!-- Expanded Filters -->
+				<!-- Expanded Filters -->
 			{#if showFilters}
-				<div class="mt-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+				<div class="mt-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
 					<!-- Status Filter -->
 					<select class="select select-bordered" bind:value={statusFilter} onchange={updateFilters}>
 						<option value="">All Statuses</option>
 						<option value="new">New</option>
-						<option value="triage">Triage</option>
+						<option value="planning">Planning</option>
 						<option value="in_progress">In Progress</option>
 						<option value="testing">Testing</option>
+						<option value="review">Review</option>
 						<option value="resolved">Resolved</option>
 						<option value="closed">Closed</option>
-						<option value="reopened">Reopened</option>
 					</select>
 
 					<!-- Priority Filter -->
@@ -557,16 +543,6 @@
 						<option value="low">Low</option>
 						<option value="medium">Medium</option>
 						<option value="high">High</option>
-						<option value="critical">Critical</option>
-					</select>
-
-					<!-- Severity Filter -->
-					<select class="select select-bordered" bind:value={severityFilter} onchange={updateFilters}>
-						<option value="">All Severities</option>
-						<option value="cosmetic">Cosmetic</option>
-						<option value="minor">Minor</option>
-						<option value="moderate">Moderate</option>
-						<option value="major">Major</option>
 						<option value="critical">Critical</option>
 					</select>
 
@@ -597,7 +573,7 @@
 				</div>
 
 				<!-- Clear Filters -->
-				{#if statusFilter || priorityFilter || severityFilter || categoryFilter || assignedToFilter || reportedByFilter}
+				{#if statusFilter || priorityFilter || categoryFilter || assignedToFilter || reportedByFilter}
 					<div class="mt-4">
 						<button class="btn btn-sm btn-ghost" onclick={clearFilters}>
 							<X class="w-4 h-4" />
@@ -611,7 +587,7 @@
 		<!-- Bulk Actions -->
 		{#if selectedBugs.size > 0}
 			<div class="bg-primary/10 border border-primary rounded-lg p-4 mb-6 flex items-center justify-between">
-				<span class="font-medium">{selectedBugs.size} bug{selectedBugs.size === 1 ? '' : 's'} selected</span>
+				<span class="font-medium">{selectedBugs.size} issue{selectedBugs.size === 1 ? '' : 's'} selected</span>
 				<div class="flex gap-2">
 					<button class="btn btn-sm btn-ghost" onclick={clearSelection}>Clear</button>
 					<button class="btn btn-sm btn-primary">Bulk Actions</button>
@@ -619,23 +595,23 @@
 			</div>
 		{/if}
 
-		<!-- Bugs List -->
+		<!-- Issues List -->
 		{#if bugs.length === 0}
 			<div class="flex-1 flex items-center justify-center bg-base-200 rounded-lg p-12">
 				<div class="text-center">
 					<Bug class="w-16 h-16 mx-auto text-base-content/30 mb-4" />
-					<p class="text-lg font-medium mb-2">No bugs found</p>
+					<p class="text-lg font-medium mb-2">No issues found</p>
 					<p class="text-base-content/60 mb-4">
 						{#if searchQuery || statusFilter || priorityFilter}
 							Try adjusting your filters
 						{:else}
-							Get started by reporting your first bug
+							Get started by creating your first issue
 						{/if}
 					</p>
 					{#if !searchQuery && !statusFilter && !priorityFilter}
 						<button class="btn btn-primary" onclick={() => showCreateForm = true}>
 							<Plus class="w-5 h-5" />
-							Report Bug
+							New Issue
 						</button>
 					{/if}
 				</div>
@@ -695,13 +671,10 @@
 												</p>
 											{/if}
 											
-											<!-- Priority and Severity -->
+											<!-- Priority -->
 											<div class="flex flex-wrap gap-1 mb-2">
 												<span class="badge badge-xs {getPriorityBadgeClass(bug.priority)}">
 													{getPriorityLabel(bug.priority)}
-												</span>
-												<span class="badge badge-xs {getSeverityBadgeClass(bug.severity)}">
-													{getSeverityLabel(bug.severity)}
 												</span>
 											</div>
 											
@@ -732,7 +705,7 @@
 									</div>
 								{:else}
 									<div class="text-center text-base-content/40 py-8">
-										<p class="text-sm">No bugs in this status</p>
+										<p class="text-sm">No issues in this status</p>
 									</div>
 								{/each}
 							</div>
@@ -775,9 +748,6 @@
 											</span>
 											<span class="badge badge-sm {getPriorityBadgeClass(bug.priority)}">
 												{getPriorityLabel(bug.priority)}
-											</span>
-											<span class="badge badge-sm {getSeverityBadgeClass(bug.severity)}">
-												{getSeverityLabel(bug.severity)}
 											</span>
 										</div>
 									</div>
@@ -869,7 +839,6 @@
 								<th>Title</th>
 								<th>Status</th>
 								<th>Priority</th>
-								<th>Severity</th>
 								<th>Assigned To</th>
 								<th>Reported By</th>
 								<th>Category</th>
@@ -912,11 +881,6 @@
 									<td>
 										<span class="badge badge-sm {getPriorityBadgeClass(bug.priority)}">
 											{getPriorityLabel(bug.priority)}
-										</span>
-									</td>
-									<td>
-										<span class="badge badge-sm {getSeverityBadgeClass(bug.severity)}">
-											{getSeverityLabel(bug.severity)}
 										</span>
 									</td>
 									<td>

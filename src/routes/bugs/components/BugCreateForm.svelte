@@ -119,7 +119,7 @@
 		<div class="bg-base-100 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4" onclick={(e) => e.stopPropagation()}>
 			<!-- Header -->
 			<div class="flex items-center justify-between p-6 border-b border-base-300">
-				<h2 class="text-2xl font-bold">Report New Bug</h2>
+				<h2 class="text-2xl font-bold">Create New Issue</h2>
 				<button class="btn btn-sm btn-circle btn-ghost" onclick={handleClose}>
 					<X class="w-5 h-5" />
 				</button>
@@ -168,58 +168,30 @@
 					{/if}
 				</div>
 
-				<!-- Priority and Severity -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text font-medium">Priority</span>
-						</label>
-						<select class="select select-bordered" bind:value={formData.priority}>
-							<option value="low">Low</option>
-							<option value="medium">Medium</option>
-							<option value="high">High</option>
-							<option value="critical">Critical</option>
-						</select>
-					</div>
-
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text font-medium">Severity</span>
-						</label>
-						<select class="select select-bordered" bind:value={formData.severity}>
-							<option value="cosmetic">Cosmetic</option>
-							<option value="minor">Minor</option>
-							<option value="moderate">Moderate</option>
-							<option value="major">Major</option>
-							<option value="critical">Critical</option>
-						</select>
-					</div>
+				<!-- Priority -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text font-medium">Priority</span>
+					</label>
+					<select class="select select-bordered" bind:value={formData.priority}>
+						<option value="low">Low - Minor issue, can be addressed later</option>
+						<option value="medium">Medium - Should be fixed soon</option>
+						<option value="high">High - Important, needs attention quickly</option>
+						<option value="critical">Critical - Urgent, blocks work or major impact</option>
+					</select>
 				</div>
 
-				<!-- Category and Status -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text font-medium">Category</span>
-						</label>
-						<input
-							type="text"
-							class="input input-bordered"
-							placeholder="e.g., UI, Backend, Database, API"
-							bind:value={formData.category}
-						/>
-					</div>
-
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text font-medium">Status</span>
-						</label>
-						<select class="select select-bordered" bind:value={formData.status}>
-							<option value="new">New</option>
-							<option value="triage">Triage</option>
-							<option value="in_progress">In Progress</option>
-						</select>
-					</div>
+				<!-- Category -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text font-medium">Category</span>
+					</label>
+					<input
+						type="text"
+						class="input input-bordered"
+						placeholder="e.g., UI, Backend, Database, API"
+						bind:value={formData.category}
+					/>
 				</div>
 
 				<!-- Assignee and Due Date -->
@@ -254,7 +226,7 @@
 						Cancel
 					</button>
 					<button type="submit" class="btn btn-primary" disabled={submitting}>
-						{submitting ? 'Creating...' : 'Create Bug'}
+						{submitting ? 'Creating...' : 'Create Issue'}
 					</button>
 				</div>
 			</form>

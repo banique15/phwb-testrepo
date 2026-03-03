@@ -182,8 +182,8 @@
 							<tr>
 								<th>Date</th>
 								<th>Artist ID</th>
-								<th>Hours</th>
-								<th>Rate</th>
+							<th>Duration</th>
+							<th>Rate</th>
 								<th>Amount</th>
 								<th>Status</th>
 							</tr>

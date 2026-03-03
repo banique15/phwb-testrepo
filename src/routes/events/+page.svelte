@@ -12,7 +12,7 @@
 	import ScheduleDisplay from './components/ScheduleDisplay.svelte'
 	import RequirementsDisplay from './components/RequirementsDisplay.svelte'
 	import EventsSearchFilters from './components/EventsSearchFilters.svelte'
-	import CalendarView from './components/CalendarView.svelte'
+	import UiCalendar from '$lib/components/ui/Calendar.svelte'
 	import EventHeaderCard from './components/EventHeaderCard.svelte'
 	import EventTabs from './components/EventTabs.svelte'
 	import EventCreateForm from './components/EventCreateForm.svelte'
@@ -55,6 +55,7 @@
 	let showCreateModal = $state(false)
 	let showCreateForm = $state(false)
 	let showDeleteModal = $state(false)
+	let createFormInitialDate = $state<string | undefined>(undefined)
 	
 	let eventArtistsCount = $state(0)
 
@@ -585,6 +586,24 @@
 		return result
 	})
 
+	// Calendar event shape for UiCalendar (week + month, time-slot create)
+	let calendarEvents = $derived.by(() =>
+		filteredEvents.map((e: EnhancedEvent) => ({
+			id: e.id!,
+			title: e.title || '',
+			date: e.date || '',
+			start_time: e.start_time ?? null,
+			end_time: e.end_time ?? null,
+			status: e.status || '',
+			program_id: (e as any).program ?? null,
+			program_name: e.program_name ?? null
+		}))
+	)
+
+	function handleCalendarEventCreated(createdEvent: EnhancedEvent) {
+		newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
+	}
+
 	// Derive selected events from filtered events (must be after filteredEvents is defined)
 	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
 
@@ -675,7 +694,22 @@
 	// Modal handlers
 	function openCreateModal() {
 		selectedEvent = null
+		createFormInitialDate = undefined
 		showCreateForm = true
+	}
+
+	function openCreateModalForDate(dateStr: string) {
+		selectedEvent = null
+		createFormInitialDate = dateStr
+		showCreateForm = true
+	}
+
+	function closeCalendarPanel() {
+		selectedEvent = null
+		showCreateForm = false
+		createFormInitialDate = undefined
+		rightPanelWidth = DEFAULT_PANEL_WIDTH
+		rightPanelExpanded = false
 	}
 	
 	function closeCreateModal() {
@@ -808,8 +842,8 @@
 				<div class="flex-none px-4 py-2 bg-base-100 border-b border-base-200">
 					<div class="flex items-center justify-between">
 						<div>
-							<h1 class="text-xl font-bold leading-tight">Events - Calendar View</h1>
-							<p class="text-sm opacity-70">View events in calendar format</p>
+							<h1 class="text-xl font-bold leading-tight">Events - Calendar</h1>
+							<p class="text-sm opacity-70">Week and month view — click a time slot or day to create</p>
 						</div>
 						<div class="flex gap-2">
 							<button
@@ -822,7 +856,11 @@
 								</svg>
 								List View
 							</button>
-							<button class="btn btn-primary btn-sm" onclick={openCreateModal}>
+							<button
+								class="btn btn-primary btn-sm"
+								onclick={() => showCreateModal = true}
+								title="Create event (or click a time slot in the calendar)"
+							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 								</svg>
@@ -831,129 +869,11 @@
 						</div>
 					</div>
 				</div>
-				<div class="flex-1 min-h-0 p-6">
-					<div class="flex flex-col lg:flex-row gap-0 h-full min-h-0 relative">
-						<!-- Calendar -->
-						<div 
-							class="h-full transition-all duration-300 ease-in-out {showCreateForm || selectedEvent ? 'hidden lg:block' : ''}"
-							style="width: {rightPanelExpanded || showCreateForm || selectedEvent ? `calc(100% - ${rightPanelWidth}% - 0.5rem)` : '100%'};"
-						>
-							<div class="card bg-base-100 shadow-xl h-full">
-								<div class="card-body">
-									<CalendarView
-										events={filteredEvents}
-										{selectedEvent}
-										onSelectEvent={selectEvent}
-									/>
-								</div>
-							</div>
-						</div>
-
-						<!-- Resize Handle -->
-						{#if (showCreateForm || selectedEvent) && browser}
-							<div
-								class="hidden lg:flex w-2 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors group relative z-10"
-								onmousedown={(e) => {
-									e.preventDefault()
-									const startX = e.clientX
-									const startWidth = rightPanelWidth
-									const container = (e.currentTarget as HTMLElement).parentElement
-									if (!container) return
-									
-									const handleMouseMove = (moveEvent: MouseEvent) => {
-										const deltaX = moveEvent.clientX - startX
-										const containerWidth = container.offsetWidth
-										const deltaPercent = (deltaX / containerWidth) * 100
-										const newWidth = Math.max(25, Math.min(MAX_PANEL_WIDTH, startWidth - deltaPercent))
-										rightPanelWidth = newWidth
-										rightPanelExpanded = newWidth > DEFAULT_PANEL_WIDTH
-									}
-									
-									const handleMouseUp = () => {
-										document.removeEventListener('mousemove', handleMouseMove)
-										document.removeEventListener('mouseup', handleMouseUp)
-									}
-									
-									document.addEventListener('mousemove', handleMouseMove)
-									document.addEventListener('mouseup', handleMouseUp)
-								}}
-								title="Drag to resize"
-							>
-								<div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 bg-base-300 group-hover:bg-primary rounded"></div>
-							</div>
-						{/if}
-
-						<!-- Detail View (if event selected or creating new event) -->
-						{#if showCreateForm || selectedEvent}
-							<div 
-								class="h-full transition-all duration-300 ease-in-out flex-shrink-0 w-full lg:w-auto"
-								style="width: {`${rightPanelWidth}%`}; min-width: {MIN_PANEL_WIDTH}px;"
-							>
-								<div class="card bg-base-100 shadow-xl h-full flex flex-col min-h-0">
-									<div class="card-body flex flex-col h-full min-h-0 p-4">
-										<!-- Expand/Collapse Toggle Button -->
-										<div class="flex justify-end mb-2">
-											<button
-												class="btn btn-ghost btn-xs btn-circle"
-												onclick={() => {
-													if (rightPanelExpanded) {
-														rightPanelWidth = DEFAULT_PANEL_WIDTH
-														rightPanelExpanded = false
-													} else {
-														rightPanelWidth = 50
-														rightPanelExpanded = true
-													}
-												}}
-												title={rightPanelExpanded ? 'Collapse panel' : 'Expand panel'}
-											>
-												<svg 
-													xmlns="http://www.w3.org/2000/svg" 
-													class="h-4 w-4" 
-													fill="none" 
-													viewBox="0 0 24 24" 
-													stroke="currentColor"
-													class:rotate-180={rightPanelExpanded}
-												>
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-												</svg>
-											</button>
-										</div>
-										<div class="overflow-y-auto flex-1 min-h-0">
-											{#if showCreateForm}
-												<EventCreateForm
-													onSuccess={handleCreateFormSuccess}
-													onCancel={handleCreateFormCancel}
-													onFieldFocus={() => {
-														if (!rightPanelExpanded) {
-															rightPanelWidth = 50
-															rightPanelExpanded = true
-														}
-													}}
-												/>
-											{:else if selectedEvent}
-												<!-- Header Card -->
-												<EventHeaderCard
-													event={selectedEvent}
-													artistsCount={eventArtistsCount}
-													onUpdateField={updateEventField}
-													onArtistCountClick={handleArtistCountClick}
-												/>
-
-												<!-- Tabs Section -->
-												<EventTabs
-													event={selectedEvent}
-													onUpdateField={updateEventField}
-													onDelete={openDeleteModal}
-													{externalActiveTab}
-													onEventUpdated={handleEventUpdated}
-												/>
-											{/if}
-										</div>
-									</div>
-								</div>
-							</div>
-						{/if}
-					</div>
+				<div class="flex-1 min-h-0 overflow-auto p-4">
+					<UiCalendar
+						events={calendarEvents}
+						onEventCreated={handleCalendarEventCreated}
+					/>
 				</div>
 			</div>
 		{:else}
@@ -1081,12 +1001,13 @@
 									<div class="flex flex-col h-full overflow-hidden">
 										<!-- Header Card -->
 										<div class="flex-none">
-											<EventHeaderCard
-												event={event}
-												artistsCount={eventArtistsCount}
-												onUpdateField={updateEventField}
-												onArtistCountClick={handleArtistCountClick}
-											/>
+										<EventHeaderCard
+											event={event}
+											artistsCount={eventArtistsCount}
+											onUpdateField={updateEventField}
+											onArtistCountClick={handleArtistCountClick}
+											onDelete={openDeleteModal}
+										/>
 										</div>
 
 										<!-- Tabs Section -->

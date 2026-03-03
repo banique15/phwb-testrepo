@@ -199,9 +199,10 @@ export const load: PageServerLoad = async ({ locals, url, setHeaders }) => {
 		}
 		
 		// Calculate statistics from all bugs
+		// Open statuses: new, planning, in_progress, testing, review
 		const statistics = {
 			total: allBugsForStats.length || 0,
-			open: allBugsForStats.filter((b: any) => ['new', 'triage', 'in_progress', 'testing', 'reopened'].includes(b.status)).length || 0,
+			open: allBugsForStats.filter((b: any) => ['new', 'planning', 'in_progress', 'testing', 'review'].includes(b.status)).length || 0,
 			inProgress: allBugsForStats.filter((b: any) => b.status === 'in_progress').length || 0,
 			resolved: allBugsForStats.filter((b: any) => b.status === 'resolved').length || 0
 		}

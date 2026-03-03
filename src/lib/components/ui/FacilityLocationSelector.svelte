@@ -257,14 +257,17 @@
 				</span>
 			</label>
 			<div class="flex gap-2">
-				<select
-					class="select select-bordered flex-1 {error ? 'select-error' : ''}"
-					bind:value={selectedFacilityId}
-					onchange={(e) => handleFacilityChange(e.target.value ? Number(e.target.value) : null)}
-					{disabled}
-					{required}
-				>
-					<option value={null}>Select a facility...</option>
+			<select
+				class="select select-bordered flex-1 {error ? 'select-error' : ''}"
+				onchange={(e) => {
+					const val = (e.target as HTMLSelectElement).value
+					handleFacilityChange(val ? Number(val) : null)
+				}}
+				{disabled}
+				{required}
+				value={selectedFacilityId ?? ''}
+			>
+				<option value="">Select a facility...</option>
 					{#if isLoadingFacilities}
 						<option disabled>Loading facilities...</option>
 					{:else}
@@ -293,21 +296,24 @@
 				</span>
 			</label>
 			<div class="flex gap-2">
-				<select
-					class="select select-bordered flex-1 {error ? 'select-error' : ''}"
-					bind:value={selectedLocationId}
-					onchange={(e) => handleLocationChange(e.target.value ? Number(e.target.value) : null)}
-					disabled={disabled || !selectedFacilityId || isLoadingLocations}
-					{required}
-				>
-					{#if !selectedFacilityId}
-						<option value={null}>Select a facility first...</option>
-					{:else if isLoadingLocations}
-						<option disabled>Loading locations...</option>
-					{:else if locations.length === 0}
-						<option value={null}>No locations available</option>
-					{:else}
-						<option value={null}>Select a location...</option>
+			<select
+				class="select select-bordered flex-1 {error ? 'select-error' : ''}"
+				onchange={(e) => {
+					const val = (e.target as HTMLSelectElement).value
+					handleLocationChange(val ? Number(val) : null)
+				}}
+				disabled={disabled || !selectedFacilityId || isLoadingLocations}
+				{required}
+				value={selectedLocationId ?? ''}
+			>
+				{#if !selectedFacilityId}
+					<option value="">Select a facility first...</option>
+				{:else if isLoadingLocations}
+					<option disabled>Loading locations...</option>
+				{:else if locations.length === 0}
+					<option value="">No locations available</option>
+				{:else}
+					<option value="">Select a location...</option>
 						{#each locations as location}
 							<option value={location.id}>
 								{location.name}
