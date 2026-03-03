@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { ChevronRight, ChevronLeft, Users, Search, Edit2, X } from 'lucide-svelte'
+	import { ChevronRight, ChevronLeft, Users, Search, Edit2, X, UserPlus } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
 	import type { Artist } from '$lib/schemas/artist'
 	import type { Ensemble } from '$lib/schemas/ensemble'
+	import CreateArtist from '../../routes/artists/components/modals/CreateArtist.svelte'
 
 	export interface ArtistAssignment {
 		artist_id: string
@@ -55,6 +56,7 @@
 	let showAssignmentModal = $state(false)
 	let modalAssignment = $state<ArtistAssignment | null>(null)
 	let viewMode = $state<'artists' | 'ensembles'>('artists') // Toggle between artists and ensembles
+	let showCreateArtistModal = $state(false)
 
 	// Role options
 	const roleOptions = [
@@ -569,6 +571,16 @@
 	const canSyncHours = $derived(eventStartTime && eventEndTime && localAssignments.length > 0)
 	const eventDuration = $derived(calculateEventDuration())
 
+	async function handleNewArtistCreated(data: { artist: any }) {
+		showCreateArtistModal = false
+		await loadAllArtists()
+
+		const newArtist = data?.artist
+		if (newArtist?.id) {
+			await assignArtist(newArtist.id)
+		}
+	}
+
 	function formatInstruments(instruments: any): string {
 		if (!instruments) return ''
 		if (Array.isArray(instruments)) {
@@ -632,14 +644,25 @@
 							Ensembles
 						</button>
 					</div>
-					<input
-						type="text"
-						bind:value={artistSearch}
-						placeholder={viewMode === 'ensembles' ? 'Search ensembles...' : 'Search artists...'}
-						class="input input-bordered input-sm w-full"
+				<input
+					type="text"
+					bind:value={artistSearch}
+					placeholder={viewMode === 'ensembles' ? 'Search ensembles...' : 'Search artists...'}
+					class="input input-bordered input-sm w-full"
+					disabled={updating || isLoading}
+				/>
+				{#if viewMode === 'artists' && !readonly}
+					<button
+						type="button"
+						class="btn btn-sm btn-outline btn-primary w-full gap-1"
+						onclick={() => showCreateArtistModal = true}
 						disabled={updating || isLoading}
-					/>
-				</div>
+					>
+						<UserPlus class="w-3.5 h-3.5" />
+						New Artist
+					</button>
+				{/if}
+			</div>
 				<div class="overflow-y-auto flex-1 min-h-0">
 					{#if isLoading}
 						<div class="flex justify-center items-center py-8">
@@ -647,13 +670,23 @@
 						</div>
 					{:else if availableItems.length === 0}
 						<div class="p-4 text-center text-sm text-base-content/60">
-							{#if artistSearch}
-								No {viewMode === 'ensembles' ? 'ensembles' : 'artists'} found matching "{artistSearch}"
-							{:else if viewMode === 'ensembles'}
-								No ensembles available
-							{:else}
-								All artists are assigned
+					{#if artistSearch}
+							No {viewMode === 'ensembles' ? 'ensembles' : 'artists'} found matching "{artistSearch}"
+							{#if viewMode === 'artists' && !readonly}
+								<button
+									type="button"
+									class="btn btn-sm btn-primary mt-2 gap-1"
+									onclick={() => showCreateArtistModal = true}
+								>
+									<UserPlus class="w-3.5 h-3.5" />
+									Create "{artistSearch}"
+								</button>
 							{/if}
+						{:else if viewMode === 'ensembles'}
+							No ensembles available
+						{:else}
+							All artists are assigned
+						{/if}
 						</div>
 					{:else}
 						{#each availableItems as item}
@@ -1231,3 +1264,10 @@
 		</form>
 	</div>
 {/if}
+
+<!-- Create Artist Modal -->
+<CreateArtist
+	open={showCreateArtistModal}
+	onClose={() => showCreateArtistModal = false}
+	onSuccess={handleNewArtistCreated}
+/>

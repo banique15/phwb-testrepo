@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte'
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import MultiSelect from '$lib/components/ui/MultiSelect.svelte'
 	import { GENRE_OPTIONS, INSTRUMENT_OPTIONS } from '$lib/utils/artist-options'
@@ -9,14 +8,11 @@
 
 	interface Props {
 		open?: boolean
+		onClose?: () => void
+		onSuccess?: (data: { artist: any }) => void
 	}
 
-	let { open = false }: Props = $props()
-
-	const dispatch = createEventDispatcher<{
-		close: void
-		success: { artist: any }
-	}>()
+	let { open = false, onClose, onSuccess }: Props = $props()
 
 	// Form state
 	let formData = $state<CreateArtist>({
@@ -220,8 +216,8 @@
 
 			const newArtist = await createArtist(sanitizedData)
 			
-			dispatch('success', { artist: newArtist })
-			dispatch('close')
+			onSuccess?.({ artist: newArtist })
+			onClose?.()
 			resetForm()
 		} catch (error) {
 			console.error('Failed to create artist:', error)
@@ -237,7 +233,7 @@
 				showUnsavedWarning = true
 			} else {
 				resetForm()
-				dispatch('close')
+				onClose?.()
 			}
 		}
 	}
@@ -245,7 +241,7 @@
 	function confirmClose() {
 		showUnsavedWarning = false
 		resetForm()
-		dispatch('close')
+		onClose?.()
 	}
 
 	function cancelClose() {
@@ -261,17 +257,18 @@
 
 <!-- Main Create Artist Modal -->
 <div class="modal" class:modal-open={open}>
-	<div class="modal-box w-full max-w-5xl max-h-[90vh] p-0">
+	<div class="modal-box w-full max-w-2xl max-h-[90vh] p-0 flex flex-col">
 		<!-- Header -->
-		<div class="flex items-center justify-between px-6 py-4 border-b border-base-200">
+		<div class="flex items-center justify-between px-6 py-4 border-b border-base-200 flex-shrink-0">
 			<div>
 				<h3 class="text-lg font-semibold">Add New Artist</h3>
 				<p class="text-sm text-base-content/60">Step {currentStep} of {steps.length}</p>
 			</div>
-			<button 
-				class="btn btn-sm btn-circle btn-ghost" 
+			<button
+				class="btn btn-sm btn-circle btn-ghost"
 				onclick={handleClose}
 				disabled={isLoading}
+				aria-label="Close"
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -280,7 +277,7 @@
 		</div>
 
 		<!-- Steps Progress -->
-		<div class="px-6 py-4 bg-base-50">
+		<div class="px-6 py-3 border-b border-base-200 flex-shrink-0">
 			<ul class="steps steps-horizontal w-full">
 				{#each steps as step}
 					<li class="step" class:step-primary={currentStep >= step.id}>
@@ -294,10 +291,10 @@
 		</div>
 
 		<!-- Form Content -->
-		<div class="flex-1 px-6 py-4 overflow-y-auto">
-			<form onsubmit={handleSubmit} class="space-y-6">
+		<div class="flex-1 overflow-y-auto px-6 py-5">
+			<form onsubmit={handleSubmit}>
 				{#if submitError}
-					<div class="alert alert-error">
+					<div class="alert alert-error mb-5">
 						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
@@ -307,137 +304,109 @@
 
 				<!-- Step 1: Basic Information -->
 				{#if currentStep === 1}
-					<div class="space-y-6">
-						<div class="text-center">
-							<h2 class="text-2xl font-bold mb-2">Basic Information</h2>
-							<p class="text-base-content/60 mb-6">Let's start with the essential details</p>
+					<div class="space-y-5">
+						<div>
+							<h2 class="text-lg font-bold">Basic Information</h2>
+							<p class="text-sm text-base-content/60">Let's start with the essential details</p>
 						</div>
 
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Legal First Name <span class="text-error">*</span></span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.legal_first_name ? 'input-error' : ''}"
+						<div class="grid grid-cols-2 gap-x-4 gap-y-4">
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Legal First Name <span class="text-error">*</span></span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.legal_first_name ? 'input-error' : ''}"
 									value={formData.legal_first_name || ''}
 									oninput={(e) => handleInputChange('legal_first_name', e.currentTarget.value)}
 									placeholder="Enter legal first name"
 									required
 								/>
 								{#if formErrors.legal_first_name}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.legal_first_name}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.legal_first_name}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Legal Last Name</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.legal_last_name ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Legal Last Name</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.legal_last_name ? 'input-error' : ''}"
 									value={formData.legal_last_name || ''}
 									oninput={(e) => handleInputChange('legal_last_name', e.currentTarget.value)}
 									placeholder="Enter legal last name"
 								/>
 								{#if formErrors.legal_last_name}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.legal_last_name}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.legal_last_name}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Full Name</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.full_name ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Full Name</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.full_name ? 'input-error' : ''}"
 									value={formData.full_name || ''}
 									oninput={(e) => handleInputChange('full_name', e.currentTarget.value)}
 									placeholder="Auto-filled from legal names"
 								/>
 								{#if formErrors.full_name}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.full_name}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.full_name}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Artist/Stage Name</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.artist_name ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Artist/Stage Name</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.artist_name ? 'input-error' : ''}"
 									value={formData.artist_name || ''}
 									oninput={(e) => handleInputChange('artist_name', e.currentTarget.value)}
 									placeholder="Enter stage or artist name"
 								/>
 								{#if formErrors.artist_name}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.artist_name}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.artist_name}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Email <span class="text-error">*</span></span>
-								</label>
-								<input 
-									type="email" 
-									class="input input-bordered {formErrors.email ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Email</span>
+								<input
+									type="email"
+									class="input input-bordered w-full {formErrors.email ? 'input-error' : ''}"
 									value={formData.email || ''}
 									oninput={(e) => handleInputChange('email', e.currentTarget.value)}
 									placeholder="artist@example.com"
 								/>
 								{#if formErrors.email}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.email}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.email}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Phone</span>
-								</label>
-								<input 
-									type="tel" 
-									class="input input-bordered {formErrors.phone ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Phone</span>
+								<input
+									type="tel"
+									class="input input-bordered w-full {formErrors.phone ? 'input-error' : ''}"
 									value={formData.phone || ''}
 									oninput={(e) => handleInputChange('phone', e.currentTarget.value)}
 									placeholder="+1 (555) 123-4567"
 								/>
 								{#if formErrors.phone}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.phone}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.phone}</span>
 								{/if}
 							</div>
 
-							<div class="form-control md:col-span-2">
-								<label class="label">
-									<span class="label-text">Location</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.location ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1 col-span-2">
+								<span class="text-sm font-medium">Location</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.location ? 'input-error' : ''}"
 									value={formData.location || ''}
 									oninput={(e) => handleInputChange('location', e.currentTarget.value)}
 									placeholder="City, State"
 								/>
 								{#if formErrors.location}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.location}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.location}</span>
 								{/if}
 							</div>
 						</div>
@@ -446,19 +415,17 @@
 
 				<!-- Step 2: Professional Information -->
 				{#if currentStep === 2}
-					<div class="space-y-6">
-						<div class="text-center">
-							<h2 class="text-2xl font-bold mb-2">Professional Information</h2>
-							<p class="text-base-content/60 mb-6">Tell us about your skills and background</p>
+					<div class="space-y-5">
+						<div>
+							<h2 class="text-lg font-bold">Professional Information</h2>
+							<p class="text-sm text-base-content/60">Tell us about skills and background</p>
 						</div>
 
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Employment Status <span class="text-error">*</span></span>
-								</label>
+						<div class="grid grid-cols-2 gap-x-4 gap-y-4">
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Employment Status <span class="text-error">*</span></span>
 								<select
-									class="select select-bordered {formErrors.employment_status ? 'select-error' : ''}"
+									class="select select-bordered w-full {formErrors.employment_status ? 'select-error' : ''}"
 									value={formData.employment_status || ''}
 									onchange={(e) => handleInputChange('employment_status', e.currentTarget.value)}
 									required
@@ -469,54 +436,48 @@
 									<option value="Trial">Trial</option>
 								</select>
 								{#if formErrors.employment_status}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.employment_status}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.employment_status}</span>
 								{/if}
 							</div>
 
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">Metropolitan Hub</span>
-							</label>
-							<input
-								type="text"
-								class="input input-bordered {formErrors.metropolitan_hub ? 'input-error' : ''}"
-								value={formData.metropolitan_hub || ''}
-								placeholder="Enter or select metropolitan hub"
-								list="metro-hub-options"
-								oninput={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
-							/>
-							<datalist id="metro-hub-options">
-								<option value="New York"></option>
-								<option value="Los Angeles"></option>
-								<option value="Chicago"></option>
-								<option value="Houston"></option>
-								<option value="Philadelphia"></option>
-								<option value="Phoenix"></option>
-								<option value="San Antonio"></option>
-								<option value="San Diego"></option>
-								<option value="Dallas"></option>
-								<option value="San Jose"></option>
-								<option value="Miami"></option>
-								<option value="Boston"></option>
-								<option value="Washington DC"></option>
-								<option value="Atlanta"></option>
-								<option value="San Francisco"></option>
-								<option value="Seattle"></option>
-								<option value="Denver"></option>
-								<option value="Nashville"></option>
-								<option value="Austin"></option>
-								<option value="Detroit"></option>
-							</datalist>
-							{#if formErrors.metropolitan_hub}
-								<label class="label">
-									<span class="label-text-alt text-error">{formErrors.metropolitan_hub}</span>
-								</label>
-							{/if}
-						</div>
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Metropolitan Hub</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.metropolitan_hub ? 'input-error' : ''}"
+									value={formData.metropolitan_hub || ''}
+									placeholder="Enter or select hub"
+									list="metro-hub-options"
+									oninput={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
+								/>
+								<datalist id="metro-hub-options">
+									<option value="New York"></option>
+									<option value="Los Angeles"></option>
+									<option value="Chicago"></option>
+									<option value="Houston"></option>
+									<option value="Philadelphia"></option>
+									<option value="Phoenix"></option>
+									<option value="San Antonio"></option>
+									<option value="San Diego"></option>
+									<option value="Dallas"></option>
+									<option value="San Jose"></option>
+									<option value="Miami"></option>
+									<option value="Boston"></option>
+									<option value="Washington DC"></option>
+									<option value="Atlanta"></option>
+									<option value="San Francisco"></option>
+									<option value="Seattle"></option>
+									<option value="Denver"></option>
+									<option value="Nashville"></option>
+									<option value="Austin"></option>
+									<option value="Detroit"></option>
+								</datalist>
+								{#if formErrors.metropolitan_hub}
+									<span class="text-xs text-error">{formErrors.metropolitan_hub}</span>
+								{/if}
+							</div>
 
-							<div class="form-control">
+							<div class="flex flex-col gap-1">
 								<MultiSelect
 									options={GENRE_OPTIONS}
 									selected={formData.genres || []}
@@ -528,13 +489,11 @@
 									label="Genres"
 								/>
 								{#if formErrors.genres}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.genres}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.genres}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
+							<div class="flex flex-col gap-1">
 								<MultiSelect
 									options={INSTRUMENT_OPTIONS}
 									selected={formData.instruments || []}
@@ -546,39 +505,29 @@
 									label="Instruments"
 								/>
 								{#if formErrors.instruments}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.instruments}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.instruments}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Languages</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.languages ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Languages</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.languages ? 'input-error' : ''}"
 									value={getArrayDisplayValue(formData.languages)}
 									oninput={(e) => handleArrayInput('languages', e.currentTarget.value)}
-									placeholder="English, Spanish, French (comma-separated)"
+									placeholder="English, Spanish, French"
 								/>
-								<label class="label">
-									<span class="label-text-alt">Separate multiple languages with commas</span>
-								</label>
+								<span class="text-xs text-base-content/50">Separate with commas</span>
 								{#if formErrors.languages}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.languages}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.languages}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Shirt Size</span>
-								</label>
-								<select 
-									class="select select-bordered {formErrors.shirt_size ? 'select-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Shirt Size</span>
+								<select
+									class="select select-bordered w-full {formErrors.shirt_size ? 'select-error' : ''}"
 									value={formData.shirt_size || ''}
 									onchange={(e) => handleInputChange('shirt_size', e.currentTarget.value || undefined)}
 								>
@@ -592,176 +541,115 @@
 									<option value="3XL">3XL</option>
 								</select>
 								{#if formErrors.shirt_size}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.shirt_size}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.shirt_size}</span>
 								{/if}
 							</div>
 						</div>
 
-					<div class="flex flex-col sm:flex-row gap-6 justify-center">
-						<div class="form-control">
-							<span class="label-text font-medium mb-2">Can Sight Read</span>
-							<div class="flex gap-4">
-								<label class="label cursor-pointer gap-2">
-									<input 
-										type="radio" 
-										name="sightreads"
-										class="radio radio-primary radio-sm"
-										checked={formData.sightreads === true}
-										onchange={() => formData.sightreads = true}
-									/>
-									<span class="label-text">Yes</span>
-								</label>
-								<label class="label cursor-pointer gap-2">
-									<input 
-										type="radio" 
-										name="sightreads"
-										class="radio radio-primary radio-sm"
-										checked={formData.sightreads === false}
-										onchange={() => formData.sightreads = false}
-									/>
-									<span class="label-text">No</span>
-								</label>
-							</div>
+						<div class="flex gap-6 pt-2 border-t border-base-200">
+							<label class="flex items-center gap-3 cursor-pointer">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									bind:checked={formData.sightreads}
+								/>
+								<span class="text-sm">Can Sight Read</span>
+							</label>
+							<label class="flex items-center gap-3 cursor-pointer">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									bind:checked={formData.can_be_soloist}
+								/>
+								<span class="text-sm">Can Be Soloist</span>
+							</label>
 						</div>
-
-						<div class="form-control">
-							<span class="label-text font-medium mb-2">Can Be Soloist</span>
-							<div class="flex gap-4">
-								<label class="label cursor-pointer gap-2">
-									<input 
-										type="radio" 
-										name="can_be_soloist"
-										class="radio radio-primary radio-sm"
-										checked={formData.can_be_soloist === true}
-										onchange={() => formData.can_be_soloist = true}
-									/>
-									<span class="label-text">Yes</span>
-								</label>
-								<label class="label cursor-pointer gap-2">
-									<input 
-										type="radio" 
-										name="can_be_soloist"
-										class="radio radio-primary radio-sm"
-										checked={formData.can_be_soloist === false}
-										onchange={() => formData.can_be_soloist = false}
-									/>
-									<span class="label-text">No</span>
-								</label>
-							</div>
-						</div>
-					</div>
 					</div>
 				{/if}
 
 				<!-- Step 3: Biography & Social -->
 				{#if currentStep === 3}
-					<div class="space-y-6">
-						<div class="text-center">
-							<h2 class="text-2xl font-bold mb-2">Biography & Social</h2>
-							<p class="text-base-content/60 mb-6">Share your story and online presence</p>
+					<div class="space-y-5">
+						<div>
+							<h2 class="text-lg font-bold">Biography & Social</h2>
+							<p class="text-sm text-base-content/60">Share the artist's story and online presence</p>
 						</div>
 
-						<div class="space-y-6">
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">One Sentence Bio</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.one_sentence_bio ? 'input-error' : ''}"
+						<div class="flex flex-col gap-4">
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">One Sentence Bio</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.one_sentence_bio ? 'input-error' : ''}"
 									value={formData.one_sentence_bio || ''}
 									oninput={(e) => handleInputChange('one_sentence_bio', e.currentTarget.value)}
 									placeholder="A brief one-sentence description of the artist"
 									maxlength="200"
 								/>
-								<label class="label">
-									<span class="label-text-alt">Maximum 200 characters</span>
-								</label>
+								<span class="text-xs text-base-content/50">Maximum 200 characters</span>
 								{#if formErrors.one_sentence_bio}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.one_sentence_bio}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.one_sentence_bio}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Full Bio</span>
-								</label>
-								<textarea 
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Full Bio</span>
+								<textarea
 									class="textarea textarea-bordered h-32 {formErrors.bio ? 'textarea-error' : ''}"
 									value={formData.bio || ''}
 									oninput={(e) => handleInputChange('bio', e.currentTarget.value)}
 									placeholder="Detailed biography of the artist"
 									maxlength="2000"
 								></textarea>
-								<label class="label">
-									<span class="label-text-alt">Maximum 2000 characters</span>
-								</label>
+								<span class="text-xs text-base-content/50">Maximum 2000 characters</span>
 								{#if formErrors.bio}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.bio}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.bio}</span>
 								{/if}
 							</div>
 						</div>
 
-						<div class="divider">Social & Web Presence</div>
-						
-						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Website</span>
-								</label>
-								<input 
-									type="url" 
-									class="input input-bordered {formErrors.website ? 'input-error' : ''}"
+						<div class="divider text-sm">Social & Web Presence</div>
+
+						<div class="grid grid-cols-3 gap-4">
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Website</span>
+								<input
+									type="url"
+									class="input input-bordered w-full {formErrors.website ? 'input-error' : ''}"
 									value={formData.website || ''}
 									oninput={(e) => handleInputChange('website', e.currentTarget.value)}
-									placeholder="https://artistwebsite.com"
+									placeholder="https://..."
 								/>
 								{#if formErrors.website}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.website}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.website}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Instagram Handle</span>
-								</label>
-								<input 
-									type="text" 
-									class="input input-bordered {formErrors.instagram ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Instagram</span>
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.instagram ? 'input-error' : ''}"
 									value={formData.instagram || ''}
 									oninput={(e) => handleInputChange('instagram', e.currentTarget.value)}
-									placeholder="username (without @)"
+									placeholder="username"
 								/>
 								{#if formErrors.instagram}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.instagram}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.instagram}</span>
 								{/if}
 							</div>
 
-							<div class="form-control">
-								<label class="label">
-									<span class="label-text">Facebook URL</span>
-								</label>
-								<input 
-									type="url" 
-									class="input input-bordered {formErrors.facebook ? 'input-error' : ''}"
+							<div class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Facebook</span>
+								<input
+									type="url"
+									class="input input-bordered w-full {formErrors.facebook ? 'input-error' : ''}"
 									value={formData.facebook || ''}
 									oninput={(e) => handleInputChange('facebook', e.currentTarget.value)}
-									placeholder="https://facebook.com/artist"
+									placeholder="https://..."
 								/>
 								{#if formErrors.facebook}
-									<label class="label">
-										<span class="label-text-alt text-error">{formErrors.facebook}</span>
-									</label>
+									<span class="text-xs text-error">{formErrors.facebook}</span>
 								{/if}
 							</div>
 						</div>
@@ -771,16 +659,16 @@
 		</div>
 
 		<!-- Footer with Navigation -->
-		<div class="flex items-center justify-between px-6 py-4 border-t border-base-200 bg-base-50">
-			<div class="flex items-center gap-4">
+		<div class="flex items-center justify-between px-6 py-4 border-t border-base-200 flex-shrink-0">
+			<div>
 				{#if currentStep > 1}
-					<button 
-						type="button" 
-						class="btn btn-outline" 
+					<button
+						type="button"
+						class="btn btn-outline btn-sm"
 						onclick={prevStep}
 						disabled={isLoading}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
 						</svg>
 						Previous
@@ -788,39 +676,39 @@
 				{/if}
 			</div>
 
-			<div class="flex items-center gap-4">
-				<button 
-					type="button" 
-					class="btn btn-ghost" 
+			<div class="flex items-center gap-3">
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
 					onclick={handleClose}
 					disabled={isLoading}
 				>
 					Cancel
 				</button>
-				
+
 				{#if currentStep < steps.length}
-					<button 
-						type="button" 
-						class="btn btn-primary" 
+					<button
+						type="button"
+						class="btn btn-primary btn-sm"
 						onclick={nextStep}
 						disabled={isLoading || !isStepCompleted(currentStep)}
 					>
 						Next
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 						</svg>
 					</button>
 				{:else}
-					<button 
+					<button
 						type="button"
-						class="btn btn-primary" 
+						class="btn btn-primary btn-sm"
 						onclick={handleSubmit}
 						disabled={isLoading || !formData.legal_first_name?.trim()}
 					>
 						{#if isLoading}
 							<span class="loading loading-spinner loading-sm"></span>
 						{:else}
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 							</svg>
 						{/if}

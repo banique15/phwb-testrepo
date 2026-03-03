@@ -5,7 +5,7 @@
 			totalUnpaid: number
 			totalPlanned: number
 			totalApproved: number
-			totalCompleted: number
+			totalCancelled: number
 			unreconciled: number
 			averagePayment: number
 		}

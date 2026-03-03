@@ -52,7 +52,7 @@
 		totalUnpaid: 0,
 		totalPlanned: 0,
 		totalApproved: 0,
-		totalCompleted: 0,
+		totalCancelled: 0,
 		unreconciled: 0,
 		averagePayment: 0
 	})
@@ -173,7 +173,7 @@
 		const paid = filteredEntries.filter(e => e.status === 'Paid')
 		const planned = filteredEntries.filter(e => e.status === 'Planned')
 		const approved = filteredEntries.filter(e => e.status === 'Approved')
-		const completed = filteredEntries.filter(e => e.status === 'Completed')
+		const cancelled = filteredEntries.filter(e => e.status === 'Cancelled')
 		const unreconciled = filteredEntries.filter(e => e.status === 'Paid' && !e.reconciled)
 		// "Unpaid" = entries that are not yet paid (Planned or Approved)
 		const unpaid = filteredEntries.filter(e => e.status === 'Planned' || e.status === 'Approved')
@@ -183,7 +183,7 @@
 			totalUnpaid: unpaid.reduce((sum, e) => sum + (e.total_pay || 0), 0),
 			totalPlanned: planned.reduce((sum, e) => sum + (e.total_pay || 0), 0),
 			totalApproved: approved.reduce((sum, e) => sum + (e.total_pay || 0), 0),
-			totalCompleted: completed.reduce((sum, e) => sum + (e.total_pay || 0), 0),
+			totalCancelled: cancelled.reduce((sum, e) => sum + (e.total_pay || 0), 0),
 			unreconciled: unreconciled.length,
 			averagePayment: filteredEntries.length > 0 ? filteredEntries.reduce((sum, e) => sum + (e.total_pay || 0), 0) / filteredEntries.length : 0
 		}

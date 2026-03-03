@@ -29,13 +29,7 @@
 					icon: CreditCard,
 					label: 'Paid'
 				}
-			case PaymentStatus.COMPLETED:
-				return {
-					class: 'badge-primary',
-					icon: Target,
-					label: 'Completed'
-				}
-			case PaymentStatus.CANCELLED:
+		case PaymentStatus.CANCELLED:
 				return {
 					class: 'badge-error',
 					icon: XCircle,

@@ -17,11 +17,11 @@
 
 	interface Props {
 		events: CalendarEvent[]
-		/** Called when an event is created from the calendar (e.g. so parent can sync state). */
 		onEventCreated?: (event: EnhancedEvent) => void
+		onSelectEvent?: (eventId: number) => void
 	}
 
-	let { events, onEventCreated }: Props = $props()
+	let { events, onEventCreated, onSelectEvent }: Props = $props()
 
 	// Local events state (for newly created events)
 	let localEvents = $state<CalendarEvent[]>([])
@@ -292,6 +292,12 @@
 	async function handleEventClick(event: CalendarEvent, e: MouseEvent) {
 		e.preventDefault()
 		e.stopPropagation()
+
+		if (onSelectEvent) {
+			onSelectEvent(event.id)
+			return
+		}
+
 		selectedEvent = event
 		showViewDrawer = true
 		loadingDetails = true

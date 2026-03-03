@@ -243,22 +243,22 @@ class RateParser {
 		throw new Error(`${fieldName} format not recognized. Use YYYY-MM-DD, MM/DD/YYYY, or MM-DD-YYYY`)
 	}
 
-	static parseStatus(status: string): 'Planned' | 'Approved' | 'Paid' | 'Completed' | 'Cancelled' {
+	static parseStatus(status: string): 'Planned' | 'Approved' | 'Paid' | 'Cancelled' {
 		if (!status || status.trim() === '') {
 			return 'Planned'
 		}
 
 		const cleaned = status.toLowerCase().trim()
-		const statusMap: Record<string, 'Planned' | 'Approved' | 'Paid' | 'Completed' | 'Cancelled'> = {
+		const statusMap: Record<string, 'Planned' | 'Approved' | 'Paid' | 'Cancelled'> = {
 			'planned': 'Planned',
 			'approved': 'Approved',
 			'paid': 'Paid',
-			'unpaid': 'Planned', // Map unpaid to planned
+			'unpaid': 'Planned',
 			'cancelled': 'Cancelled',
 			'canceled': 'Cancelled',
 			'pending': 'Planned',
-			'complete': 'Completed',
-			'completed': 'Completed',
+			'complete': 'Paid',
+			'completed': 'Paid',
 		}
 
 		return statusMap[cleaned] || 'Planned'

@@ -31,7 +31,7 @@
 		rate: 0,
 		additional_pay: 0,
 		additional_pay_reason: '',
-		status: 'Planned' as 'Planned' | 'Approved' | 'Paid' | 'Completed' | 'Cancelled',
+		status: 'Planned' as 'Planned' | 'Approved' | 'Paid' | 'Cancelled',
 		payment_type: undefined as 'performance' | 'training' | 'special_event' | 'other' | undefined,
 		employee_contractor_status: undefined as 'employee' | 'contractor' | 'roster_artist' | undefined,
 		invoice_number: '',
@@ -202,7 +202,6 @@
 				'Planned',
 				'Approved',
 				'Paid',
-				'Completed',
 				'Cancelled'
 			].includes(value as string)) {
 				formData[field] = value as typeof formData[typeof field]
