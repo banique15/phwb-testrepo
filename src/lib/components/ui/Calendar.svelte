@@ -17,9 +17,10 @@
 
 	interface Props {
 		events: CalendarEvent[]
+		onSelectEvent?: (eventId: number) => void
 	}
 
-	let { events }: Props = $props()
+	let { events, onSelectEvent }: Props = $props()
 
 	// Local events state (for newly created events)
 	let localEvents = $state<CalendarEvent[]>([])
@@ -290,6 +291,12 @@
 	async function handleEventClick(event: CalendarEvent, e: MouseEvent) {
 		e.preventDefault()
 		e.stopPropagation()
+
+		if (onSelectEvent) {
+			onSelectEvent(event.id)
+			return
+		}
+
 		selectedEvent = event
 		showViewDrawer = true
 		loadingDetails = true
@@ -343,7 +350,7 @@
 				start_time: createdEvent.start_time || null,
 				end_time: createdEvent.end_time || null,
 				status: createdEvent.status || 'planned',
-				program_id: createdEvent.program_id || null,
+				program_id: createdEvent.program ?? null,
 				program_name: createdEvent.program_name || null
 			}
 			localEvents = [newCalendarEvent, ...localEvents]

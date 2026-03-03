@@ -12,7 +12,7 @@
 	import ScheduleDisplay from './components/ScheduleDisplay.svelte'
 	import RequirementsDisplay from './components/RequirementsDisplay.svelte'
 	import EventsSearchFilters from './components/EventsSearchFilters.svelte'
-	import CalendarView from './components/CalendarView.svelte'
+	import DashboardCalendar from '$lib/components/ui/Calendar.svelte'
 	import EventHeaderCard from './components/EventHeaderCard.svelte'
 	import EventTabs from './components/EventTabs.svelte'
 	import EventCreateForm from './components/EventCreateForm.svelte'
@@ -588,6 +588,18 @@
 	// Derive selected events from filtered events (must be after filteredEvents is defined)
 	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
 
+	// Convert EnhancedEvent[] to CalendarEvent[] for the dashboard calendar component
+	let calendarEvents = $derived(filteredEvents.map((e: EnhancedEvent) => ({
+		id: e.id!,
+		title: e.title || 'Untitled',
+		date: e.date || '',
+		start_time: e.start_time || null,
+		end_time: e.end_time || null,
+		status: e.status || 'planned',
+		program_id: e.program ?? null,
+		program_name: e.program_name || null
+	})))
+
 	// Recalculate statistics based on filtered events
 	let filteredStatistics = $derived.by(() => {
 		const parseLocalDate = (dateStr: string) => {
@@ -840,10 +852,12 @@
 						>
 							<div class="card bg-base-100 shadow-xl h-full">
 								<div class="card-body">
-									<CalendarView
-										events={filteredEvents}
-										{selectedEvent}
-										onSelectEvent={selectEvent}
+									<DashboardCalendar
+										events={calendarEvents}
+										onSelectEvent={(eventId) => {
+											const event = filteredEvents.find(e => e.id === eventId)
+											if (event) selectEvent(event)
+										}}
 									/>
 								</div>
 							</div>
