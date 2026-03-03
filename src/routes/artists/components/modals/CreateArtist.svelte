@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte'
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import MultiSelect from '$lib/components/ui/MultiSelect.svelte'
 	import { GENRE_OPTIONS, INSTRUMENT_OPTIONS } from '$lib/utils/artist-options'
@@ -9,14 +8,11 @@
 
 	interface Props {
 		open?: boolean
+		onClose?: () => void
+		onSuccess?: (data: { artist: any }) => void
 	}
 
-	let { open = false }: Props = $props()
-
-	const dispatch = createEventDispatcher<{
-		close: void
-		success: { artist: any }
-	}>()
+	let { open = false, onClose, onSuccess }: Props = $props()
 
 	// Form state
 	let formData = $state<CreateArtist>({
@@ -220,8 +216,8 @@
 
 			const newArtist = await createArtist(sanitizedData)
 			
-			dispatch('success', { artist: newArtist })
-			dispatch('close')
+			onSuccess?.({ artist: newArtist })
+			onClose?.()
 			resetForm()
 		} catch (error) {
 			console.error('Failed to create artist:', error)
@@ -237,7 +233,7 @@
 				showUnsavedWarning = true
 			} else {
 				resetForm()
-				dispatch('close')
+				onClose?.()
 			}
 		}
 	}
@@ -245,7 +241,7 @@
 	function confirmClose() {
 		showUnsavedWarning = false
 		resetForm()
-		dispatch('close')
+		onClose?.()
 	}
 
 	function cancelClose() {
