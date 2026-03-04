@@ -45,6 +45,8 @@ export const payrollSchema = z.object({
 	rate_card_id: z.number().optional().nullable(),
 	rate_rule_id: z.number().optional().nullable(),
 	facility_id: z.number().optional().nullable(),
+	// New LLC field
+	llc: z.string().max(100, 'LLC must be less than 100 characters').optional().nullable(),
 })
 
 export const createPayrollSchema = payrollSchema.omit({

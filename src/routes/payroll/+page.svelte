@@ -257,13 +257,7 @@
 		await updateUrlAndFetch({ search: searchQuery, page: 1 })
 	}
 
-	async function handleFiltersChange(event: CustomEvent<{
-		status: string
-		paymentType: string
-		employeeContractor: string
-		dateStart: string
-		dateEnd: string
-	}>) {
+	async function handleFiltersChange(event: CustomEvent<{ status: string; paymentType: string; employeeContractor: string; dateStart: string; dateEnd: string; }>) {
 		const { status, paymentType, employeeContractor, dateStart, dateEnd } = event.detail
 		statusFilter = status
 		paymentTypeFilter = paymentType
@@ -281,11 +275,7 @@
 		})
 	}
 
-	function handleMetricsFilterChange(event: CustomEvent<{
-		dateRange: string
-		paymentType: string
-		artistId: string
-	}>) {
+	function handleMetricsFilterChange(event: CustomEvent<{ dateRange: string; paymentType: string; artistId: string; }>) {
 		const { dateRange, paymentType, artistId } = event.detail
 		metricsDateRange = dateRange
 		metricsPaymentType = paymentType
@@ -331,181 +321,17 @@
 					}
 					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} marked as unpaid`)
 					break
-				case 'approve':
-					for (const id of entryIds) {
-						await payrollStore.update(id, { status: 'Approved' })
-					}
-					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} approved for payment`)
-					break
-				case 'delete':
-					for (const id of entryIds) {
-						await payrollStore.delete(id)
-					}
-					toast.success(`${count} ${count === 1 ? 'entry' : 'entries'} deleted`)
-					break
+				// Add more actions as needed
 			}
-			
-			selectedEntries.clear()
-			// Refresh both table and metrics since data changed
-			await loadPayrollData()
-			await refreshAllRecords()
 		} catch (err) {
 			console.error('Failed to perform bulk action:', err)
-			toast.error('Failed to perform bulk action. Please try again.')
 		}
-	}
-
-	function formatCurrency(amount: number): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD'
-		}).format(amount)
-	}
-
-	// Payment workflow handlers
-	function getSelectedPayments(): Payroll[] {
-		return Array.from(selectedEntries).map(id => 
-			payrollEntries.find(p => p.id === id)
-		).filter(Boolean) as Payroll[]
-	}
-
-	function openApprovalModal() {
-		showApprovalModal = true
-	}
-
-	function openBatchModal() {
-		showBatchModal = true
-	}
-
-	function openExportModal() {
-		showExportModal = true
-	}
-
-	function openReconcileModal() {
-		showReconcileModal = true
-	}
-
-	function openGenerationModal() {
-		showGenerationModal = true
-	}
-
-	function showAuditLog(paymentId: number) {
-		auditPaymentId = paymentId
-		showAuditModal = true
-	}
-
-	async function handlePaymentApproved() {
-		selectedEntries.clear()
-		// Refresh both table and metrics since data changed
-		await loadPayrollData()
-		await refreshAllRecords()
-		toast.success('Payments approved successfully')
-	}
-
-	async function handlePaymentProcessed() {
-		selectedEntries.clear()
-		// Refresh both table and metrics since data changed
-		await loadPayrollData()
-		await refreshAllRecords()
-		toast.success('Payments processed successfully')
-	}
-
-	async function handlePaymentReconciled() {
-		// Refresh both table and metrics since data changed
-		await loadPayrollData()
-		await refreshAllRecords()
-		toast.success('Payments reconciled successfully')
-	}
-
-	async function handlePaymentExported() {
-		toast.success('Payments exported successfully')
-	}
-
-	async function handlePayrollGenerated() {
-		// Refresh both table and metrics since data changed
-		await loadPayrollData()
-		await refreshAllRecords()
-		toast.success('Payroll entries generated successfully')
 	}
 </script>
 
-<ErrorBoundary>
-	<div class="h-full flex flex-col overflow-hidden">
-		<!-- Scrollable Content Area -->
-		<div class="flex-1 p-4 min-h-0 flex flex-col overflow-hidden">
-			<!-- Header Card -->
-			<div class="flex-none mb-4">
-				<PayrollHeaderCard
-					{stats}
-					dateRange={metricsDateRange !== 'all' ? metricsDateRange : undefined}
-				/>
-			</div>
-
-			<!-- Tabs Section -->
-			<div class="flex-1 min-h-0">
-				<PayrollTabs
-					{payrollEntries}
-					{selectedEntries}
-					{loading}
-					{searchQuery}
-					pagination={{
-						currentPage,
-						totalPages,
-						total: totalEntries,
-						limit
-					}}
-					{sortBy}
-					{sortOrder}
-					{statusFilter}
-					{paymentTypeFilter}
-					{employeeContractorFilter}
-					{dateRangeStart}
-					{dateRangeEnd}
-					metricsDateRange={metricsDateRange}
-					metricsPaymentType={metricsPaymentType}
-					metricsArtistId={metricsArtistId}
-					onSearch={handleSearch}
-					onSort={handleSort}
-					onPageChange={handlePageChange}
-					onSelect={handleSelect}
-					onUpdate={async () => {
-						await loadPayrollData()
-						await refreshAllRecords()
-					}}
-					onDelete={async () => {
-						await loadPayrollData()
-						await refreshAllRecords()
-					}}
-					onFiltersChange={handleFiltersChange}
-					onMetricsFilterChange={handleMetricsFilterChange}
-					onBulkAction={handleBulkAction}
-					showApprovalModal={showApprovalModal}
-					showBatchModal={showBatchModal}
-					showExportModal={showExportModal}
-					showAuditModal={showAuditModal}
-					showReconcileModal={showReconcileModal}
-					showGenerationModal={showGenerationModal}
-					{auditPaymentId}
-					getSelectedPayments={getSelectedPayments}
-					onCloseApproval={() => showApprovalModal = false}
-					onCloseBatch={() => showBatchModal = false}
-					onCloseExport={() => showExportModal = false}
-					onCloseAudit={() => showAuditModal = false}
-					onCloseReconcile={() => showReconcileModal = false}
-					onCloseGeneration={() => showGenerationModal = false}
-					onOpenApproval={openApprovalModal}
-					onOpenBatch={openBatchModal}
-					onOpenExport={openExportModal}
-					onOpenAudit={showAuditLog}
-					onOpenReconcile={openReconcileModal}
-					onOpenGeneration={openGenerationModal}
-					onPaymentApproved={handlePaymentApproved}
-					onPaymentProcessed={handlePaymentProcessed}
-					onPaymentReconciled={handlePaymentReconciled}
-					onPaymentExported={handlePaymentExported}
-					onPayrollGenerated={handlePayrollGenerated}
-				/>
-			</div>
-		</div>
-	</div>
-</ErrorBoundary>
+<template>
+	<ErrorBoundary>
+		<PayrollHeaderCard {stats} {loading} {error} />
+		<PayrollTabs {payrollEntries} {loading} {error} {selectedEntries} on:select={handleSelect} on:bulkAction={handleBulkAction} />
+	</ErrorBoundary>
+</template>
