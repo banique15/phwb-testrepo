@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from "$app/stores";
+	import { goto } from "$app/navigation";
 	import { browser } from "$app/environment";
 	import { onMount } from "svelte";
 	import { authStore } from "$lib/auth";
@@ -8,6 +9,15 @@
 	import { supabase } from "$lib/supabase";
 	import ThemeToggle from "./ThemeToggle.svelte";
 	import type { Profile } from "$lib/schemas/profile";
+	import type { Notification } from "$lib/schemas/notification";
+	import {
+		notificationsStore,
+		subscribe as notificationsSubscribe,
+		subscribeToNotificationChanges,
+		unsubscribeFromNotificationChanges
+	} from "$lib/stores/notifications";
+	import { Bell } from "lucide-svelte";
+	import { formatDistanceToNow } from "date-fns";
 
 	const navItems = [
 		{ name: "Dashboard", href: "/", disabled: false },
@@ -26,6 +36,35 @@
 	let touchStartX = 0;
 	let touchStartY = 0;
 	let profile = $state<Profile | null>(null);
+	let notifications = $state<Notification[]>([]);
+	let unreadCount = $derived(notifications.filter((n) => !n.is_read).length);
+	let notificationTab = $state<'unread' | 'read'>('unread');
+	let showNotifications = $state(false);
+	let bellRef = $state<HTMLButtonElement | null>(null);
+	let panelRef = $state<HTMLDivElement | null>(null);
+
+	const filteredNotifications = $derived(
+		notificationTab === 'unread'
+			? notifications.filter((n) => !n.is_read)
+			: notifications.filter((n) => n.is_read)
+	);
+	const readCount = $derived(notifications.filter((n) => n.is_read).length);
+
+	function toggleNotifications() {
+		showNotifications = !showNotifications;
+	}
+
+	function handleClickOutside(event: MouseEvent) {
+		if (
+			showNotifications &&
+			bellRef &&
+			panelRef &&
+			!bellRef.contains(event.target as Node) &&
+			!panelRef.contains(event.target as Node)
+		) {
+			showNotifications = false;
+		}
+	}
 
 	// Load user profile when auth state changes
 	$effect(() => {
@@ -43,6 +82,67 @@
 			.eq('id', userId)
 			.single();
 		profile = data;
+	}
+
+	async function loadNotifications() {
+		try {
+			const items = await notificationsStore.getForCurrentUser(20);
+			notifications = items;
+		} catch (err) {
+			console.error("Failed to load notifications", err);
+		}
+	}
+
+	function setupNotificationRealtime() {
+		subscribeToNotificationChanges({
+			onInsert: (payload) => {
+				const notification = payload.new as Notification;
+				notifications = [notification, ...notifications];
+			},
+			onUpdate: (payload) => {
+				const updated = payload.new as Notification;
+				notifications = notifications.map((n) =>
+					n.id === updated.id ? updated : n
+				);
+			},
+			onDelete: (payload) => {
+				const deleted = payload.old as Notification;
+				notifications = notifications.filter((n) => n.id !== deleted.id);
+			}
+		});
+	}
+
+	async function handleNotificationClick(notification: Notification) {
+		if (!notification.is_read && notification.id != null) {
+			try {
+				const updated = await notificationsStore.markAsRead(notification.id);
+				notifications = notifications.map((n) =>
+					n.id === updated.id ? updated : n
+				);
+			} catch (err) {
+				console.error("Failed to mark notification as read", err);
+			}
+		}
+		showNotifications = false;
+		handleNavClick();
+
+		if (notification.bug_id) {
+			goto(`/bugs/${notification.bug_id}?tab=comments`);
+		}
+	}
+
+	async function markAllNotificationsAsRead() {
+		try {
+			await notificationsStore.markAllAsReadForCurrentUser();
+			const nowIso = new Date().toISOString();
+			notifications = notifications.map((n) => ({
+				...n,
+				is_read: true,
+				read_at: n.read_at || nowIso
+			}));
+		} catch (err) {
+			console.error("Failed to mark all notifications as read", err);
+		}
 	}
 
 	function isActive(href: string): boolean {
@@ -135,13 +235,28 @@
 				passive: true,
 			});
 
+			// Subscribe to notifications store to keep local state in sync
+			const unsubscribeNotifications = notificationsSubscribe((state) => {
+				if (state.items) {
+					notifications = state.items as Notification[];
+				}
+			});
+
+			loadNotifications();
+			setupNotificationRealtime();
+
+			document.addEventListener("click", handleClickOutside);
+
 			return () => {
 				document.body.removeEventListener(
 					"touchstart",
 					handleTouchStart,
 				);
 				document.body.removeEventListener("touchend", handleTouchEnd);
+				document.removeEventListener("click", handleClickOutside);
 				unsubscribeSidebar();
+				unsubscribeFromNotificationChanges();
+				unsubscribeNotifications();
 			};
 		}
 	});
@@ -163,6 +278,20 @@
 			</a>
 			<div class="flex items-center gap-1">
 				<ThemeToggle />
+				{#if $authStore}
+					<button
+						bind:this={bellRef}
+						class="btn btn-ghost btn-sm btn-circle relative"
+						onclick={toggleNotifications}
+					>
+						<Bell class="w-4 h-4" />
+						{#if unreadCount > 0}
+							<span class="badge badge-xs badge-primary absolute -top-1 -right-1">
+								{unreadCount > 9 ? '9+' : unreadCount}
+							</span>
+						{/if}
+					</button>
+				{/if}
 				{#if isMobile}
 					<button
 						class="btn btn-ghost btn-sm btn-circle lg:hidden"
@@ -224,7 +353,7 @@
 			</ul>
 		</nav>
 
-		<!-- Footer with Bugs link and swipe hint for mobile -->
+		<!-- Footer with Issues link and swipe hint for mobile -->
 		<div class="flex-none border-t border-base-300">
 			{#if isMobile}
 				<div class="p-2 lg:hidden">
@@ -247,7 +376,7 @@
 					onclick={handleNavClick}
 					aria-current={isActive("/bugs") ? "page" : undefined}
 				>
-					<span>Bugs</span>
+					<span>Issues</span>
 				</a>
 			</div>
 		</div>
@@ -331,5 +460,81 @@
 {#if isMobile && !isDrawerOpen}
 	<div class="fixed left-0 top-1/2 transform -translate-y-1/2 z-30 lg:hidden">
 		<div class="w-1 h-16 bg-primary/30 rounded-r-full animate-pulse"></div>
+	</div>
+{/if}
+
+<!-- Notification panel: fixed position so it escapes all stacking contexts -->
+{#if showNotifications}
+	<div
+		bind:this={panelRef}
+		class="fixed top-[80px] left-[196px] z-[9999] w-80 max-h-96 overflow-y-auto bg-base-100 rounded-lg shadow-2xl border border-base-300"
+	>
+		<div class="px-3 pt-3 pb-2 border-b border-base-300">
+			<div class="flex items-center justify-between mb-2 text-xs text-base-content/60">
+				<span class="font-semibold uppercase tracking-wide">
+					Notifications
+				</span>
+				{#if unreadCount > 0}
+					<button
+						class="btn btn-ghost btn-xs"
+						onclick={markAllNotificationsAsRead}
+					>
+						Mark all read
+					</button>
+				{/if}
+			</div>
+			<div class="flex gap-2 text-xs">
+				<button
+					type="button"
+					class="flex-1 btn btn-xs {notificationTab === 'unread' ? 'btn-primary' : 'btn-ghost'}"
+					onclick={() => { notificationTab = 'unread'; }}
+				>
+					Unread ({unreadCount})
+				</button>
+				<button
+					type="button"
+					class="flex-1 btn btn-xs {notificationTab === 'read' ? 'btn-primary' : 'btn-ghost'}"
+					onclick={() => { notificationTab = 'read'; }}
+				>
+					Read ({readCount})
+				</button>
+			</div>
+		</div>
+		<div class="p-2">
+			{#if filteredNotifications.length === 0}
+				<div class="px-1 py-3 text-xs text-base-content/60">
+					{notificationTab === 'unread'
+						? 'No unread notifications.'
+						: 'No read notifications.'}
+				</div>
+			{:else}
+				{#each filteredNotifications as notification}
+					<a
+						href={notification.bug_id ? `/bugs/${notification.bug_id}` : '#'}
+						class="block px-2 py-2 rounded-lg mb-1 cursor-pointer {notification.is_read ? 'opacity-60' : 'bg-base-200/60 hover:bg-base-200'}"
+						onclick={(event) => {
+							event.preventDefault();
+							handleNotificationClick(notification);
+						}}
+					>
+						<div class="text-sm font-medium">
+							{notification.title}
+						</div>
+						{#if notification.message}
+							<div class="text-xs text-base-content/80 mt-1 whitespace-normal">
+								{notification.message}
+							</div>
+						{/if}
+						{#if notification.created_at}
+							<div class="text-[10px] text-base-content/60 mt-1">
+								{formatDistanceToNow(new Date(notification.created_at), {
+									addSuffix: true
+								})}
+							</div>
+						{/if}
+					</a>
+				{/each}
+			{/if}
+		</div>
 	</div>
 {/if}

@@ -12,6 +12,7 @@
 	import { onMount } from 'svelte'
 	import { browser } from '$app/environment'
 	import { supabase } from '$lib/supabase'
+	import { toast } from '$lib/stores/toast'
 	
 	interface Props {
 		entries: Payroll[]
@@ -49,10 +50,13 @@
 		delete: { id: number }
 	}>()
 
-	// Editing state
-	let editingRows = $state<Map<number | 'new', Partial<Payroll>>>(new Map())
+	// Editing state - use string | number for keys to support both new rows and existing rows
+	let editingRows = $state<Map<string | number, Partial<Payroll>>>(new Map())
 	let editingCell = $state<{ id: number | string, field: string } | null>(null)
 	let newRowCounter = $state(0)
+	
+	// Validation state
+	let validationErrors = $state<Map<string, Record<string, string>>>(new Map())
 	
 	// Venue type colors
 	const venueTypeColors: Record<string, string> = {
@@ -139,7 +143,7 @@
 
 	// Add new entry row
 	function addNewEntry() {
-		const tempId = `new-${newRowCounter++}`
+		const tempId: string = `new-${newRowCounter++}`
 		const today = new Date().toISOString().split('T')[0]
 		
 		editingRows.set(tempId, {
@@ -184,7 +188,7 @@
 	}
 
 	// Cancel editing
-	function cancelEditing(id: number | string) {
+	function cancelEditing(id: string | number) {
 		editingRows.delete(id)
 		editingRows = new Map(editingRows)
 		editingCell = null
@@ -194,20 +198,83 @@
 	function cancelCellEdit() {
 		if (!editingCell) return
 		
-		const entry = entries.find(e => e.id === editingCell.id)
-		if (entry && editingRows.has(editingCell.id)) {
-			const editData = editingRows.get(editingCell.id)!
-			editData[editingCell.field] = entry[editingCell.field]
+		const cellId = editingCell.id
+		const field = editingCell.field as keyof Payroll
+		const entry = entries.find(e => e.id === cellId)
+		if (entry && editingRows.has(cellId)) {
+			const editData = editingRows.get(cellId)!
+			;(editData as any)[field] = entry[field]
 			editingRows = new Map(editingRows)
 		}
 		
 		editingCell = null
 	}
 
+	// Validate a row
+	function validateRow(id: string | number, data: Partial<Payroll>): Record<string, string> {
+		const errors: Record<string, string> = {}
+		
+		// Required field: event_date
+		if (!data.event_date) {
+			errors.event_date = 'Date is required'
+		}
+		
+		// Required field: artist_id
+		if (!data.artist_id) {
+			errors.artist_id = 'Artist is required'
+		}
+		
+		// Hours validation
+		if (data.hours !== undefined && data.hours < 0) {
+			errors.hours = 'Hours cannot be negative'
+		}
+		
+		// Rate validation
+		if (data.rate !== undefined && data.rate < 0) {
+			errors.rate = 'Rate cannot be negative'
+		}
+		
+		// Additional pay validation
+		if (data.additional_pay !== undefined && data.additional_pay < 0) {
+			errors.additional_pay = 'Additional pay cannot be negative'
+		}
+		
+		// Paid date validation - if status is Paid, paid_date should be set
+		if (data.status === 'Paid' && !data.paid_date) {
+			errors.paid_date = 'Paid date is required when status is Paid'
+		}
+		
+		return errors
+	}
+	
+	// Get validation error for a specific field
+	function getFieldError(id: string | number, field: string): string | undefined {
+		const rowErrors = validationErrors.get(String(id))
+		return rowErrors?.[field]
+	}
+	
+	// Check if field has error
+	function hasFieldError(id: string | number, field: string): boolean {
+		return !!getFieldError(id, field)
+	}
+
 	// Save row
-	async function saveRow(id: number | string) {
+	async function saveRow(id: string | number) {
 		const editData = editingRows.get(id)
 		if (!editData) return
+		
+		// Validate the row
+		const errors = validateRow(id, editData)
+		if (Object.keys(errors).length > 0) {
+			validationErrors.set(String(id), errors)
+			validationErrors = new Map(validationErrors)
+			toast.error('Please fix the validation errors before saving')
+			return
+		}
+		
+		// Clear validation errors for this row
+		validationErrors.delete(String(id))
+		validationErrors = new Map(validationErrors)
 
 		try {
 			// Calculate total pay
@@ -247,18 +314,21 @@
 			if (typeof id === 'string' && id.startsWith('new')) {
 				// Create new entry
 				await payrollStore.create(cleanedData as CreatePayroll)
+				toast.success('Payroll entry created successfully')
 			} else {
 				// Update existing entry
 				await payrollStore.update(id as number, cleanedData as UpdatePayroll)
+				toast.success('Payroll entry updated successfully')
 			}
 			
 			// Clear editing state
 			editingRows.delete(id)
 			editingRows = new Map(editingRows)
 			editingCell = null
+			dispatch('update', { entry: cleanedData as Payroll })
 		} catch (error) {
 			console.error('Failed to save payroll entry:', error)
-			// TODO: Show error toast
+			toast.error('Failed to save payroll entry. Please try again.')
 		}
 	}
 	
@@ -274,16 +344,18 @@
 			try {
 				await payrollStore.delete(id)
 				dispatch('delete', { id })
+				toast.success('Payroll entry deleted')
 			} catch (error) {
 				console.error('Failed to delete payroll entry:', error)
+				toast.error('Failed to delete payroll entry')
 			}
 		}
 	}
 
 	// Update field value
-	function updateField(id: number | string, field: string, value: any) {
+	function updateField(id: string | number, field: string, value: any) {
 		const current = editingRows.get(id) || {}
-		current[field] = value
+		;(current as any)[field] = value
 		
 		// Auto-calculate insperity_hours when hours change
 		if (field === 'hours' && !current.insperity_hours) {
@@ -326,7 +398,7 @@
 	}
 
 	// Check if a specific cell is being edited
-	function isEditingCell(entryId: number | string, field: string): boolean {
+	function isEditingCell(entryId: string | number, field: string): boolean {
 		return editingCell?.id === entryId && editingCell?.field === field
 	}
 	
@@ -344,8 +416,26 @@
 		...entries
 	])
 
+	// Derive a reactive snapshot of selected IDs so Svelte 5 tracks changes
+	let selectedSnapshot = $derived(new Set(selectedEntries))
+
+	function isEntrySelected(entryId: number | string | undefined): boolean {
+		if (typeof entryId !== 'number') return false
+		return selectedSnapshot.has(entryId)
+	}
+
+	function toggleSelection(entryId: number) {
+		const newSelected = new Set(selectedEntries)
+		if (newSelected.has(entryId)) {
+			newSelected.delete(entryId)
+		} else {
+			newSelected.add(entryId)
+		}
+		dispatch('select', { entries: newSelected })
+	}
+
 	// Keyboard navigation
-	function handleKeyDown(event: KeyboardEvent, id: number | string, field: string) {
+	function handleKeyDown(event: KeyboardEvent, id: string | number, field: string) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault()
 			saveRow(id)
@@ -437,12 +527,16 @@
 						<th class="w-28">Date</th>
 						<th class="w-48">Artist</th>
 						<th class="w-40">Venue</th>
-						<th class="w-20">Hours</th>
+						<th class="w-32">Program</th>
+						<th class="w-16">Musicians</th>
+						<th class="w-20">Type</th>
+					<th class="w-20">Duration</th>
+					<th class="w-16">Gig Dur.</th>
 						<th class="w-24">Rate</th>
 						<th class="w-24">Additional</th>
 						<th class="w-32">Reason</th>
 						<th class="w-24">Total</th>
-						<th class="w-24">Insperity</th>
+						<th class="w-24">Service Hrs</th>
 						<th class="w-28">Paid Date</th>
 						<th class="w-24">Status</th>
 						<th class="w-20">Source</th>
@@ -455,37 +549,42 @@
 					{#each displayEntries as entry (entry.id)}
 						{@const isNew = isNewRow(entry)}
 						{@const editData = editingRows.get(entry.id!) || entry}
-						<tr class:bg-warning={isNew} class:bg-opacity-20={isNew}>
-							<td>
-								{#if typeof entry.id === 'number'}
-									<input
-										type="checkbox"
-										class="checkbox checkbox-xs"
-										checked={selectedEntries.has(entry.id)}
-										onchange={() => {
-											const newSelected = new Set(selectedEntries)
-											if (newSelected.has(entry.id as number)) {
-												newSelected.delete(entry.id as number)
-											} else {
-												newSelected.add(entry.id as number)
-											}
-											dispatch('select', { entries: newSelected })
-										}}
-									/>
-								{/if}
-							</td>
+						{@const isSelected = isEntrySelected(entry.id)}
+						<tr 
+							class:bg-warning={isNew} 
+							class:bg-opacity-20={isNew}
+							class:bg-primary={isSelected}
+							class:bg-opacity-10={isSelected}
+						>
+						<td 
+							class="cursor-pointer select-none"
+							onclick={() => { if (typeof entry.id === 'number') toggleSelection(entry.id) }}
+						>
+							{#if typeof entry.id === 'number'}
+								<input
+									type="checkbox"
+									class="checkbox checkbox-sm"
+									checked={isSelected}
+									onclick={(e: MouseEvent) => e.stopPropagation()}
+									onchange={() => toggleSelection(entry.id as number)}
+								/>
+							{/if}
+						</td>
 							
 							<!-- Event Date -->
 							<td class="relative group">
 								{#if isEditingCell(entry.id!, 'event_date') || isNew}
-									<div class="flex items-center gap-1">
-										<input
-											type="date"
-											class="input input-bordered input-xs flex-1"
-											value={editData.event_date}
-											oninput={(e) => updateField(entry.id!, 'event_date', e.currentTarget.value)}
-											onkeydown={(e) => handleKeyDown(e, entry.id!, 'event_date')}
-										/>
+									<div class="flex flex-col gap-0.5">
+										<div class="flex items-center gap-1">
+											<input
+												type="date"
+												class="input input-bordered input-xs flex-1"
+												class:input-error={hasFieldError(entry.id!, 'event_date')}
+												value={editData.event_date}
+												oninput={(e) => updateField(entry.id!, 'event_date', e.currentTarget.value)}
+												onkeydown={(e) => handleKeyDown(e, entry.id!, 'event_date')}
+												required
+											/>
 										{#if !isNew}
 											<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -497,6 +596,10 @@
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 												</svg>
 											</button>
+										{/if}
+										</div>
+										{#if hasFieldError(entry.id!, 'event_date')}
+											<span class="text-error text-xs">{getFieldError(entry.id!, 'event_date')}</span>
 										{/if}
 									</div>
 								{:else}
@@ -512,30 +615,37 @@
 							<!-- Artist -->
 							<td class="relative group">
 								{#if isEditingCell(entry.id!, 'artist_id') || isNew}
-									<div class="flex items-center gap-1">
-										<select
-											class="select select-bordered select-xs flex-1"
-											value={editData.artist_id}
-											onchange={(e) => updateField(entry.id!, 'artist_id', e.currentTarget.value)}
-										>
-											<option value="">Select artist...</option>
-											{#each artists as artist}
-												<option value={artist.id}>
-													{artist.full_name || `${artist.legal_first_name} ${artist.legal_last_name}`}
-												</option>
-											{/each}
-										</select>
-										{#if !isNew}
-											<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-												</svg>
-											</button>
-											<button class="btn btn-xs btn-ghost text-error" onclick={() => cancelCellEdit()} title="Cancel">
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-												</svg>
-											</button>
+									<div class="flex flex-col gap-0.5">
+										<div class="flex items-center gap-1">
+											<select
+												class="select select-bordered select-xs flex-1"
+												class:select-error={hasFieldError(entry.id!, 'artist_id')}
+												value={editData.artist_id}
+												onchange={(e) => updateField(entry.id!, 'artist_id', e.currentTarget.value)}
+												required
+											>
+												<option value="">Select artist...</option>
+												{#each artists as artist}
+													<option value={artist.id}>
+														{artist.full_name || `${artist.legal_first_name} ${artist.legal_last_name}`}
+													</option>
+												{/each}
+											</select>
+											{#if !isNew}
+												<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+													</svg>
+												</button>
+												<button class="btn btn-xs btn-ghost text-error" onclick={() => cancelCellEdit()} title="Cancel">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+													</svg>
+												</button>
+											{/if}
+										</div>
+										{#if hasFieldError(entry.id!, 'artist_id')}
+											<span class="text-error text-xs">{getFieldError(entry.id!, 'artist_id')}</span>
 										{/if}
 									</div>
 								{:else}
@@ -590,6 +700,70 @@
 								{/if}
 							</td>
 							
+							<!-- Program -->
+							<td>
+								<div class="truncate text-xs" title={entry.programs?.title || '-'}>
+									{entry.programs?.title || '-'}
+								</div>
+							</td>
+							
+							<!-- Musicians -->
+							<td class="text-center">
+								{#if entry.number_of_musicians}
+									<span class="badge badge-outline badge-sm">{entry.number_of_musicians}</span>
+								{:else}
+									<span class="text-xs opacity-50">-</span>
+								{/if}
+							</td>
+							
+						<!-- Type (Employee/Contractor/LLC) -->
+						<td class="relative group">
+							{#if isEditingCell(entry.id!, 'employee_contractor_status') || isNew}
+								<div class="flex items-center gap-1">
+									<select
+										class="select select-bordered select-xs flex-1"
+										value={editData.employee_contractor_status || ''}
+										onchange={(e) => updateField(entry.id!, 'employee_contractor_status', e.currentTarget.value || null)}
+									>
+										<option value="">-</option>
+										<option value="employee">W2</option>
+										<option value="contractor">1099</option>
+										<option value="llc">LLC</option>
+										<option value="roster_artist">Roster</option>
+									</select>
+									{#if !isNew}
+										<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+											</svg>
+										</button>
+										<button class="btn btn-xs btn-ghost text-error" onclick={() => cancelCellEdit()} title="Cancel">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									{/if}
+								</div>
+							{:else}
+								<div 
+									class="cursor-pointer hover:bg-base-200 px-2 py-1 rounded transition-all duration-150 border border-transparent hover:border-base-300" 
+									onclick={() => startEditingCell(entry, 'employee_contractor_status')}
+								>
+									{#if entry.employee_contractor_status === 'employee'}
+										<span class="badge badge-success badge-xs">W2</span>
+									{:else if entry.employee_contractor_status === 'contractor'}
+										<span class="badge badge-warning badge-xs">1099</span>
+									{:else if entry.employee_contractor_status === 'llc'}
+										<span class="badge badge-info badge-xs">LLC</span>
+									{:else if entry.employee_contractor_status === 'roster_artist'}
+										<span class="badge badge-secondary badge-xs">Roster</span>
+									{:else}
+										<span class="text-xs opacity-50">-</span>
+									{/if}
+								</div>
+							{/if}
+						</td>
+							
 							<!-- Hours -->
 							<td class="relative group">
 								{#if isEditingCell(entry.id!, 'hours') || isNew}
@@ -623,6 +797,15 @@
 									>
 										{entry.hours || 0}
 									</div>
+								{/if}
+							</td>
+							
+							<!-- Duration (gig_duration) -->
+							<td class="text-center">
+								{#if entry.gig_duration}
+									<span class="text-xs">{entry.gig_duration}h</span>
+								{:else}
+									<span class="text-xs opacity-50">-</span>
 								{/if}
 							</td>
 							
@@ -753,7 +936,7 @@
 								{formatCurrency(calculateTotalPay(editData || entry))}
 							</td>
 							
-							<!-- Insperity Hours -->
+							<!-- Artist Service Hours -->
 							<td class="relative group">
 								{#if isEditingCell(entry.id!, 'insperity_hours') || isNew}
 									<div class="flex items-center gap-1">

@@ -18,9 +18,10 @@
 	interface Props {
 		events: CalendarEvent[]
 		onSelectEvent?: (eventId: number) => void
+		onEventCreated?: (event: EnhancedEvent) => void
 	}
 
-	let { events, onSelectEvent }: Props = $props()
+	let { events, onSelectEvent, onEventCreated }: Props = $props()
 
 	// Local events state (for newly created events)
 	let localEvents = $state<CalendarEvent[]>([])
@@ -343,6 +344,7 @@
 	function handleCreateSuccess(createdEvent?: EnhancedEvent) {
 		if (createdEvent) {
 			// Add to local events
+			const programId = (createdEvent as any).program ?? createdEvent.program_id ?? null
 			const newCalendarEvent: CalendarEvent = {
 				id: createdEvent.id!,
 				title: createdEvent.title || 'New Event',
@@ -350,7 +352,7 @@
 				start_time: createdEvent.start_time || null,
 				end_time: createdEvent.end_time || null,
 				status: createdEvent.status || 'planned',
-				program_id: createdEvent.program ?? null,
+				program_id: programId,
 				program_name: createdEvent.program_name || null
 			}
 			localEvents = [newCalendarEvent, ...localEvents]
@@ -365,6 +367,8 @@
 			setTimeout(() => {
 				blinkingEventId = null
 			}, 3000)
+
+			onEventCreated?.(createdEvent)
 		}
 		closeCreateDrawer()
 	}

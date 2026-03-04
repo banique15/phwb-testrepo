@@ -124,10 +124,9 @@
 			let finalTitle = title.trim()
 			if (!finalTitle) {
 				// Try to generate from available data, or use default
-				if (selectedLocation) {
-					const locationName = selectedLocation.name
-					const facilityName = selectedLocation.facility?.name || 'Unknown Facility'
-					finalTitle = `Draft Event @ ${locationName} (${facilityName})`
+				const draftFacility = selectedLocation?.facility?.name
+				if (draftFacility) {
+					finalTitle = `Draft Event - ${draftFacility}`
 				} else {
 					finalTitle = 'Draft Event'
 				}
@@ -186,30 +185,25 @@
 		error = null
 
 		try {
-			// Get location display name for title generation
-			const locationName = selectedLocation?.name || 'Unknown Location'
+			// Get facility name for title generation
 			const facilityName = selectedLocation?.facility?.name || ''
-			const locationDisplay = facilityName ? `${locationName} (${facilityName})` : locationName
+			const locationDisplay = facilityName || 'Unknown Facility'
 			let finalTitle = title.trim()
 
-			// Generate title automatically: "Artist @ Location" or "Artist1 & Artist2 @ Location"
+			// Generate title automatically: "Artist - Facility" or "Artist1 & Artist2 - Facility"
 			if (!finalTitle) {
 				const selectedArtistNames = artistAssignments
 					.map(assignment => assignment.artist_name)
 					.filter(name => name && name !== 'Unknown')
 
 				if (selectedArtistNames.length === 0) {
-					// No artists selected
-					finalTitle = `Event @ ${locationDisplay}`
+					finalTitle = `Event - ${locationDisplay}`
 				} else if (selectedArtistNames.length === 1) {
-					// Single artist
-					finalTitle = `${selectedArtistNames[0]} @ ${locationDisplay}`
+					finalTitle = `${selectedArtistNames[0]} - ${locationDisplay}`
 				} else if (selectedArtistNames.length === 2) {
-					// Two artists
-					finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} @ ${locationDisplay}`
+					finalTitle = `${selectedArtistNames[0]} & ${selectedArtistNames[1]} - ${locationDisplay}`
 				} else {
-					// Multiple artists - show first and count
-					finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} @ ${locationDisplay}`
+					finalTitle = `${selectedArtistNames[0]} +${selectedArtistNames.length - 1} - ${locationDisplay}`
 				}
 			}
 

@@ -67,7 +67,20 @@
 		{ value: 'Los Angeles', label: 'Los Angeles' },
 		{ value: 'Chicago', label: 'Chicago' },
 		{ value: 'Houston', label: 'Houston' },
-		{ value: 'Philadelphia', label: 'Philadelphia' }
+		{ value: 'Philadelphia', label: 'Philadelphia' },
+		{ value: 'Phoenix', label: 'Phoenix' },
+		{ value: 'San Diego', label: 'San Diego' },
+		{ value: 'Dallas', label: 'Dallas' },
+		{ value: 'Miami', label: 'Miami' },
+		{ value: 'Boston', label: 'Boston' },
+		{ value: 'Washington DC', label: 'Washington DC' },
+		{ value: 'Atlanta', label: 'Atlanta' },
+		{ value: 'San Francisco', label: 'San Francisco' },
+		{ value: 'Seattle', label: 'Seattle' },
+		{ value: 'Denver', label: 'Denver' },
+		{ value: 'Nashville', label: 'Nashville' },
+		{ value: 'Austin', label: 'Austin' },
+		{ value: 'Detroit', label: 'Detroit' }
 	]
 </script>
 
@@ -143,15 +156,14 @@
 						/>
 					</div>
 					<div>
-						<InlineEditableField
-							value={artist.metropolitan_hub}
-							field="metropolitan_hub"
-							type="select"
-							options={metropolitanHubOptions}
-							placeholder="Select metropolitan hub"
-							label="Metropolitan Hub"
-							onSave={(value) => onUpdateField('metropolitan_hub', value)}
-						/>
+					<InlineEditableField
+						value={artist.metropolitan_hub}
+						field="metropolitan_hub"
+						type="text"
+						placeholder="Enter metropolitan hub"
+						label="Metropolitan Hub"
+						onSave={(value) => onUpdateField('metropolitan_hub', value)}
+					/>
 					</div>
 					<div>
 						<InlineEditableField

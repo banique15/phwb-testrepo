@@ -442,23 +442,36 @@
 
 							<div class="flex flex-col gap-1">
 								<span class="text-sm font-medium">Metropolitan Hub</span>
-								<select
-									class="select select-bordered w-full {formErrors.metropolitan_hub ? 'select-error' : ''}"
+								<input
+									type="text"
+									class="input input-bordered w-full {formErrors.metropolitan_hub ? 'input-error' : ''}"
 									value={formData.metropolitan_hub || ''}
-									onchange={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
-								>
-									<option value="">Select metropolitan hub</option>
-									<option value="New York">New York</option>
-									<option value="Los Angeles">Los Angeles</option>
-									<option value="Chicago">Chicago</option>
-									<option value="Houston">Houston</option>
-									<option value="Philadelphia">Philadelphia</option>
-									<option value="Phoenix">Phoenix</option>
-									<option value="San Antonio">San Antonio</option>
-									<option value="San Diego">San Diego</option>
-									<option value="Dallas">Dallas</option>
-									<option value="San Jose">San Jose</option>
-								</select>
+									placeholder="Enter or select metropolitan hub"
+									list="metro-hub-options"
+									oninput={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
+								/>
+								<datalist id="metro-hub-options">
+									<option value="New York"></option>
+									<option value="Los Angeles"></option>
+									<option value="Chicago"></option>
+									<option value="Houston"></option>
+									<option value="Philadelphia"></option>
+									<option value="Phoenix"></option>
+									<option value="San Antonio"></option>
+									<option value="San Diego"></option>
+									<option value="Dallas"></option>
+									<option value="San Jose"></option>
+									<option value="Miami"></option>
+									<option value="Boston"></option>
+									<option value="Washington DC"></option>
+									<option value="Atlanta"></option>
+									<option value="San Francisco"></option>
+									<option value="Seattle"></option>
+									<option value="Denver"></option>
+									<option value="Nashville"></option>
+									<option value="Austin"></option>
+									<option value="Detroit"></option>
+								</datalist>
 								{#if formErrors.metropolitan_hub}
 									<span class="text-xs text-error">{formErrors.metropolitan_hub}</span>
 								{/if}
@@ -551,6 +564,7 @@
 								<span class="text-sm">Can Be Soloist</span>
 							</label>
 						</div>
+					</div>
 					</div>
 				{/if}
 

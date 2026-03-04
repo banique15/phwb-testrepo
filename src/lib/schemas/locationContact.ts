@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Contact type options
-export const CONTACT_TYPES = ['general', 'emergency', 'scheduling', 'technical', 'security', 'logistics'] as const
+export const CONTACT_TYPES = ['general', 'production_manager', 'emergency', 'scheduling', 'technical', 'security', 'logistics'] as const
 
 // Base schema without refinement (for omit operations)
 const locationContactSchemaBase = z.object({

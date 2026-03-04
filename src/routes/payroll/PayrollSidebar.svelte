@@ -334,9 +334,9 @@
 						onchange={(value) => updateField('employee_contractor_status', value)}
 					/>
 
-					<!-- Hours -->
-					<FormField
-						label="Hours"
+				<!-- Duration -->
+				<FormField
+						label="Duration"
 						type="number"
 						value={formData.hours}
 						error={errors.hours}
@@ -358,15 +358,15 @@
 						onchange={(value) => updateField('rate', Number(value))}
 					/>
 
-					<!-- Insperity Hours -->
-					<FormField
-						label="Insperity Hours"
+				<!-- Artist Service Hours -->
+				<FormField
+						label="Artist Service Hours"
 						type="number"
 						value={formData.insperity_hours ?? ''}
 						error={errors.insperity_hours}
 						min="0"
 						step="0.5"
-						placeholder="Hours for Insperity system"
+						placeholder="Artist service hours"
 						required
 						onchange={(value) => updateField('insperity_hours', value ? Number(value) : undefined)}
 					/>

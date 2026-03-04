@@ -9,25 +9,25 @@
 
 	let { bug, onStatusChange }: Props = $props()
 
-	const statusOptions: Array<{ value: Bug['status']; label: string }> = [
-		{ value: 'new', label: 'New' },
-		{ value: 'triage', label: 'Triage' },
-		{ value: 'in_progress', label: 'In Progress' },
-		{ value: 'testing', label: 'Testing' },
-		{ value: 'resolved', label: 'Resolved' },
-		{ value: 'closed', label: 'Closed' },
-		{ value: 'reopened', label: 'Reopened' }
+	const statusOptions: Array<{ value: Bug['status']; label: string; description: string }> = [
+		{ value: 'new', label: 'New', description: 'Newly created tasks' },
+		{ value: 'planning', label: 'Planning', description: 'Plan of action being defined' },
+		{ value: 'in_progress', label: 'In Progress', description: 'Work underway, not yet visible' },
+		{ value: 'testing', label: 'Testing', description: 'Visible in app, being tested internally' },
+		{ value: 'review', label: 'Review', description: 'Ready for end-user review' },
+		{ value: 'resolved', label: 'Resolved', description: 'Complete but not documented' },
+		{ value: 'closed', label: 'Closed', description: 'Fully finished and documented' }
 	]
 
 	function getStatusBadgeClass(status: Bug['status']): string {
 		const classes: Record<string, string> = {
 			new: 'badge-info',
-			triage: 'badge-warning',
+			planning: 'badge-warning',
 			in_progress: 'badge-primary',
 			testing: 'badge-secondary',
+			review: 'badge-accent',
 			resolved: 'badge-success',
-			closed: 'badge-neutral',
-			reopened: 'badge-error'
+			closed: 'badge-neutral'
 		}
 		return classes[status] || 'badge-neutral'
 	}

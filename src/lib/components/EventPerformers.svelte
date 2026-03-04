@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-svelte'
+	import { MapPin, ChevronRight, ChevronLeft, Users, DollarSign } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
+	import { rateCardStore } from '$lib/stores/rate-cards'
 
 	interface Props {
 		eventId: number
@@ -20,6 +21,10 @@
 	let selectedRightArtistId = $state<string | null>(null)
 	let updating = $state(false)
 	let assignments = $state<any[]>([])
+	let eventData = $state<any>(null)
+	let activeRateCard = $state<any>(null)
+	let rateRule = $state<any>(null)
+	let eventDuration = $state<number | null>(null)
 
 	// Clear all state when eventId changes
 	function clearState() {
@@ -33,6 +38,10 @@
 		selectedCenterArtistId = null
 		selectedRightArtistId = null
 		updating = false
+		eventData = null
+		activeRateCard = null
+		rateRule = null
+		eventDuration = null
 	}
 
 	// Watch for eventId changes and reload data
@@ -44,7 +53,132 @@
 	})
 
 	async function loadAllData() {
-		await Promise.all([loadAssignments(), loadAllArtists(), loadAllEnsembles()])
+		await Promise.all([loadEventData(), loadAssignments(), loadAllArtists(), loadAllEnsembles(), loadRateCard()])
+	}
+
+	// Load event data including program for rate calculation
+	async function loadEventData() {
+		try {
+			const { data, error: eventError } = await supabase
+				.from('phwb_events')
+				.select(`
+					id,
+					title,
+					date,
+					start_time,
+					end_time,
+					status,
+					program,
+					programs:program(id, title, program_type)
+				`)
+				.eq('id', eventId)
+				.single()
+
+			if (eventError) throw eventError
+			eventData = data
+
+			// Calculate event duration from times
+			if (data?.start_time && data?.end_time) {
+				eventDuration = calculateHoursFromTimes(data.start_time, data.end_time)
+			}
+
+			// Load rate rule for this program type
+			// Note: programs is a single object from the join, but TS may infer it as array
+			const programData = data?.programs as unknown as { id: number; title: string; program_type: string | null } | null
+			if (programData?.program_type && activeRateCard?.id) {
+				await loadRateRuleForProgram(programData.program_type)
+			}
+		} catch (err: any) {
+			console.error('Error loading event data:', err)
+		}
+	}
+
+	// Load active rate card
+	async function loadRateCard() {
+		try {
+			activeRateCard = await rateCardStore.getActiveRateCard()
+			
+			// If we already have event data, load the rate rule
+			const programData = eventData?.programs as { id: number; title: string; program_type: string | null } | null
+			if (programData?.program_type && activeRateCard?.id) {
+				await loadRateRuleForProgram(programData.program_type)
+			}
+		} catch (err: any) {
+			console.error('Error loading rate card:', err)
+		}
+	}
+
+	// Load rate rule for a program type
+	async function loadRateRuleForProgram(programType: string) {
+		if (!activeRateCard?.id) return
+		try {
+			rateRule = await rateCardStore.getRuleForProgramType(activeRateCard.id, programType)
+		} catch (err: any) {
+			console.error('Error loading rate rule:', err)
+		}
+	}
+
+	// Calculate hours from event start/end times
+	function calculateHoursFromTimes(startTime: string, endTime: string): number | null {
+		if (!startTime || !endTime) return null
+		try {
+			const [startHours, startMins] = startTime.split(':').map(Number)
+			const [endHours, endMins] = endTime.split(':').map(Number)
+			const startTotal = startHours * 60 + startMins
+			const endTotal = endHours * 60 + endMins
+			const durationMinutes = endTotal - startTotal
+			if (durationMinutes <= 0) return null
+			return durationMinutes / 60
+		} catch {
+			return null
+		}
+	}
+
+	// Calculate pay for an artist based on rate rule
+	function calculateArtistPay(hours: number, isLeader: boolean = false, musicianCount: number = 1): { rate: number; totalPay: number; notes: string } | null {
+		if (!rateRule) return null
+
+		let basePay = 0
+		let rate = 0
+		let notes = ''
+
+		switch (rateRule.rate_type) {
+			case 'tiered':
+				if (hours <= 1) {
+					basePay = hours * (rateRule.first_hour_rate || 0)
+					rate = rateRule.first_hour_rate || 0
+					notes = `${hours}hr × $${rateRule.first_hour_rate}`
+				} else {
+					const firstHourPay = rateRule.first_hour_rate || 0
+					const subsequentHours = hours - 1
+					const subsequentPay = subsequentHours * (rateRule.subsequent_hour_rate || 0)
+					basePay = firstHourPay + subsequentPay
+					rate = rateRule.first_hour_rate || 0
+					notes = `1hr × $${rateRule.first_hour_rate} + ${subsequentHours}hr × $${rateRule.subsequent_hour_rate}`
+				}
+				break
+			case 'hourly':
+				basePay = hours * (rateRule.hourly_rate || 0)
+				rate = rateRule.hourly_rate || 0
+				notes = `${hours}hr × $${rateRule.hourly_rate}/hr`
+				break
+			case 'flat':
+				basePay = rateRule.flat_rate || 0
+				rate = rateRule.flat_rate || 0
+				notes = `Flat rate: $${rateRule.flat_rate}`
+				break
+		}
+
+		return {
+			rate,
+			totalPay: basePay,
+			notes
+		}
+	}
+
+	// Format currency
+	function formatCurrency(amount: number): string {
+		return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
 	}
 
 	onMount(async () => {
@@ -112,12 +246,21 @@
 
 			if (artistsError) throw artistsError
 
-			// Merge artist details with assignments
+			// Merge artist details with assignments (preserving rate info)
 			assignments = (artists || []).map(artist => {
 				const assignment = assignmentData.find((a: any) => a.artist_id === artist.id)
 				return {
 					...artist,
-					status: assignment?.status || 'assigned'
+					status: assignment?.status || 'assigned',
+					role: assignment?.role,
+					ensemble_id: assignment?.ensemble_id,
+					ensemble_name: assignment?.ensemble_name,
+					num_hours: assignment?.num_hours,
+					hourly_rate: assignment?.hourly_rate,
+					calculated_pay: assignment?.calculated_pay,
+					rate_card_id: assignment?.rate_card_id,
+					rate_rule_id: assignment?.rate_rule_id,
+					rate_notes: assignment?.rate_notes
 				}
 			})
 		} catch (err: any) {
@@ -183,6 +326,12 @@
 		// This is a simplified check - in practice, we might want to cache member lists
 		return false // Always show ensembles, let the assignment logic handle duplicates
 	}
+
+	// Get program type from event data (with proper type handling)
+	let programType = $derived.by(() => {
+		const prog = eventData?.programs as { program_type?: string | null } | null
+		return prog?.program_type || null
+	})
 
 	// Create combined list of artists and ensembles
 	let availableItems = $derived.by(() => {
@@ -277,6 +426,9 @@
 			// Check if this is an ensemble or artist
 			const ensemble = allEnsembles.find(e => e.id === artistId)
 			
+			// Calculate rate info based on event duration and rate rule
+			const hours = eventDuration || rateRule?.min_hours || 1
+			
 			if (ensemble) {
 				// Handle ensemble assignment - fetch all members and add them
 				const { data: members, error: membersError } = await supabase
@@ -304,21 +456,35 @@
 					}
 				}
 
-				// Create assignments for all ensemble members
+				// Calculate musician count for bandleader fee
+				const totalMusicians = existingAssignments.length + members.length
+
+				// Create assignments for all ensemble members with rate info
 				const existingArtistIds = new Set(existingAssignments.map(a => a.artist_id))
 				const newAssignments = members
 					.filter((member: any) => !existingArtistIds.has(member.artist_id))
-					.map((member: any) => {
+					.map((member: any, index: number) => {
 						const artist = member.phwb_artists
 						const artistName = artist?.full_name || 
 							`${artist?.legal_first_name || ''} ${artist?.legal_last_name || ''}`.trim() ||
 							artist?.artist_name || 
 							'Unknown Artist'
+						const isLeader = member.role === 'leader' || member.role === 'bandleader' || index === 0
+						const rateCalc = calculateArtistPay(hours, isLeader, totalMusicians)
+						
 						return {
 							artist_id: member.artist_id,
 							artist_name: artistName,
 							role: member.role || 'Ensemble Member',
-							status: 'assigned'
+							status: 'assigned',
+							ensemble_id: ensemble.id,
+							ensemble_name: ensemble.name,
+							num_hours: hours,
+							hourly_rate: rateCalc?.rate || null,
+							calculated_pay: rateCalc?.totalPay || null,
+							rate_card_id: activeRateCard?.id || null,
+							rate_rule_id: rateRule?.id || null,
+							rate_notes: rateCalc?.notes || null
 						}
 					})
 
@@ -327,13 +493,6 @@
 				// Handle artist assignment
 				const artist = allArtists.find(a => a.id === artistId)
 				if (!artist) throw new Error('Artist not found')
-
-				// Prepare new assignment with 'assigned' status
-				const newAssignment = {
-					artist_id: artistId,
-					artist_name: getArtistDisplayName(artist),
-					status: 'assigned'
-				}
 
 				// Get existing assignments
 				let existingAssignments: any[] = []
@@ -346,6 +505,24 @@
 					} else if (event.artists.assignments) {
 						existingAssignments = [...event.artists.assignments]
 					}
+				}
+
+				// Calculate rate info - first assignment is leader by default
+				const isLeader = existingAssignments.length === 0
+				const musicianCount = existingAssignments.length + 1
+				const rateCalc = calculateArtistPay(hours, isLeader, musicianCount)
+
+				// Prepare new assignment with 'assigned' status and rate info
+				const newAssignment = {
+					artist_id: artistId,
+					artist_name: getArtistDisplayName(artist),
+					status: 'assigned',
+					num_hours: hours,
+					hourly_rate: rateCalc?.rate || null,
+					calculated_pay: rateCalc?.totalPay || null,
+					rate_card_id: activeRateCard?.id || null,
+					rate_rule_id: rateRule?.id || null,
+					rate_notes: rateCalc?.notes || null
 				}
 
 				// Add new assignment
@@ -487,6 +664,40 @@
 	<div class="flex items-center justify-between border-b pb-2">
 		<h3 class="text-lg font-semibold">Performers ({assignments.length})</h3>
 	</div>
+
+	<!-- Rate Info Banner -->
+	{#if activeRateCard && programType}
+		<div class="alert alert-info py-2">
+			<DollarSign class="w-4 h-4" />
+			<div class="text-sm">
+				<span class="font-medium">Auto-calculating rates:</span>
+				{rateCardStore.getProgramTypeLabel(programType)}
+				{#if rateRule}
+					<span class="opacity-70">
+						({rateCardStore.getRateTypeLabel(rateRule.rate_type)}
+						{#if eventDuration}
+							• {eventDuration}hr event
+						{/if})
+					</span>
+				{/if}
+				<span class="opacity-50 text-xs ml-2">Rate Card: {activeRateCard.name}</span>
+			</div>
+		</div>
+	{:else if !activeRateCard}
+		<div class="alert alert-warning py-2">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+			</svg>
+			<span class="text-sm">No active rate card. Rates will not be auto-calculated.</span>
+		</div>
+	{:else if !programType}
+		<div class="alert py-2">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+			</svg>
+			<span class="text-sm opacity-70">No program type set. Assign a program to enable rate calculation.</span>
+		</div>
+	{/if}
 
 	{#if error}
 		<div class="alert alert-error">
@@ -659,6 +870,19 @@
 										{#if artist.email}
 											<div class="text-xs text-base-content/60 truncate">{artist.email}</div>
 										{/if}
+										{#if artist.calculated_pay}
+											<div class="flex items-center gap-1 mt-1">
+												<DollarSign class="w-3 h-3 text-success" />
+												<span class="text-xs text-success font-medium">
+													{formatCurrency(artist.calculated_pay)}
+												</span>
+												{#if artist.num_hours}
+													<span class="text-xs text-base-content/50">
+														({artist.num_hours}hr)
+													</span>
+												{/if}
+											</div>
+										{/if}
 										{#if showDetails && artist.instruments}
 											<div class="text-xs text-base-content/50 mt-1 truncate">
 												{formatInstruments(artist.instruments)}
@@ -741,6 +965,19 @@
 										{/if}
 										{#if artist.email}
 											<div class="text-xs text-base-content/60 truncate">{artist.email}</div>
+										{/if}
+										{#if artist.calculated_pay}
+											<div class="flex items-center gap-1 mt-1">
+												<DollarSign class="w-3 h-3 text-success" />
+												<span class="text-xs text-success font-medium">
+													{formatCurrency(artist.calculated_pay)}
+												</span>
+												{#if artist.num_hours}
+													<span class="text-xs text-base-content/50">
+														({artist.num_hours}hr)
+													</span>
+												{/if}
+											</div>
 										{/if}
 										{#if showDetails && artist.instruments}
 											<div class="text-xs text-base-content/50 mt-1 truncate">

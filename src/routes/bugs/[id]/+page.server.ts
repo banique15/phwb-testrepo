@@ -201,6 +201,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			.select('*')
 			.order('name', { ascending: true })
 
+		// Fetch testing sessions
+		const { data: testingSessionsData } = await supabase
+			.from('phwb_bug_testing_sessions')
+			.select('*')
+			.eq('bug_id', bugId)
+			.order('created_at', { ascending: false })
+
+		const testingSessions = (testingSessionsData || []).map((session: any) => ({
+			...session,
+			profiles: session.tester_id ? { full_name: allProfilesMap.get(session.tester_id)?.full_name || null } : null
+		}))
+
 		// Fetch replication data and associated screenshots
 		let replicationScreenshots: any[] = []
 		if (bug.replication_data && typeof bug.replication_data === 'object') {
@@ -231,7 +243,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			timeTracking: timeTracking || [],
 			users: users || [],
 			allLabels: allLabels || [],
-			replicationScreenshots: replicationScreenshots || []
+			replicationScreenshots: replicationScreenshots || [],
+			testingSessions: testingSessions || []
 		}
 	} catch (err) {
 		console.error('Bug detail load error:', err)
@@ -255,4 +268,5 @@ export type BugDetailPageData = {
 	users: Array<{ id: string; full_name: string | null; avatar_url: string | null }>
 	allLabels: BugLabel[]
 	replicationScreenshots: Array<BugAttachment & { profiles?: { full_name: string | null } | null }>
+	testingSessions: Array<any>
 }

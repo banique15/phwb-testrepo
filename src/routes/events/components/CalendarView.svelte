@@ -5,9 +5,10 @@
 		events: EnhancedEvent[]
 		selectedEvent?: EnhancedEvent | null
 		onSelectEvent: (event: EnhancedEvent) => void
+		onSelectDate?: (dateStr: string) => void
 	}
 
-	let { events, selectedEvent = null, onSelectEvent }: Props = $props()
+	let { events, selectedEvent = null, onSelectEvent, onSelectDate }: Props = $props()
 
 	// Calendar state
 	let currentDate = $state(new Date())
@@ -187,16 +188,24 @@
 
 			<!-- Calendar days -->
 			<div class="grid grid-cols-7 gap-px bg-base-300 border-x border-b border-base-300 rounded-b-lg overflow-hidden">
-				{#each calendarDays as { day, date, isCurrentMonth }}
-					{@const dayEvents = getEventsForDate(date)}
-					{@const isTodayDate = isToday(date)}
-					<div
-						class="bg-base-100 p-2 min-h-24 relative {!isCurrentMonth ? 'opacity-40' : ''} {isTodayDate ? 'ring-2 ring-primary' : ''}"
-					>
-						<!-- Day number -->
-						<div class="text-sm font-medium mb-1 {isTodayDate ? 'text-primary font-bold' : ''}">
-							{day}
-						</div>
+			{#each calendarDays as { day, date, isCurrentMonth }}
+				{@const dayEvents = getEventsForDate(date)}
+				{@const isTodayDate = isToday(date)}
+				<div
+					class="bg-base-100 p-2 min-h-28 relative cursor-pointer hover:bg-base-200/50 transition-colors {!isCurrentMonth ? 'opacity-40' : ''} {isTodayDate ? 'ring-2 ring-primary' : ''}"
+					onclick={(e) => {
+						// Only trigger if clicking the cell itself, not an event button
+						if ((e.target as HTMLElement).closest('button')) return
+						onSelectDate?.(formatDateForComparison(date))
+					}}
+					role="button"
+					tabindex="0"
+					onkeydown={(e) => { if (e.key === 'Enter') onSelectDate?.(formatDateForComparison(date)) }}
+				>
+					<!-- Day number -->
+					<div class="text-sm font-medium mb-1 {isTodayDate ? 'text-primary font-bold' : ''}">
+						{day}
+					</div>
 
 						<!-- Events for this day -->
 						<div class="space-y-1">

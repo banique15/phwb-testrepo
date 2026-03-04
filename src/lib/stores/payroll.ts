@@ -32,24 +32,68 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`, { count: 'exact' })
 			
-			// Add search filter - search only artist names for simplicity
+			// Add search filter - search artists, venues, programs, and amounts
 			if (options.search) {
+				const searchTerm = options.search.trim()
+				
+				// Check if search is a number (for amount search)
+				const isNumericSearch = !isNaN(parseFloat(searchTerm))
+				
 				// Get artist IDs that match the search
-				const artistsQuery = await supabase
+				const { data: matchingArtists } = await supabase
 					.from('phwb_artists')
 					.select('id')
-					.or(`full_name.ilike.%${options.search}%,legal_first_name.ilike.%${options.search}%,legal_last_name.ilike.%${options.search}%`)
+					.or(`full_name.ilike.%${searchTerm}%,legal_first_name.ilike.%${searchTerm}%,legal_last_name.ilike.%${searchTerm}%`)
 				
-				// Apply the search filter if we found matching artists
-				if (artistsQuery.data && artistsQuery.data.length > 0) {
-					const artistIds = artistsQuery.data.map(a => a.id)
-					query = query.in('artist_id', artistIds)
+				// Get venue IDs that match the search
+				const { data: matchingVenues } = await supabase
+					.from('phwb_venues')
+					.select('id')
+					.ilike('name', `%${searchTerm}%`)
+				
+				// Get program IDs that match the search
+				const { data: matchingPrograms } = await supabase
+					.from('phwb_programs')
+					.select('id')
+					.ilike('title', `%${searchTerm}%`)
+				
+				// Build OR conditions
+				const orConditions: string[] = []
+				
+				if (matchingArtists && matchingArtists.length > 0) {
+					const artistIds = matchingArtists.map(a => a.id)
+					orConditions.push(`artist_id.in.(${artistIds.join(',')})`)
+				}
+				
+				if (matchingVenues && matchingVenues.length > 0) {
+					const venueIds = matchingVenues.map(v => v.id)
+					orConditions.push(`venue_id.in.(${venueIds.join(',')})`)
+				}
+				
+				if (matchingPrograms && matchingPrograms.length > 0) {
+					const programIds = matchingPrograms.map(p => p.id)
+					orConditions.push(`program_id.in.(${programIds.join(',')})`)
+				}
+				
+				// Search by amount if numeric
+				if (isNumericSearch) {
+					const amount = parseFloat(searchTerm)
+					// Search for total_pay that matches (with some tolerance)
+					orConditions.push(`total_pay.eq.${amount}`)
+				}
+				
+				// Search by notes
+				orConditions.push(`notes.ilike.%${searchTerm}%`)
+				
+				if (orConditions.length > 0) {
+					query = query.or(orConditions.join(','))
 				} else {
-					// If no artists match, return empty results
-					query = query.eq('id', -1) // This will return no results
+					// If nothing matches, return empty results
+					query = query.eq('id', -1)
 				}
 			}
 			
@@ -130,7 +174,8 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`)
 				.order('event_date', { ascending: false })
 			
@@ -156,7 +201,8 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`)
 				.single()
 			
@@ -194,7 +240,8 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`)
 				.single()
 			
@@ -259,7 +306,8 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`)
 				.single()
 
@@ -325,7 +373,8 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`)
 
 			if (error) throw error
@@ -375,7 +424,8 @@ export const payrollStore = {
 				.select(`
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name)
+					venues:venue_id(id, name),
+					programs:program_id(id, title, program_type)
 				`)
 				.single()
 
@@ -407,7 +457,8 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-				venues:venue_id(id, name)
+				venues:venue_id(id, name),
+				programs:program_id(id, title, program_type)
 			`)
 			.in('id', ids)
 

@@ -377,7 +377,7 @@
 				disabled={isLoading}
 			>
 				{#each CONTACT_TYPES as type}
-					<option value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+				<option value={type}>{type === 'production_manager' ? 'Production Manager' : type.charAt(0).toUpperCase() + type.slice(1)}</option>
 				{/each}
 			</select>
 		</div>

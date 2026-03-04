@@ -308,17 +308,33 @@
 						<span class="label-text text-xs font-semibold">Metropolitan Hub</span>
 					</label>
 					{#if isEditing}
-						<select
-							class="select select-sm select-bordered"
+						<input
+							type="text"
+							class="input input-sm input-bordered"
 							bind:value={editData.metropolitan_hub}
-						>
-							<option value="">Select hub</option>
-							<option value="New York">New York</option>
-							<option value="Los Angeles">Los Angeles</option>
-							<option value="Chicago">Chicago</option>
-							<option value="Houston">Houston</option>
-							<option value="Philadelphia">Philadelphia</option>
-						</select>
+							placeholder="Enter metropolitan hub"
+							list="metro-hub-edit-options"
+						/>
+						<datalist id="metro-hub-edit-options">
+							<option value="New York"></option>
+							<option value="Los Angeles"></option>
+							<option value="Chicago"></option>
+							<option value="Houston"></option>
+							<option value="Philadelphia"></option>
+							<option value="Phoenix"></option>
+							<option value="San Diego"></option>
+							<option value="Dallas"></option>
+							<option value="Miami"></option>
+							<option value="Boston"></option>
+							<option value="Washington DC"></option>
+							<option value="Atlanta"></option>
+							<option value="San Francisco"></option>
+							<option value="Seattle"></option>
+							<option value="Denver"></option>
+							<option value="Nashville"></option>
+							<option value="Austin"></option>
+							<option value="Detroit"></option>
+						</datalist>
 					{:else}
 						<p class="text-sm">{artist.metropolitan_hub || '-'}</p>
 					{/if}

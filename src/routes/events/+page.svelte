@@ -12,7 +12,7 @@
 	import ScheduleDisplay from './components/ScheduleDisplay.svelte'
 	import RequirementsDisplay from './components/RequirementsDisplay.svelte'
 	import EventsSearchFilters from './components/EventsSearchFilters.svelte'
-	import DashboardCalendar from '$lib/components/ui/Calendar.svelte'
+	import UiCalendar from '$lib/components/ui/Calendar.svelte'
 	import EventHeaderCard from './components/EventHeaderCard.svelte'
 	import EventTabs from './components/EventTabs.svelte'
 	import EventCreateForm from './components/EventCreateForm.svelte'
@@ -55,6 +55,7 @@
 	let showCreateModal = $state(false)
 	let showCreateForm = $state(false)
 	let showDeleteModal = $state(false)
+	let createFormInitialDate = $state<string | undefined>(undefined)
 	
 	let eventArtistsCount = $state(0)
 
@@ -585,6 +586,24 @@
 		return result
 	})
 
+	// Calendar event shape for UiCalendar (week + month, time-slot create)
+	let calendarEvents = $derived.by(() =>
+		filteredEvents.map((e: EnhancedEvent) => ({
+			id: e.id!,
+			title: e.title || '',
+			date: e.date || '',
+			start_time: e.start_time ?? null,
+			end_time: e.end_time ?? null,
+			status: e.status || '',
+			program_id: (e as any).program ?? null,
+			program_name: e.program_name ?? null
+		}))
+	)
+
+	function handleCalendarEventCreated(createdEvent: EnhancedEvent) {
+		newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
+	}
+
 	// Derive selected events from filtered events (must be after filteredEvents is defined)
 	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
 
@@ -687,7 +706,22 @@
 	// Modal handlers
 	function openCreateModal() {
 		selectedEvent = null
+		createFormInitialDate = undefined
 		showCreateForm = true
+	}
+
+	function openCreateModalForDate(dateStr: string) {
+		selectedEvent = null
+		createFormInitialDate = dateStr
+		showCreateForm = true
+	}
+
+	function closeCalendarPanel() {
+		selectedEvent = null
+		showCreateForm = false
+		createFormInitialDate = undefined
+		rightPanelWidth = DEFAULT_PANEL_WIDTH
+		rightPanelExpanded = false
 	}
 	
 	function closeCreateModal() {
@@ -820,8 +854,8 @@
 				<div class="flex-none px-4 py-2 bg-base-100 border-b border-base-200">
 					<div class="flex items-center justify-between">
 						<div>
-							<h1 class="text-xl font-bold leading-tight">Events - Calendar View</h1>
-							<p class="text-sm opacity-70">View events in calendar format</p>
+							<h1 class="text-xl font-bold leading-tight">Events - Calendar</h1>
+							<p class="text-sm opacity-70">Week and month view — click a time slot or day to create</p>
 						</div>
 						<div class="flex gap-2">
 							<button
@@ -834,7 +868,11 @@
 								</svg>
 								List View
 							</button>
-							<button class="btn btn-primary btn-sm" onclick={openCreateModal}>
+							<button
+								class="btn btn-primary btn-sm"
+								onclick={() => showCreateModal = true}
+								title="Create event (or click a time slot in the calendar)"
+							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 								</svg>
@@ -852,12 +890,13 @@
 						>
 							<div class="card bg-base-100 shadow-xl h-full">
 								<div class="card-body">
-									<DashboardCalendar
+									<UiCalendar
 										events={calendarEvents}
 										onSelectEvent={(eventId) => {
 											const event = filteredEvents.find(e => e.id === eventId)
 											if (event) selectEvent(event)
 										}}
+										onEventCreated={handleCalendarEventCreated}
 									/>
 								</div>
 							</div>
@@ -1095,12 +1134,13 @@
 									<div class="flex flex-col h-full overflow-hidden">
 										<!-- Header Card -->
 										<div class="flex-none">
-											<EventHeaderCard
-												event={event}
-												artistsCount={eventArtistsCount}
-												onUpdateField={updateEventField}
-												onArtistCountClick={handleArtistCountClick}
-											/>
+										<EventHeaderCard
+											event={event}
+											artistsCount={eventArtistsCount}
+											onUpdateField={updateEventField}
+											onArtistCountClick={handleArtistCountClick}
+											onDelete={openDeleteModal}
+										/>
 										</div>
 
 										<!-- Tabs Section -->

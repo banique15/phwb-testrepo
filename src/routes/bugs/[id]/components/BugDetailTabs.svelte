@@ -11,11 +11,14 @@
 	import BugRelations from './BugRelations.svelte'
 	import BugTimeTracking from './BugTimeTracking.svelte'
 	import BugReplication from './BugReplication.svelte'
+	import BugTesting, { type TestingSession } from './BugTesting.svelte'
+
+	type TabId = 'description' | 'comments' | 'attachments' | 'activity' | 'time' | 'replication' | 'testing'
 
 	interface Props {
 		bug: Bug
-		activeTab: 'description' | 'comments' | 'attachments' | 'activity' | 'time' | 'replication'
-		onTabChange: (tab: 'description' | 'comments' | 'attachments' | 'activity' | 'time' | 'replication') => void
+		activeTab: TabId
+		onTabChange: (tab: TabId) => void
 		comments: Array<BugComment & { profiles?: { full_name: string | null; avatar_url: string | null } | null }>
 		attachments: Array<BugAttachment & { profiles?: { full_name: string | null } | null }>
 		labels: BugLabel[]
@@ -25,6 +28,7 @@
 		allLabels: BugLabel[]
 		users: Array<{ id: string; full_name: string | null; avatar_url: string | null }>
 		replicationScreenshots: Array<BugAttachment & { profiles?: { full_name: string | null } | null }>
+		testingSessions: TestingSession[]
 		onDescriptionChange: (description: string) => Promise<void>
 	}
 
@@ -41,6 +45,7 @@
 		allLabels,
 		users,
 		replicationScreenshots,
+		testingSessions = [],
 		onDescriptionChange
 	}: Props = $props()
 
@@ -114,6 +119,15 @@
 				<span class="badge badge-sm badge-primary ml-2">✓</span>
 			{/if}
 		</button>
+		<button
+			class="tab {activeTab === 'testing' ? 'tab-active' : ''}"
+			onclick={() => onTabChange('testing')}
+		>
+			Testing
+			{#if testingSessions.length > 0}
+				<span class="badge badge-sm badge-success ml-2">{testingSessions.length}</span>
+			{/if}
+		</button>
 	</div>
 
 	<!-- Tab Content -->
@@ -172,6 +186,8 @@
 			<BugTimeTracking bugId={bug.id as number} timeTracking={timeTracking} users={users} />
 		{:else if activeTab === 'replication'}
 			<BugReplication bug={bug} screenshots={replicationScreenshots} />
+		{:else if activeTab === 'testing'}
+			<BugTesting bug={bug} sessions={testingSessions} users={users} />
 		{/if}
 	</div>
 </div>

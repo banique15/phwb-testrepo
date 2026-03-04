@@ -2,9 +2,10 @@
 	import { createBugComment, bugCommentsStore, deleteBugComment } from '$lib/stores/bug-comments'
 	import { supabase } from '$lib/supabase'
 	import { invalidateAll } from '$app/navigation'
-	import { Send, Edit, Trash2, Lock } from 'lucide-svelte'
+	import { Send, Edit, Trash2, Lock, AtSign } from 'lucide-svelte'
 	import { formatDistanceToNow } from 'date-fns'
 	import type { BugComment } from '$lib/schemas/bug-comment'
+	import { onMount, tick } from 'svelte'
 
 	interface Props {
 		bugId: number
@@ -20,8 +21,24 @@
 	let editingCommentId = $state<number | null>(null)
 	let editContent = $state('')
 	let currentUser = $state<{ id: string } | null>(null)
-
-	import { onMount } from 'svelte'
+	
+	// @mention state
+	let showMentionDropdown = $state(false)
+	let mentionQuery = $state('')
+	let mentionStartIndex = $state(-1)
+	let selectedMentionIndex = $state(0)
+	let textareaRef = $state<HTMLTextAreaElement | null>(null)
+	let mentionDropdownRef = $state<HTMLDivElement | null>(null)
+	
+	// Filter users based on mention query
+	const filteredMentionUsers = $derived(() => {
+		if (!mentionQuery) return users
+		const query = mentionQuery.toLowerCase()
+		return users.filter(u => 
+			u.full_name?.toLowerCase().includes(query) || 
+			u.id.toLowerCase().includes(query)
+		)
+	})
 
 	async function loadCurrentUser() {
 		const { data: { user } } = await supabase.auth.getUser()
@@ -31,6 +48,80 @@
 	onMount(() => {
 		loadCurrentUser()
 	})
+	
+	// Handle textarea input for @mentions
+	function handleCommentInput(e: Event) {
+		const textarea = e.target as HTMLTextAreaElement
+		const cursorPos = textarea.selectionStart
+		const text = textarea.value
+		
+		// Find if we're in a mention context (after @ but before space or end)
+		const textBeforeCursor = text.slice(0, cursorPos)
+		const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+		
+		if (lastAtIndex !== -1) {
+			const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1)
+			// Check if there's a space after @ (which would end the mention)
+			if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+				mentionStartIndex = lastAtIndex
+				mentionQuery = textAfterAt
+				showMentionDropdown = true
+				selectedMentionIndex = 0
+				return
+			}
+		}
+		
+		showMentionDropdown = false
+		mentionQuery = ''
+		mentionStartIndex = -1
+	}
+	
+	// Handle keyboard navigation in mention dropdown
+	function handleCommentKeydown(e: KeyboardEvent) {
+		if (!showMentionDropdown) return
+		
+		const filtered = filteredMentionUsers()
+		
+		if (e.key === 'ArrowDown') {
+			e.preventDefault()
+			selectedMentionIndex = Math.min(selectedMentionIndex + 1, filtered.length - 1)
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault()
+			selectedMentionIndex = Math.max(selectedMentionIndex - 1, 0)
+		} else if (e.key === 'Enter' && filtered.length > 0) {
+			e.preventDefault()
+			insertMention(filtered[selectedMentionIndex])
+		} else if (e.key === 'Escape') {
+			showMentionDropdown = false
+		}
+	}
+	
+	// Insert selected mention into textarea
+	async function insertMention(user: { id: string; full_name: string | null }) {
+		if (mentionStartIndex === -1 || !textareaRef) return
+		
+		const displayName = user.full_name || user.id
+		const beforeMention = newComment.slice(0, mentionStartIndex)
+		const afterMention = newComment.slice(mentionStartIndex + mentionQuery.length + 1)
+		
+		newComment = `${beforeMention}@${displayName} ${afterMention}`
+		showMentionDropdown = false
+		mentionQuery = ''
+		mentionStartIndex = -1
+		
+		// Focus textarea and move cursor after mention
+		await tick()
+		const newCursorPos = beforeMention.length + displayName.length + 2
+		textareaRef.focus()
+		textareaRef.setSelectionRange(newCursorPos, newCursorPos)
+	}
+	
+	// Render comment content with highlighted @mentions
+	function renderCommentWithMentions(content: string): string {
+		// Match @mentions (word characters after @)
+		const mentionRegex = /@([\w\s]+?)(?=\s@|\s|$)/g
+		return content.replace(mentionRegex, '<span class="text-primary font-medium">@$1</span>')
+	}
 
 	async function handleSubmit() {
 		if (!newComment.trim() || !currentUser) return
@@ -86,13 +177,45 @@
 <div class="space-y-6">
 	<!-- Comment Form -->
 	<div class="bg-base-100 rounded-lg p-4 border border-base-300">
-		<div class="form-control mb-3">
+		<div class="form-control mb-3 relative">
 			<textarea
+				bind:this={textareaRef}
 				class="textarea textarea-bordered"
-				placeholder="Add a comment..."
+				placeholder="Add a comment... Use @ to mention someone"
 				bind:value={newComment}
+				oninput={handleCommentInput}
+				onkeydown={handleCommentKeydown}
 				rows="3"
 			></textarea>
+			
+			<!-- @mention dropdown -->
+			{#if showMentionDropdown && filteredMentionUsers().length > 0}
+				<div 
+					bind:this={mentionDropdownRef}
+					class="absolute left-0 right-0 top-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto"
+				>
+					<div class="p-2 text-xs text-base-content/60 border-b border-base-300 flex items-center gap-1">
+						<AtSign class="w-3 h-3" />
+						Mention a team member
+					</div>
+					{#each filteredMentionUsers() as user, index}
+						<button
+							class="w-full text-left px-3 py-2 hover:bg-base-200 flex items-center gap-2 {index === selectedMentionIndex ? 'bg-base-200' : ''}"
+							onclick={() => insertMention(user)}
+							onmouseenter={() => selectedMentionIndex = index}
+						>
+							<div class="avatar placeholder">
+								<div class="bg-neutral text-neutral-content rounded-full w-6">
+									<span class="text-xs">
+										{user.full_name?.charAt(0).toUpperCase() || '?'}
+									</span>
+								</div>
+							</div>
+							<span class="font-medium text-sm">{user.full_name || 'Unknown'}</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
 		</div>
 		<div class="flex items-center justify-between">
 			<label class="label cursor-pointer gap-2">
@@ -164,7 +287,7 @@
 								</div>
 							</div>
 						{:else}
-							<p class="whitespace-pre-wrap text-sm">{comment.content}</p>
+							<p class="whitespace-pre-wrap text-sm">{@html renderCommentWithMentions(comment.content)}</p>
 						{/if}
 
 						<!-- Actions -->

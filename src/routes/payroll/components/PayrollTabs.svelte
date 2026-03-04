@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Payroll } from '$lib/schemas/payroll'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { ClipboardList, CheckCircle, Search, BarChart } from 'lucide-svelte'
+	import { ClipboardList, CheckCircle, Search, BarChart, CalendarPlus, CreditCard, Wallet } from 'lucide-svelte'
 	import PayrollInlineTable from '../PayrollInlineTable.svelte'
 	import PayrollFiltersButton from '../PayrollFiltersButton.svelte'
 	import PayrollMetricsFilterButton from '../PayrollMetricsFilterButton.svelte'
@@ -11,6 +11,12 @@
 	import PaymentExport from '$lib/components/payroll/PaymentExport.svelte'
 	import PaymentAuditLog from '$lib/components/payroll/PaymentAuditLog.svelte'
 	import PaymentReconciliation from '$lib/components/payroll/PaymentReconciliation.svelte'
+	import PayrollGenerationModal from '$lib/components/payroll/PayrollGenerationModal.svelte'
+	import RateCardManager from './RateCardManager.svelte'
+	import WeeklyBatchView from './WeeklyBatchView.svelte'
+	import { payrollStore } from '$lib/stores/payroll'
+	import { supabase } from '$lib/supabase'
+	import { PaymentStatus } from '$lib/schemas/payroll'
 
 	interface Props {
 		payrollEntries: Payroll[]
@@ -57,6 +63,7 @@
 		showExportModal: boolean
 		showAuditModal: boolean
 		showReconcileModal: boolean
+		showGenerationModal: boolean
 		auditPaymentId: number
 		getSelectedPayments: () => Payroll[]
 		onCloseApproval: () => void
@@ -64,15 +71,18 @@
 		onCloseExport: () => void
 		onCloseAudit: () => void
 		onCloseReconcile: () => void
+		onCloseGeneration: () => void
 		onOpenApproval: () => void
 		onOpenBatch: () => void
 		onOpenExport: () => void
-		onOpenAudit: () => void
+		onOpenAudit: (paymentId: number) => void
 		onOpenReconcile: () => void
+		onOpenGeneration: () => void
 		onPaymentApproved: () => Promise<void>
 		onPaymentProcessed: () => Promise<void>
 		onPaymentReconciled: () => Promise<void>
 		onPaymentExported: () => void
+		onPayrollGenerated: () => Promise<void>
 	}
 
 	let {
@@ -105,6 +115,7 @@
 		showExportModal,
 		showAuditModal,
 		showReconcileModal,
+		showGenerationModal,
 		auditPaymentId,
 		getSelectedPayments,
 		onCloseApproval,
@@ -112,23 +123,84 @@
 		onCloseExport,
 		onCloseAudit,
 		onCloseReconcile,
+		onCloseGeneration,
 		onOpenApproval,
 		onOpenBatch,
 		onOpenExport,
 		onOpenAudit,
 		onOpenReconcile,
+		onOpenGeneration,
 		onPaymentApproved,
 		onPaymentProcessed,
 		onPaymentReconciled,
-		onPaymentExported
+		onPaymentExported,
+		onPayrollGenerated
 	}: Props = $props()
 
 	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
 		{ id: 'entries', label: 'Entries', icon: ClipboardList },
 		{ id: 'approvals', label: 'Approvals', icon: CheckCircle },
+		{ id: 'pending', label: 'Pending Payments', icon: Wallet },
 		{ id: 'reconciliation', label: 'Reconciliation', icon: Search },
-		{ id: 'audit', label: 'Audit', icon: BarChart }
+		{ id: 'audit', label: 'Audit', icon: BarChart },
+		{ id: 'rate-card', label: 'Rate Card', icon: CreditCard }
 	]
+
+	// Handler for marking payments as paid
+	async function handleMarkPaid(entryIds: number[]) {
+		// Get current user
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) throw new Error('User not authenticated')
+
+		// Update each entry to 'Paid' status
+		const { error } = await supabase
+			.from('phwb_payroll')
+			.update({
+				status: PaymentStatus.PAID,
+				processed_by: user.id,
+				processed_at: new Date().toISOString()
+			})
+			.in('id', entryIds)
+
+		if (error) throw error
+
+		// Refresh data
+		await onUpdate()
+	}
+
+	// Handler for exporting entries
+	function handleExport(entries: Payroll[]) {
+		// Generate CSV
+		const headers = ['Artist', 'Event Date', 'Program', 'Hours', 'Rate', 'Additional Pay', 'Total Pay', 'Status']
+		const rows = entries.map(entry => {
+			const artist = entry.artists as any
+			const artistName = artist?.full_name || `${artist?.legal_first_name || ''} ${artist?.legal_last_name || ''}`.trim() || 'Unknown'
+			const program = entry.programs as any
+			return [
+				artistName,
+				entry.event_date,
+				program?.title || '',
+				entry.hours || '',
+				entry.rate || '',
+				entry.additional_pay || 0,
+				entry.total_pay || 0,
+				entry.status
+			]
+		})
+
+		const csvContent = [
+			headers.join(','),
+			...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+		].join('\n')
+
+		// Download
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+		const link = document.createElement('a')
+		link.href = URL.createObjectURL(blob)
+		link.download = `payroll_export_${new Date().toISOString().split('T')[0]}.csv`
+		link.click()
+		URL.revokeObjectURL(link.href)
+	}
 
 	let activeTab = $state<string>(
 		(typeof window !== 'undefined' ? localStorage.getItem('phwb-payroll-active-tab') : null) || 'entries'
@@ -162,8 +234,18 @@
 	<div class="flex-1 min-h-0 overflow-y-auto">
 		{#if activeTab === 'entries'}
 			<div class="space-y-4">
-				<!-- Metrics Filter -->
-				<div class="flex justify-end">
+				<!-- Actions Bar -->
+				<div class="flex justify-between items-center">
+					<!-- Generate Payroll Button -->
+					<button 
+						class="btn btn-primary btn-sm"
+						onclick={onOpenGeneration}
+					>
+						<CalendarPlus class="w-4 h-4 mr-2" />
+						Generate Weekly Payroll
+					</button>
+					
+					<!-- Metrics Filter -->
 					<PayrollMetricsFilterButton
 						dateRange={metricsDateRange}
 						paymentType={metricsPaymentType}
@@ -221,6 +303,19 @@
 					<p class="text-base opacity-70">Use the approval modal to review and approve pending payments.</p>
 				</div>
 			</div>
+		{:else if activeTab === 'pending'}
+			<div class="space-y-4">
+				<div class="flex justify-between items-center">
+					<div>
+						<h3 class="text-lg font-semibold">Pending Payments</h3>
+						<p class="text-sm opacity-70">Approved payments grouped by week, ready for processing</p>
+					</div>
+				</div>
+				<WeeklyBatchView 
+					onMarkPaid={handleMarkPaid}
+					onExport={handleExport}
+				/>
+			</div>
 		{:else if activeTab === 'reconciliation'}
 			<div class="space-y-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Payment Reconciliation</h3>
@@ -247,6 +342,8 @@
 					<p class="text-base opacity-70">View detailed audit trail of all payroll transactions.</p>
 				</div>
 			</div>
+		{:else if activeTab === 'rate-card'}
+			<RateCardManager />
 		{/if}
 	</div>
 </div>
@@ -285,3 +382,8 @@
 	on:close={onCloseAudit}
 />
 
+<PayrollGenerationModal
+	bind:isOpen={showGenerationModal}
+	on:generated={onPayrollGenerated}
+	on:close={onCloseGeneration}
+/>
