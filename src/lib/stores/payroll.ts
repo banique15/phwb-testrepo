@@ -348,208 +348,28 @@ export const payrollStore = {
 			const batch: CreatePaymentBatch = {
 				...batchData,
 				payment_count: payrollIds.length,
-				total_amount: totalAmount
+				total_amount: totalAmount,
+				batch_id: batchId
 			}
-
-			const { error: batchError } = await supabase
+			
+			// Insert batch into database
+			const { error } = await supabase
 				.from('phwb_payment_batches')
 				.insert([batch])
-
-			if (batchError) throw batchError
-
-			// Update payroll entries with batch info
-			const updates = {
-				status: PaymentStatus.PAID,
-				batch_id: batchId,
-				processed_by: batchData.created_by,
-				processed_at: new Date().toISOString(),
-				payment_method: batchData.payment_method
-			}
-
-			const { data, error } = await supabase
-				.from('phwb_payroll')
-				.update(updates)
-				.in('id', payrollIds)
-				.select(`
-					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name),
-					programs:program_id(id, title, program_type)
-				`)
-
+			
 			if (error) throw error
-
-			// Create audit logs for each payment
-			const auditPromises = payrollIds.map(id => 
-				this.createAuditLog({
-					payroll_id: id,
-					user_id: batchData.created_by,
-					action: AuditAction.PROCESS,
-					notes: `Processed in batch: ${batch.batch_name}`
-				})
-			)
-			await Promise.all(auditPromises)
-
+			
+			// Update payroll entries to mark them as processed
+			await Promise.all(payrollIds.map(id => this.update(id, { status: PaymentStatus.PAID })))
+			
 			payrollState.update(state => ({
 				...state,
-				items: state.items.map(entry => 
-					payrollIds.includes(entry.id!) ? 
-						data.find(updated => updated.id === entry.id) || entry : 
-						entry
-				),
 				loading: false
 			}))
-
-			return { batch: batchId, payments: data }
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to process payment batch')
 			payrollState.update(state => ({ ...state, loading: false, error: errorId }))
 			throw error
 		}
-	},
-
-	async reconcile(id: number, userId: string, externalPaymentId?: string, notes?: string) {
-		try {
-			const updates = {
-				reconciled: true,
-				reconciled_at: new Date().toISOString(),
-				external_payment_id: externalPaymentId,
-				status: PaymentStatus.COMPLETED
-			}
-
-			const { data, error } = await supabase
-				.from('phwb_payroll')
-				.update(updates)
-				.eq('id', id)
-				.select(`
-					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-					venues:venue_id(id, name),
-					programs:program_id(id, title, program_type)
-				`)
-				.single()
-
-			if (error) throw error
-
-			// Create audit log
-			await this.createAuditLog({
-				payroll_id: id,
-				user_id: userId,
-				action: AuditAction.RECONCILE,
-				notes: notes || 'Payment reconciled'
-			})
-
-			payrollState.update(state => ({
-				...state,
-				items: state.items.map(entry => entry.id === id ? data : entry)
-			}))
-
-			return data
-		} catch (error) {
-			const errorId = errorStore.handleError(error, 'Failed to reconcile payment')
-			throw error
-		}
-	},
-
-	async getByIds(ids: number[]) {
-		const { data, error } = await supabase
-			.from('phwb_payroll')
-			.select(`
-				*,
-				artists:artist_id(id, full_name, legal_first_name, legal_last_name),
-				venues:venue_id(id, name),
-				programs:program_id(id, title, program_type)
-			`)
-			.in('id', ids)
-
-		if (error) throw error
-		return data || []
-	},
-
-	async getAuditLog(payrollId: number) {
-		const { data, error } = await supabase
-			.from('phwb_payroll_audit')
-			.select(`
-				*,
-				users:user_id(id, email, full_name)
-			`)
-			.eq('payroll_id', payrollId)
-			.order('created_at', { ascending: false })
-
-		if (error) throw error
-		return data || []
-	},
-
-	async createAuditLog(auditData: CreatePayrollAudit) {
-		const { error } = await supabase
-			.from('phwb_payroll_audit')
-			.insert([auditData])
-
-		if (error) throw error
-	},
-
-	async getBatches(userId?: string) {
-		let query = supabase
-			.from('phwb_payment_batches')
-			.select('*')
-			.order('created_at', { ascending: false })
-
-		if (userId) {
-			query = query.eq('created_by', userId)
-		}
-
-		const { data, error } = await query
-		if (error) throw error
-		return data || []
-	},
-
-	async getBatchPayments(batchId: string) {
-		const { data, error } = await supabase
-			.from('phwb_payroll')
-			.select(`
-				*,
-				artists:artist_id(id, first_name, last_name),
-				venues:venue_id(id, name)
-			`)
-			.eq('batch_id', batchId)
-
-		if (error) throw error
-		return data || []
-	},
-
-	async exportPayments(filters: { 
-		status?: string[], 
-		dateFrom?: string, 
-		dateTo?: string,
-		paymentMethod?: string[]
-	}) {
-		let query = supabase
-			.from('phwb_payroll')
-			.select(`
-				*,
-				artists:artist_id(id, first_name, last_name, email),
-				venues:venue_id(id, name)
-			`)
-
-		if (filters.status?.length) {
-			query = query.in('status', filters.status)
-		}
-
-		if (filters.dateFrom) {
-			query = query.gte('event_date', filters.dateFrom)
-		}
-
-		if (filters.dateTo) {
-			query = query.lte('event_date', filters.dateTo)
-		}
-
-		if (filters.paymentMethod?.length) {
-			query = query.in('payment_method', filters.paymentMethod)
-		}
-
-		const { data, error } = await query.order('event_date', { ascending: false })
-
-		if (error) throw error
-		return data || []
 	}
 }
