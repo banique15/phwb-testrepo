@@ -23,6 +23,7 @@ export const payrollSchema = z.object({
 	base_rate: z.number().min(0, 'Base rate must be non-negative').optional(),
 	additional_rate: z.number().min(0, 'Additional rate must be non-negative').optional(),
 	rate_description: z.string().max(200, 'Rate description must be less than 200 characters').optional(),
+	rate_type: z.enum(['hourly', 'flat', 'tiered']).optional().nullable(),
 	// Payment workflow fields
 	approved_by: z.string().uuid('Invalid user ID').optional().nullable(),
 	approved_at: z.string().optional().nullable(),

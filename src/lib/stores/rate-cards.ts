@@ -11,12 +11,59 @@ import {
 	FeeType
 } from '$lib/schemas/rate-card'
 
+// Dropdown option type for PayrollInlineTable
+export interface RateRuleOption {
+	ruleId: number
+	label: string
+	rateType: 'hourly' | 'flat' | 'tiered'
+	primaryRate: number
+	additionalRate: number | null
+	description: string
+}
+
+function formatRuleLabel(rule: RateRule): string {
+	if (rule.rate_type === 'hourly') {
+		return `${rule.description} - $${Number(rule.hourly_rate || 0).toFixed(0)}/hr`
+	}
+	if (rule.rate_type === 'flat') {
+		return `${rule.description} - $${Number(rule.flat_rate || 0).toFixed(0)} flat`
+	}
+	if (rule.rate_type === 'tiered') {
+		return `${rule.description} - $${Number(rule.first_hour_rate || 0).toFixed(0)} + $${Number(rule.subsequent_hour_rate || 0).toFixed(0)}/add'l hr`
+	}
+	return rule.description || ''
+}
+
+function ruleToOption(rule: RateRule): RateRuleOption {
+	let primaryRate = 0
+	let additionalRate: number | null = null
+
+	if (rule.rate_type === 'hourly') {
+		primaryRate = Number(rule.hourly_rate) || 0
+	} else if (rule.rate_type === 'flat') {
+		primaryRate = Number(rule.flat_rate) || 0
+	} else if (rule.rate_type === 'tiered') {
+		primaryRate = Number(rule.first_hour_rate) || 0
+		additionalRate = Number(rule.subsequent_hour_rate) || 0
+	}
+
+	return {
+		ruleId: rule.id,
+		label: formatRuleLabel(rule),
+		rateType: rule.rate_type as 'hourly' | 'flat' | 'tiered',
+		primaryRate,
+		additionalRate,
+		description: rule.description || ''
+	}
+}
+
 // State types
 interface RateCardState {
 	rateCards: RateCard[]
 	activeRateCard: RateCard | null
 	rules: RateRule[]
 	fees: AdditionalFee[]
+	ruleOptions: RateRuleOption[]
 	loading: boolean
 	error: string | null
 }
@@ -26,6 +73,7 @@ const initialState: RateCardState = {
 	activeRateCard: null,
 	rules: [],
 	fees: [],
+	ruleOptions: [],
 	loading: false,
 	error: null
 }
@@ -75,7 +123,7 @@ export const rateCardStore = {
 				.eq('is_active', true)
 				.single()
 
-			if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows returned
+			if (error && error.code !== 'PGRST116') throw error
 
 			rateCardState.update((state) => ({
 				...state,
@@ -95,7 +143,6 @@ export const rateCardStore = {
 		rateCardState.update((state) => ({ ...state, loading: true, error: null }))
 
 		try {
-			// If this card is being set as active, deactivate others first
 			if (rateCard.is_active) {
 				await supabase.from('phwb_rate_cards').update({ is_active: false }).eq('is_active', true)
 			}
@@ -130,7 +177,6 @@ export const rateCardStore = {
 		rateCardState.update((state) => ({ ...state, loading: true, error: null }))
 
 		try {
-			// If setting as active, deactivate others first
 			if (updates.is_active) {
 				await supabase
 					.from('phwb_rate_cards')
@@ -188,7 +234,6 @@ export const rateCardStore = {
 		rateCardState.update((state) => ({ ...state, loading: true, error: null }))
 
 		try {
-			// Fetch the original rate card with its rules and fees
 			const { data: originalCard, error: cardError } = await supabase
 				.from('phwb_rate_cards')
 				.select('*')
@@ -211,7 +256,6 @@ export const rateCardStore = {
 
 			if (feesError) throw feesError
 
-			// Create the new rate card
 			const { data: newCard, error: newCardError } = await supabase
 				.from('phwb_rate_cards')
 				.insert([
@@ -228,7 +272,6 @@ export const rateCardStore = {
 
 			if (newCardError) throw newCardError
 
-			// Duplicate rules
 			if (originalRules && originalRules.length > 0) {
 				const newRules = originalRules.map((rule) => ({
 					rate_card_id: newCard.id,
@@ -252,7 +295,6 @@ export const rateCardStore = {
 				if (insertRulesError) throw insertRulesError
 			}
 
-			// Duplicate fees
 			if (originalFees && originalFees.length > 0) {
 				const newFees = originalFees.map((fee) => ({
 					rate_card_id: newCard.id,
@@ -299,15 +341,57 @@ export const rateCardStore = {
 
 			if (error) throw error
 
+			const typedRules = (data || []) as RateRule[]
+
 			rateCardState.update((state) => ({
 				...state,
-				rules: data || []
+				rules: typedRules,
+				ruleOptions: typedRules.map(ruleToOption)
 			}))
 
-			return data || []
+			return typedRules
 		} catch (error) {
 			errorStore.handleError(error, 'Failed to fetch rate rules')
 			throw error
+		}
+	},
+
+	async fetchActiveRuleOptions() {
+		rateCardState.update((s) => ({ ...s, loading: true, error: null }))
+
+		try {
+			const { data: card, error: cardErr } = await supabase
+				.from('phwb_rate_cards')
+				.select('*')
+				.eq('is_active', true)
+				.limit(1)
+				.single()
+
+			if (cardErr) throw cardErr
+
+			const { data: rules, error: rulesErr } = await supabase
+				.from('phwb_rate_rules')
+				.select('*')
+				.eq('rate_card_id', card.id)
+				.order('description')
+
+			if (rulesErr) throw rulesErr
+
+			const typedRules = (rules || []) as RateRule[]
+
+			rateCardState.update((s) => ({
+				...s,
+				rules: typedRules,
+				ruleOptions: typedRules.map(ruleToOption),
+				activeRateCard: card as RateCard,
+				loading: false
+			}))
+		} catch (err: any) {
+			rateCardState.update((s) => ({
+				...s,
+				loading: false,
+				error: err.message || 'Failed to load rate rules'
+			}))
 		}
 	},
 
@@ -346,7 +430,8 @@ export const rateCardStore = {
 
 			rateCardState.update((state) => ({
 				...state,
-				rules: [...state.rules, data]
+				rules: [...state.rules, data],
+				ruleOptions: [...state.rules, data].map(ruleToOption)
 			}))
 
 			return data
@@ -370,9 +455,12 @@ export const rateCardStore = {
 
 			if (error) throw error
 
+			const updatedRules = get(rateCardState).rules.map((rule) => (rule.id === id ? data : rule))
+
 			rateCardState.update((state) => ({
 				...state,
-				rules: state.rules.map((rule) => (rule.id === id ? data : rule))
+				rules: updatedRules,
+				ruleOptions: updatedRules.map(ruleToOption)
 			}))
 
 			return data
@@ -388,9 +476,12 @@ export const rateCardStore = {
 
 			if (error) throw error
 
+			const filteredRules = get(rateCardState).rules.filter((rule) => rule.id !== id)
+
 			rateCardState.update((state) => ({
 				...state,
-				rules: state.rules.filter((rule) => rule.id !== id)
+				rules: filteredRules,
+				ruleOptions: filteredRules.map(ruleToOption)
 			}))
 		} catch (error) {
 			errorStore.handleError(error, 'Failed to delete rate rule')
@@ -548,13 +639,11 @@ export const rateCardStore = {
 				break
 		}
 
-		// Calculate additional pay
 		let additionalPay = 0
 		let additionalPayReason: string | null = null
 		const additionalReasons: string[] = []
 
 		for (const fee of additionalFees) {
-			// Check bandleader fee
 			if (fee.fee_type === FeeType.BANDLEADER) {
 				if (options.isLeader && options.numberOfMusicians && fee.min_musicians) {
 					if (options.numberOfMusicians >= fee.min_musicians) {
@@ -563,7 +652,6 @@ export const rateCardStore = {
 					}
 				}
 			}
-			// Other fee types can be added here
 		}
 
 		if (additionalReasons.length > 0) {
@@ -592,7 +680,6 @@ export const rateCardStore = {
 		} = {}
 	): Promise<RateCalculationResult | null> {
 		try {
-			// Get the rate card to use
 			let rateCardId = options.rateCardId
 			if (!rateCardId) {
 				const activeCard = await this.getActiveRateCard()
@@ -603,17 +690,14 @@ export const rateCardStore = {
 				rateCardId = activeCard.id
 			}
 
-			// Get the rate rule for this program type
 			const rule = await this.getRuleForProgramType(rateCardId, programType)
 			if (!rule) {
 				console.warn(`No rate rule found for program type: ${programType}`)
 				return null
 			}
 
-			// Get additional fees
 			const fees = await this.fetchFeesForCard(rateCardId)
 
-			// Calculate and return
 			return this.calculatePay(rule, hours, fees, options)
 		} catch (error) {
 			errorStore.handleError(error, 'Failed to calculate pay')

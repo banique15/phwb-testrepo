@@ -6,6 +6,7 @@
 	import { venuesStore } from '$lib/stores/venues'
 	import { artistLookup, venueLookup } from '$lib/stores/lookup'
 	import { PaymentStatus, PaymentType, EmployeeContractorStatus } from '$lib/schemas/payroll'
+	import { rateCardStore, type RateRuleOption } from '$lib/stores/rate-cards'
 	import { DollarSign } from 'lucide-svelte'
 	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
 	import ArtistSelector from '$lib/components/ui/ArtistSelector.svelte'
@@ -66,16 +67,8 @@
 		'Administrative': 'text-gray-600'
 	}
 	
-	// Rate options
-	const rateOptions = [
-		{ value: 25, label: '$25/hr' },
-		{ value: 35, label: '$35/hr' },
-		{ value: 50, label: '$50/hr' },
-		{ value: 75, label: '$75/hr' },
-		{ value: 100, label: '$100/hr' },
-		{ value: 125, label: '$125/hr' },
-		{ value: 150, label: '$150/hr' },
-	]
+	// Rate rule options loaded from the active rate card
+	let rateRuleOptions = $state<RateRuleOption[]>([])
 	
 	// Additional pay reason options
 	const additionalPayReasons = [
@@ -87,6 +80,35 @@
 		'Bonus',
 		'Other'
 	]
+
+	// Artist display formatting for LLC support
+	function formatArtistOption(artist: any): string {
+		const name = artist.full_name || `${artist.legal_first_name} ${artist.legal_last_name}`
+		if (artist.llc_name && (artist.employment_status === '1099' || artist.employment_status === 'LLC')) {
+			return `${artist.llc_name} (${name})`
+		}
+		return name
+	}
+
+	function formatArtistDisplay(entry: Partial<Payroll>): string {
+		const a = (entry as any).artists
+		if (!a) return 'N/A'
+		const name = a.full_name || (a.legal_first_name && a.legal_last_name ? `${a.legal_first_name} ${a.legal_last_name}` : null)
+		if (!name) return 'N/A'
+		if (a.llc_name && entry.employee_contractor_status === 'llc') {
+			return `${a.llc_name} (${name})`
+		}
+		return name
+	}
+
+	function deriveTypeFromArtist(artist: any): string | null {
+		if (!artist?.employment_status) return null
+		const status = artist.employment_status
+		if (status === 'Employee' || status === 'W2') return 'employee'
+		if (status === '1099' && artist.llc_name) return 'llc'
+		if (status === '1099') return 'contractor'
+		return null
+	}
 
 	// Store subscriptions
 	let artists = $state<any[]>([])
@@ -125,6 +147,7 @@
 		// Load lookup data
 		artistsStore.fetchAll()
 		venuesStore.fetchAll()
+		rateCardStore.fetchActiveRuleOptions()
 		
 		// Subscribe to stores
 		const unsubArtists = artistsStore.subscribe(state => {
@@ -134,10 +157,15 @@
 		const unsubVenues = venuesStore.subscribe(state => {
 			venues = state.items
 		})
+
+		const unsubRateCards = rateCardStore.subscribe((state: { ruleOptions: RateRuleOption[] }) => {
+			rateRuleOptions = state.ruleOptions
+		})
 		
 		return () => {
 			unsubArtists()
 			unsubVenues()
+			unsubRateCards()
 		}
 	})
 
@@ -151,7 +179,12 @@
 			artist_id: '',
 			venue_id: undefined,
 			hours: 0,
-			rate: 35,
+			rate: 0,
+			rate_type: undefined,
+			rate_rule_id: undefined,
+			base_rate: undefined,
+			additional_rate: undefined,
+			rate_description: undefined,
 			additional_pay: 0,
 			additional_pay_reason: '',
 			insperity_hours: 0,
@@ -277,9 +310,8 @@
 		validationErrors = new Map(validationErrors)
 
 		try {
-			// Calculate total pay
-			const totalPay = (editData.hours || 0) * (editData.rate || 0) + (editData.additional_pay || 0)
-			editData.total_pay = totalPay
+			// Calculate total pay using the rate-type-aware function
+			editData.total_pay = calculateTotalPay(editData)
 			
 			// Set insperity_hours to match hours if not set
 			if (editData.insperity_hours === undefined || editData.insperity_hours === 0) {
@@ -366,6 +398,83 @@
 		editingRows = new Map(editingRows)
 	}
 
+	// Handle artist selection with auto-classification of employee/contractor type
+	function handleArtistSelect(id: string | number, artistId: string) {
+		updateField(id, 'artist_id', artistId)
+		if (!artistId) return
+
+		const artist = artists.find((a: any) => a.id === artistId)
+		if (!artist) return
+
+		const derivedType = deriveTypeFromArtist(artist)
+		if (derivedType) {
+			updateField(id, 'employee_contractor_status', derivedType)
+		}
+	}
+
+	// Filter artists based on the currently selected type column,
+	// but always include the currently selected artist (for existing rows)
+	function filteredArtists(typeStatus: string | null | undefined, selectedId?: string | null): any[] {
+		let list = artists
+
+		if (typeStatus === 'employee') {
+			list = artists.filter((a: any) => a.employment_status === 'Employee' || a.employment_status === 'W2' || !a.employment_status)
+		} else if (typeStatus === 'llc') {
+			list = artists.filter((a: any) => a.employment_status === '1099' && a.llc_name)
+		} else if (typeStatus === 'contractor') {
+			list = artists.filter((a: any) => a.employment_status === '1099')
+		}
+
+		if (selectedId) {
+			const selected = artists.find((a: any) => a.id === selectedId)
+			if (selected && !list.some((a: any) => a.id === selected.id)) {
+				list = [...list, selected]
+			}
+		}
+
+		return list
+	}
+
+	// Apply a selected rate rule to a payroll entry
+	function handleRateRuleSelect(id: number | string, ruleId: number) {
+		const option = rateRuleOptions.find(o => o.ruleId === ruleId)
+		if (!option) return
+
+		const current = editingRows.get(id) || {}
+		current.rate_rule_id = option.ruleId
+		current.rate_type = option.rateType
+		current.rate_description = option.description
+
+		if (option.rateType === 'hourly') {
+			current.rate = option.primaryRate
+			current.base_rate = undefined
+			current.additional_rate = undefined
+		} else if (option.rateType === 'flat') {
+			current.rate = option.primaryRate
+			current.base_rate = undefined
+			current.additional_rate = undefined
+		} else if (option.rateType === 'tiered') {
+			current.rate = option.primaryRate
+			current.base_rate = option.primaryRate
+			current.additional_rate = option.additionalRate ?? undefined
+		}
+
+		editingRows.set(id, current)
+		editingRows = new Map(editingRows)
+	}
+
+	// Format the rate display value for existing entries
+	function formatRateDisplay(entry: Partial<Payroll>): string {
+		const rateType = entry.rate_type
+		if (rateType === 'flat') {
+			return `${formatCurrency(entry.rate || 0)} flat`
+		}
+		if (rateType === 'tiered') {
+			return `${formatCurrency(entry.rate || 0)} + ${formatCurrency(entry.additional_rate || 0)}/hr`
+		}
+		return `${formatCurrency(entry.rate || 0)}/hr`
+	}
+
 	// Get venue type color
 	function getVenueColor(venueId: number | undefined): string {
 		if (!venueId) return ''
@@ -391,9 +500,22 @@
 		}).format(amount)
 	}
 
-	// Calculate total pay
+	// Calculate total pay based on rate_type
 	function calculateTotalPay(entry: Partial<Payroll>): number {
-		const base = (entry.hours || 0) * (entry.rate || 0)
+		const rateType = entry.rate_type || 'hourly'
+		let base = 0
+
+		if (rateType === 'flat') {
+			base = entry.rate || 0
+		} else if (rateType === 'tiered') {
+			const hours = entry.hours || 0
+			const firstHour = entry.rate || 0
+			const subsequent = entry.additional_rate || 0
+			base = hours <= 1 ? hours * firstHour : firstHour + (hours - 1) * subsequent
+		} else {
+			base = (entry.hours || 0) * (entry.rate || 0)
+		}
+
 		return base + (entry.additional_pay || 0)
 	}
 
@@ -532,7 +654,7 @@
 						<th class="w-20">Type</th>
 					<th class="w-20">Duration</th>
 					<th class="w-16">Gig Dur.</th>
-						<th class="w-24">Rate</th>
+						<th class="w-64">Rate</th>
 						<th class="w-24">Additional</th>
 						<th class="w-32">Reason</th>
 						<th class="w-24">Total</th>
@@ -618,16 +740,16 @@
 									<div class="flex flex-col gap-0.5">
 										<div class="flex items-center gap-1">
 											<select
-												class="select select-bordered select-xs flex-1"
+												class="select select-bordered select-xs flex-1 min-w-[14rem]"
 												class:select-error={hasFieldError(entry.id!, 'artist_id')}
 												value={editData.artist_id}
-												onchange={(e) => updateField(entry.id!, 'artist_id', e.currentTarget.value)}
+											onchange={(e) => handleArtistSelect(entry.id!, e.currentTarget.value)}
 												required
 											>
 												<option value="">Select artist...</option>
-												{#each artists as artist}
+											{#each filteredArtists(editData.employee_contractor_status, editData.artist_id) as artist}
 													<option value={artist.id}>
-														{artist.full_name || `${artist.legal_first_name} ${artist.legal_last_name}`}
+														{formatArtistOption(artist)}
 													</option>
 												{/each}
 											</select>
@@ -652,11 +774,9 @@
 									<div 
 										class="cursor-pointer hover:bg-base-200 hover:shadow-sm px-2 py-1 rounded truncate transition-all duration-150 border border-transparent hover:border-base-300" 
 										onclick={() => startEditingCell(entry, 'artist_id')}
+										title={formatArtistDisplay(entry)}
 									>
-										{entry.artists?.full_name || 
-										 (entry.artists?.legal_first_name && entry.artists?.legal_last_name 
-											? `${entry.artists.legal_first_name} ${entry.artists.legal_last_name}` 
-											: 'N/A')}
+										{formatArtistDisplay(entry)}
 									</div>
 								{/if}
 							</td>
@@ -814,12 +934,16 @@
 								{#if isEditingCell(entry.id!, 'rate') || isNew}
 									<div class="flex items-center gap-1">
 										<select
-											class="select select-bordered select-xs flex-1"
-											value={editData.rate}
-											onchange={(e) => updateField(entry.id!, 'rate', Number(e.currentTarget.value))}
+											class="select select-bordered select-xs flex-1 min-w-[16rem]"
+											value={editData.rate_rule_id || ''}
+											onchange={(e) => {
+												const val = e.currentTarget.value
+												if (val) handleRateRuleSelect(entry.id!, Number(val))
+											}}
 										>
-											{#each rateOptions as option}
-												<option value={option.value}>{option.label}</option>
+											<option value="">Select rate...</option>
+											{#each rateRuleOptions as option}
+												<option value={option.ruleId}>{option.label}</option>
 											{/each}
 										</select>
 										{#if !isNew}
@@ -837,10 +961,11 @@
 									</div>
 								{:else}
 									<div 
-										class="cursor-pointer hover:bg-base-200 px-2 py-1 rounded transition-all duration-150 border border-transparent hover:border-base-300" 
+										class="cursor-pointer hover:bg-base-200 px-2 py-1 rounded transition-all duration-150 border border-transparent hover:border-base-300"
+										title={entry.rate_description || ''}
 										onclick={() => startEditingCell(entry, 'rate')}
 									>
-										{formatCurrency(entry.rate || 0)}
+										{formatRateDisplay(entry)}
 									</div>
 								{/if}
 							</td>

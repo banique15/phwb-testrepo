@@ -31,7 +31,7 @@ export const payrollStore = {
 				.from('phwb_payroll')
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`, { count: 'exact' })
@@ -173,7 +173,7 @@ export const payrollStore = {
 				.from('phwb_payroll')
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
@@ -200,7 +200,7 @@ export const payrollStore = {
 				.insert([validatedData])
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
@@ -239,7 +239,7 @@ export const payrollStore = {
 				.eq('id', id)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
@@ -305,7 +305,7 @@ export const payrollStore = {
 				.eq('id', id)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
@@ -372,7 +372,7 @@ export const payrollStore = {
 				.in('id', payrollIds)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
@@ -423,7 +423,7 @@ export const payrollStore = {
 				.eq('id', id)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
@@ -456,7 +456,7 @@ export const payrollStore = {
 			.from('phwb_payroll')
 			.select(`
 				*,
-				artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+				artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 				venues:venue_id(id, name),
 				programs:program_id(id, title, program_type)
 			`)
