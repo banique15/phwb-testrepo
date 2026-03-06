@@ -589,18 +589,6 @@
 	// Derive selected events from filtered events (must be after filteredEvents is defined)
 	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
 
-	// Convert EnhancedEvent[] to CalendarEvent[] for the dashboard calendar component
-	let calendarEvents = $derived(filteredEvents.map((e: EnhancedEvent) => ({
-		id: e.id!,
-		title: e.title || 'Untitled',
-		date: e.date || '',
-		start_time: e.start_time || null,
-		end_time: e.end_time || null,
-		status: e.status || 'planned',
-		program_id: e.program ?? null,
-		program_name: e.program_name || null
-	})))
-
 	// Recalculate statistics based on filtered events
 	let filteredStatistics = $derived.by(() => {
 		const parseLocalDate = (dateStr: string) => {
