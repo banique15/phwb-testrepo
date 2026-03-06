@@ -56,6 +56,8 @@
 		</div>
 		
 		<Sidebar />
+		<!-- Portal target for dropdowns/panels that must render above sidebar (e.g. artists filter) -->
+		<div id="dropdown-portal"></div>
 	</div>
 	
 	<!-- Global Error Display -->

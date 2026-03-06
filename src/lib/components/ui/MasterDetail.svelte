@@ -43,6 +43,9 @@
 		showMasterOnMobile?: boolean
 		// Force show children even when no item is selected (for create forms, etc.)
 		forceShowChildren?: boolean
+		// Optional selection mode: show checkbox per row for export etc. (selectedIds is bindable)
+		selectionMode?: boolean
+		selectedIds?: Set<string>
 		// Snippets
 		filters?: Snippet
 		masterActions?: Snippet
@@ -67,6 +70,8 @@
 		responsive = true,
 		showMasterOnMobile = true,
 		forceShowChildren = false,
+		selectionMode = false,
+		selectedIds = $bindable(new Set<string>()),
 		filters,
 		masterActions,
 		children
@@ -221,9 +226,9 @@
 		<div class="card bg-base-100 shadow-none h-full flex flex-col min-h-0">
 			<div class="card-body p-4 flex flex-col h-full min-h-0">
 				<!-- Header with Search -->
-				<div class="flex items-center justify-between flex-none">
-					<div class="flex items-center gap-2">
-						<h2 class="card-title text-lg">{masterTitle}</h2>
+				<div class="flex items-center justify-between flex-none gap-6">
+					<div class="flex items-center gap-2 min-w-0">
+						<h2 class="card-title text-lg truncate">{masterTitle}</h2>
 						{#if pagination}
 							<div class="badge badge-neutral">{pagination.total}</div>
 						{/if}
@@ -279,8 +284,9 @@
 					{:else}
 						<div class="overflow-y-auto h-full space-y-2">
 							{#each items as item (item.id ?? item.name ?? item)}
+								{@const itemId = item.id != null ? String(item.id) : ''}
 								<div
-									class="p-3 rounded-lg border cursor-pointer transition-all duration-200"
+									class="p-3 rounded-lg border cursor-pointer transition-all duration-200 flex items-start gap-2"
 									class:bg-primary={selectedItem?.id === item.id}
 									class:bg-opacity-10={selectedItem?.id === item.id}
 									class:border-primary={selectedItem?.id === item.id}
@@ -294,7 +300,27 @@
 									tabindex="0"
 									onkeydown={(e) => e.key === 'Enter' && handleSelect(item)}
 								>
-									<div class="flex items-start justify-between gap-2">
+									{#if selectionMode && itemId}
+										<div
+											class="flex-shrink-0 flex items-center pt-0.5"
+											role="presentation"
+											onclick={(e) => e.stopPropagation()}
+										>
+											<input
+												type="checkbox"
+												class="checkbox checkbox-sm checkbox-primary"
+												checked={selectedIds.has(itemId)}
+												aria-label="Select for export"
+												onchange={() => {
+													const next = new Set(selectedIds)
+													if (next.has(itemId)) next.delete(itemId)
+													else next.add(itemId)
+													selectedIds = next
+												}}
+											/>
+										</div>
+									{/if}
+									<div class="flex items-start justify-between gap-2 flex-1 min-w-0">
 										<div class="font-medium text-sm truncate flex-1 min-w-0">
 											{getItemTitle(item)}
 										</div>
