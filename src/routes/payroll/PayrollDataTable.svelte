@@ -5,6 +5,7 @@
 	import DataTable from '$lib/components/ui/DataTable.svelte'
 	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte'
 	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	interface Props {
 		entries: Payroll[]
@@ -96,7 +97,7 @@
 			label: 'Total Pay',
 			sortable: true,
 			width: '120px',
-			render: (entry: Payroll) => formatCurrency(calculateTotalPay(entry))
+			render: (entry: Payroll) => formatCurrency(getDisplayTotalPay(entry))
 		},
 		{
 			key: 'status',
@@ -177,10 +178,8 @@
 		return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
 	}
 
-	function calculateTotalPay(entry: Payroll): number {
-		if (entry.total_pay) return entry.total_pay
-		const base = (entry.hours || 0) * (entry.rate || 0)
-		return base + (entry.additional_pay || 0)
+	function getDisplayTotalPay(entry: Payroll): number {
+		return entry.total_pay ?? computeEntryTotalPay(entry)
 	}
 
 	function getStatusBadgeClass(status: string): string {
@@ -349,7 +348,7 @@
 							
 							<!-- Total Pay -->
 							<td class="text-right font-semibold whitespace-nowrap">
-								{formatCurrency(calculateTotalPay(entry))}
+								{formatCurrency(getDisplayTotalPay(entry))}
 							</td>
 							
 							<!-- Payment Status -->

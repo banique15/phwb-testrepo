@@ -14,6 +14,7 @@
 	import { browser } from '$app/environment'
 	import { supabase } from '$lib/supabase'
 	import { toast } from '$lib/stores/toast'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 	
 	interface Props {
 		entries: Payroll[]
@@ -311,7 +312,7 @@
 
 		try {
 			// Calculate total pay using the rate-type-aware function
-			editData.total_pay = calculateTotalPay(editData)
+			editData.total_pay = computeEntryTotalPay(editData)
 			
 			// Set insperity_hours to match hours if not set
 			if (editData.insperity_hours === undefined || editData.insperity_hours === 0) {
@@ -500,25 +501,6 @@
 		}).format(amount)
 	}
 
-	// Calculate total pay based on rate_type
-	function calculateTotalPay(entry: Partial<Payroll>): number {
-		const rateType = entry.rate_type || 'hourly'
-		let base = 0
-
-		if (rateType === 'flat') {
-			base = entry.rate || 0
-		} else if (rateType === 'tiered') {
-			const hours = entry.hours || 0
-			const firstHour = entry.rate || 0
-			const subsequent = entry.additional_rate || 0
-			base = hours <= 1 ? hours * firstHour : firstHour + (hours - 1) * subsequent
-		} else {
-			base = (entry.hours || 0) * (entry.rate || 0)
-		}
-
-		return base + (entry.additional_pay || 0)
-	}
-
 	// Check if a specific cell is being edited
 	function isEditingCell(entryId: string | number, field: string): boolean {
 		return editingCell?.id === entryId && editingCell?.field === field
@@ -655,7 +637,7 @@
 					<th class="w-20">Duration</th>
 					<th class="w-16">Gig Dur.</th>
 						<th class="w-64">Rate</th>
-						<th class="w-24">Additional</th>
+						<th class="w-24" title="Per-entry adjustment (e.g. travel, equipment); not multiplied by number of musicians">Additional</th>
 						<th class="w-32">Reason</th>
 						<th class="w-24">Total</th>
 						<th class="w-24">Service Hrs</th>
@@ -1058,7 +1040,7 @@
 							
 							<!-- Total Pay -->
 							<td class="font-semibold">
-								{formatCurrency(calculateTotalPay(editData || entry))}
+								{formatCurrency(computeEntryTotalPay(editData || entry))}
 							</td>
 							
 							<!-- Artist Service Hours -->

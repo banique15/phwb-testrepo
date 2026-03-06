@@ -169,7 +169,9 @@ async function getBandleaderFee(rateCardId: number): Promise<AdditionalFee | nul
 }
 
 /**
- * Calculate pay for an artist based on rate rule
+ * Calculate pay for an artist based on rate rule.
+ * musicianCount is used only to determine bandleader fee eligibility (e.g. quartet+);
+ * additionalPay (e.g. bandleader fee) is never multiplied by musicianCount.
  */
 function calculateArtistPay(
 	hours: number,
@@ -207,7 +209,8 @@ function calculateArtistPay(
 			break
 	}
 	
-	// Calculate bandleader fee for quartets/quintets
+	// Bandleader fee: applied once per leader when ensemble size meets threshold (e.g. 4+).
+	// additionalPay is never scaled by musicianCount.
 	let additionalPay = 0
 	let additionalPayReason: string | null = null
 	

@@ -6,6 +6,7 @@
 	import VenueSelector from '$lib/components/ui/VenueSelector.svelte'
 	import EventSelector from '$lib/components/ui/EventSelector.svelte'
 	import { z } from 'zod'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	interface Props {
 		entry?: Payroll | null
@@ -69,13 +70,8 @@
 		}
 	})
 
-	// Calculate total pay
-	let totalPay = $derived(calculateTotalPay())
-
-	function calculateTotalPay(): number {
-		const base = formData.hours * formData.rate
-		return base + formData.additional_pay
-	}
+	// Calculate total pay (rate-card-aware; additional_pay added once per entry)
+	let totalPay = $derived(computeEntryTotalPay(formData))
 
 	// Status options
 	const statusOptions = [
