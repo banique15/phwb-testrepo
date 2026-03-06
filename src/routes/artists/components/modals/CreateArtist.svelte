@@ -24,6 +24,7 @@
 		phone: '',
 		location: '',
 		employment_status: '',
+		llc_name: '',
 		metropolitan_hub: '',
 		genres: [],
 		instruments: [],
@@ -139,6 +140,7 @@
 			phone: '',
 			location: '',
 			employment_status: '',
+			llc_name: '',
 			metropolitan_hub: '',
 			genres: [],
 			instruments: [],
@@ -440,13 +442,27 @@
 								{/if}
 							</div>
 
+							{#if formData.employment_status === '1099'}
+								<div class="flex flex-col gap-1">
+									<span class="text-sm font-medium">LLC / Company Name</span>
+									<input
+										type="text"
+										class="input input-bordered w-full"
+										value={formData.llc_name || ''}
+										placeholder="Enter LLC or company name"
+										oninput={(e) => handleInputChange('llc_name', e.currentTarget.value)}
+									/>
+									<span class="text-xs text-base-content/60">Business name for 1099 contractors (leave blank if N/A)</span>
+								</div>
+							{/if}
+
 							<div class="flex flex-col gap-1">
 								<span class="text-sm font-medium">Metropolitan Hub</span>
 								<input
 									type="text"
 									class="input input-bordered w-full {formErrors.metropolitan_hub ? 'input-error' : ''}"
 									value={formData.metropolitan_hub || ''}
-									placeholder="Enter or select hub"
+									placeholder="Enter or select metropolitan hub"
 									list="metro-hub-options"
 									oninput={(e) => handleInputChange('metropolitan_hub', e.currentTarget.value)}
 								/>
