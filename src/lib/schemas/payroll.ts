@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const payrollSchema = z.object({
+    llc: z.string().optional().nullable(),
 	id: z.number().optional(),
 	created_at: z.string().optional(),
 	event_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Event date must be in YYYY-MM-DD format'),
