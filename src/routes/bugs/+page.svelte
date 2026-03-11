@@ -438,9 +438,9 @@
 		<!-- Header -->
 		<div class="flex items-center justify-between mb-6">
 			<div>
-				<h1 class="text-3xl font-bold flex items-center gap-2">
-					<Bug class="w-8 h-8" />
-					Issues
+				<h1 class="text-3xl font-bold flex items-center gap-2" style="border: 2px solid red;">
+				 <Bug class="w-8 h-8" />
+				 Bugs
 				</h1>
 				<p class="text-base-content/60 mt-1">
 					{statistics.total} total • {statistics.open} open • {statistics.inProgress} in progress
