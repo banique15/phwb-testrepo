@@ -33,6 +33,7 @@
 		one_sentence_bio: '',
 		sightreads: false,
 		can_be_soloist: false,
+		is_production_manager: false,
 		shirt_size: undefined,
 		website: '',
 		instagram: '',
@@ -149,6 +150,7 @@
 			one_sentence_bio: '',
 			sightreads: false,
 			can_be_soloist: false,
+			is_production_manager: false,
 			shirt_size: undefined,
 			website: '',
 			instagram: '',
@@ -562,7 +564,7 @@
 							</div>
 						</div>
 
-						<div class="flex gap-6 pt-2 border-t border-base-200">
+						<div class="flex flex-wrap gap-6 pt-2 border-t border-base-200">
 							<label class="flex items-center gap-3 cursor-pointer">
 								<input
 									type="checkbox"
@@ -578,6 +580,14 @@
 									bind:checked={formData.can_be_soloist}
 								/>
 								<span class="text-sm">Can Be Soloist</span>
+							</label>
+							<label class="flex items-center gap-3 cursor-pointer">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									bind:checked={formData.is_production_manager}
+								/>
+								<span class="text-sm">Production Manager</span>
 							</label>
 						</div>
 					</div>

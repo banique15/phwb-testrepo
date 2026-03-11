@@ -224,7 +224,7 @@
 							formatDisplay={(val) => val || 'Not specified'}
 						/>
 					</div>
-					<div class="flex gap-4">
+					<div class="flex flex-wrap gap-4">
 						<div class="flex-1">
 							<InlineEditableField
 								value={artist.sightreads}
@@ -241,6 +241,15 @@
 								type="checkbox"
 								label="Can Be Soloist"
 								onSave={(value) => onUpdateField('can_be_soloist', value)}
+							/>
+						</div>
+						<div class="flex-1">
+							<InlineEditableField
+								value={artist.is_production_manager}
+								field="is_production_manager"
+								type="checkbox"
+								label="Production Manager"
+								onSave={(value) => onUpdateField('is_production_manager', value)}
 							/>
 						</div>
 					</div>

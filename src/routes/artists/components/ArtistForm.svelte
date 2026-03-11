@@ -51,6 +51,7 @@
 		social_security_number: artist?.social_security_number || '',
 		sightreads: artist?.sightreads || false,
 		can_be_soloist: artist?.can_be_soloist || false,
+		is_production_manager: artist?.is_production_manager || false,
 		anti_harassment_training_date: artist?.anti_harassment_training_date || '',
 		// HR fields
 		associate_id: artist?.associate_id || '',
@@ -475,6 +476,19 @@
 							checked={formData.can_be_soloist || false}
 							disabled={disabled || loading}
 							onchange={(e) => handleFieldChange('can_be_soloist', e.currentTarget.checked)}
+						/>
+					</label>
+				</div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer">
+						<span class="label-text">Production Manager</span>
+						<input
+							type="checkbox"
+							class="checkbox checkbox-primary"
+							checked={formData.is_production_manager || false}
+							disabled={disabled || loading}
+							onchange={(e) => handleFieldChange('is_production_manager', e.currentTarget.checked)}
 						/>
 					</label>
 				</div>

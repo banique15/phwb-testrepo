@@ -93,10 +93,10 @@
 	}
 </script>
 
-<div class="flex gap-1 items-center min-w-0 {className}">
+<div class="flex gap-1 items-center {className}">
 	<!-- Hour -->
 	<select
-		class="select select-bordered select-sm flex-1 min-w-0 {error ? 'select-error' : ''}"
+		class="select select-bordered select-sm w-16 flex-shrink-0 {error ? 'select-error' : ''}"
 		value={selectedHour}
 		onchange={handleHourChange}
 		{disabled}
@@ -112,7 +112,7 @@
 
 	<!-- Minute -->
 	<select
-		class="select select-bordered select-sm flex-1 min-w-0 {error ? 'select-error' : ''}"
+		class="select select-bordered select-sm w-16 flex-shrink-0 {error ? 'select-error' : ''}"
 		value={selectedMinute}
 		onchange={handleMinuteChange}
 		{disabled}

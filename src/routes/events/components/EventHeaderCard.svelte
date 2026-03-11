@@ -9,12 +9,8 @@
 	import { browser } from '$app/environment'
 	import { goto } from '$app/navigation'
 	import { page } from '$app/stores'
-	import { locationContactsStore } from '$lib/stores/locationContacts'
-	import type { LocationContact } from '$lib/schemas/locationContact'
-	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
-	import CreateLocationContact from '../../facilities/components/modals/contacts/CreateLocationContact.svelte'
-	import { onMount } from 'svelte'
-	import { Plus, X } from 'lucide-svelte'
+	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
+	import { X } from 'lucide-svelte'
 
 	interface Props {
 		event: EnhancedEvent
@@ -32,63 +28,6 @@
 		onDelete
 	}: Props = $props()
 
-	let productionManagerContact = $state<LocationContact | null>(null)
-	let loadingProductionManager = $state(false)
-	let showCreateContactModal = $state(false)
-
-	onMount(async () => {
-		if (event?.production_manager_contact_id) {
-			await loadProductionManagerContact()
-		}
-	})
-
-	$effect(() => {
-		if (event?.production_manager_contact_id) {
-			loadProductionManagerContact()
-		} else {
-			productionManagerContact = null
-		}
-	})
-
-	async function loadProductionManagerContact() {
-		if (!event?.production_manager_contact_id) return
-		
-		loadingProductionManager = true
-		try {
-			const contact = await locationContactsStore.getById(event.production_manager_contact_id)
-			productionManagerContact = contact
-		} catch (error) {
-			console.error('Failed to load production manager contact:', error)
-			productionManagerContact = null
-		} finally {
-			loadingProductionManager = false
-		}
-	}
-
-	async function handleContactCreated(e: CustomEvent<{ contact: LocationContact }>) {
-		const newContact = e.detail.contact
-		// Automatically select the newly created contact
-		await onUpdateField('production_manager_contact_id', newContact.id)
-		showCreateContactModal = false
-		// Reload the contact to display it
-		productionManagerContact = newContact
-	}
-
-	function handleCreateContactClick() {
-		if (!event.location_id) {
-			toast.error('Please select a location first before adding a production manager contact')
-			return
-		}
-		// Debug: log the location_id type and value
-		console.log('Opening create contact modal with location_id:', event.location_id, 'type:', typeof event.location_id)
-		showCreateContactModal = true
-	}
-
-	async function handleRemoveContact() {
-		await onUpdateField('production_manager_contact_id', null)
-		productionManagerContact = null
-		toast.success('Production manager contact removed')
-	}
 
 	async function handleCopyLink() {
 		if (!event?.id || !browser) return
@@ -273,7 +212,7 @@
 					/>
 				</div>
 
-				<!-- Program and Production Manager Contact -->
+				<!-- Program and Production Manager (artist) -->
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div>
 						<label class="text-sm font-medium opacity-70 block mb-1">Program</label>
@@ -284,35 +223,14 @@
 						/>
 					</div>
 					<div>
-						<div class="flex items-center justify-between mb-1">
-							<label class="text-sm font-medium opacity-70">Production Manager Contact</label>
-							<button
-								type="button"
-								class="btn btn-xs btn-outline btn-primary"
-								class:btn-disabled={!event.location_id}
-								onclick={handleCreateContactClick}
-								title={event.location_id ? "Create new production manager contact" : "Please select a location first"}
-								disabled={!event.location_id}
-							>
-								<Plus class="w-3 h-3 mr-1" />
-								Create New
-							</button>
-						</div>
-						<LocationContactSelector
-							value={event.production_manager_contact_id || null}
-							locationId={event.location_id || null}
-							onchange={async (contactId) => {
-								await onUpdateField('production_manager_contact_id', contactId)
+						<label class="text-sm font-medium opacity-70 block mb-1">Production Manager</label>
+						<ProductionManagerArtistSelector
+							value={event.production_manager_artist_id ?? null}
+							placeholder="Select a production manager (optional)"
+							onchange={async (artistId) => {
+								await onUpdateField('production_manager_artist_id', artistId)
 							}}
-							placeholder="Select a production manager contact (optional)"
 						/>
-						{#if !event.location_id}
-							<label class="label">
-								<span class="label-text-alt text-warning">
-									Please select a location first to add a production manager contact
-								</span>
-							</label>
-						{/if}
 					</div>
 				</div>
 
@@ -339,11 +257,3 @@
 		</div>
 	</div>
 </div>
-
-<!-- Create Location Contact Modal -->
-<CreateLocationContact
-	open={showCreateContactModal}
-	locationId={event.location_id ? Number(event.location_id) : undefined}
-	on:close={() => showCreateContactModal = false}
-	on:success={handleContactCreated}
-/>

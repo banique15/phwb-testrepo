@@ -9,7 +9,7 @@
 	import 'driver.js/dist/driver.css'
 	import { startCreateEventTour } from '$lib/tours/createEventTour'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
-	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
+	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
 	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
 	import TimePicker from '$lib/components/ui/TimePicker.svelte'
 
@@ -36,9 +36,7 @@
 	let notes = $state('')
 	let numberOfAttendees = $state<number | null>(null)
 	let numberOfMusicians = $state<number | null>(null)
-	let pmHours = $state<number | null>(null)
-	let pmRate = $state<number | null>(null)
-	let productionManagerContactId = $state<number | null>(null)
+	let productionManagerArtistId = $state<string | null>(null)
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -183,9 +181,7 @@
 				...(notes && { notes }),
 				...(numberOfAttendees !== null && { number_of_attendees: numberOfAttendees }),
 				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
-			...(pmHours !== null && { pm_hours: pmHours }),
-			...(pmRate !== null && { pm_rate: pmRate }),
-			...(productionManagerContactId && { production_manager_contact_id: productionManagerContactId }),
+			...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -440,66 +436,16 @@
 					/>
 				</div>
 
-			<!-- Production Manager -->
+			<!-- Production Manager (artist with is_production_manager) -->
 			<div class="border-t border-base-300 pt-4 mt-4">
 				<h4 class="font-medium text-sm mb-3">Production Manager</h4>
-				<div class="form-control mb-4">
-					<LocationContactSelector
-						value={productionManagerContactId}
-						locationId={locationId}
-						onchange={(contactId) => productionManagerContactId = contactId}
-						placeholder={locationId ? "Select a production manager (optional)" : "Select a location first"}
-						disabled={submitting || !locationId}
-					/>
-					{#if !locationId}
-						<label class="label">
-							<span class="label-text-alt text-warning">Select a facility/location first to see available contacts</span>
-						</label>
-					{/if}
-				</div>
-
-				<h5 class="font-medium text-sm mb-3">PM Payroll</h5>
-					<div class="grid grid-cols-3 gap-4">
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">PM Hours</span>
-							</label>
-							<input
-								type="number"
-								bind:value={pmHours}
-								placeholder="0"
-								class="input input-bordered input-sm w-full"
-								min="0"
-								step="0.5"
-								disabled={submitting}
-								onfocus={() => onFieldFocus?.()}
-							/>
-						</div>
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">PM Rate ($/hr)</span>
-							</label>
-							<input
-								type="number"
-								bind:value={pmRate}
-								placeholder="0.00"
-								class="input input-bordered input-sm w-full"
-								min="0"
-								step="0.01"
-								disabled={submitting}
-								onfocus={() => onFieldFocus?.()}
-							/>
-						</div>
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">PM Total</span>
-							</label>
-							<div class="input input-bordered input-sm bg-base-200 flex items-center">
-								<span class="font-mono">${((pmHours || 0) * (pmRate || 0)).toFixed(2)}</span>
-							</div>
-						</div>
-					</div>
-				</div>
+				<ProductionManagerArtistSelector
+					value={productionManagerArtistId}
+					placeholder="Select a production manager (optional)"
+					disabled={submitting}
+					onchange={(artistId) => productionManagerArtistId = artistId}
+				/>
+			</div>
 
 				<div class="form-control">
 					<label class="label">

@@ -48,6 +48,7 @@
 				facebook: artist.facebook || '',
 				sightreads: artist.sightreads || false,
 				can_be_soloist: artist.can_be_soloist || false,
+				is_production_manager: artist.is_production_manager || false,
 				social_security_number: artist.social_security_number || '',
 				anti_harassment_training_date: artist.anti_harassment_training_date || '',
 				profile_photo: artist.profile_photo || ''
@@ -350,6 +351,17 @@
 								onchange={(e) => handleFormChange('can_be_soloist')(e.target.checked)}
 							/>
 							<span class="label-text">Can perform as soloist</span>
+						</label>
+					</div>
+					<div class="form-control">
+						<label class="label cursor-pointer justify-start gap-3">
+							<input 
+								type="checkbox" 
+								class="checkbox checkbox-primary" 
+								checked={formData.is_production_manager || false}
+								onchange={(e) => handleFormChange('is_production_manager')(e.target.checked)}
+							/>
+							<span class="label-text">Production Manager</span>
 						</label>
 					</div>
 				</div>
