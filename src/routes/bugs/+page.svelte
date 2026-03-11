@@ -174,8 +174,8 @@
 			in_progress: 'badge-primary',
 			testing: 'badge-secondary',
 			review: 'badge-accent',
-			resolved: 'badge-success',
-			closed: 'badge-neutral'
+			qa_passed: 'badge-success',
+			resolved: 'badge-success'
 		}
 		return classes[status] || 'badge-neutral'
 	}
@@ -187,8 +187,8 @@
 			in_progress: 'In Progress',
 			testing: 'Testing',
 			review: 'Review',
-			resolved: 'Resolved',
-			closed: 'Closed'
+			qa_passed: 'QA passed',
+			resolved: 'Resolved'
 		}
 		return labels[status] || status
 	}
@@ -253,8 +253,8 @@
 			in_progress: [],
 			testing: [],
 			review: [],
-			resolved: [],
-			closed: []
+			qa_passed: [],
+			resolved: []
 		}
 		
 		bugs.forEach(bug => {
@@ -276,7 +276,7 @@
 	})
 
 	// Status order for kanban columns
-	const statusOrder: BugType['status'][] = ['new', 'planning', 'in_progress', 'testing', 'review', 'resolved', 'closed']
+	const statusOrder: BugType['status'][] = ['new', 'planning', 'in_progress', 'testing', 'review', 'qa_passed', 'resolved']
 
 	// Set up realtime subscription
 	onMount(() => {
@@ -533,8 +533,8 @@
 						<option value="in_progress">In Progress</option>
 						<option value="testing">Testing</option>
 						<option value="review">Review</option>
+						<option value="qa_passed">QA passed</option>
 						<option value="resolved">Resolved</option>
-						<option value="closed">Closed</option>
 					</select>
 
 					<!-- Priority Filter -->

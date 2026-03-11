@@ -6,7 +6,7 @@ export const bugSchema = z.object({
 	updated_at: z.string().optional(),
 	title: z.string().min(1, 'Title is required').max(500, 'Title must be less than 500 characters'),
 	description: z.string().max(10000, 'Description must be less than 10000 characters').optional(),
-	status: z.enum(['new', 'planning', 'in_progress', 'testing', 'review', 'resolved', 'closed']).default('new'),
+	status: z.enum(['new', 'planning', 'in_progress', 'testing', 'review', 'qa_passed', 'resolved']).default('new'),
 	priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
 	// severity is deprecated - use priority instead
 	severity: z.enum(['cosmetic', 'minor', 'moderate', 'major', 'critical']).optional().default('moderate'),
