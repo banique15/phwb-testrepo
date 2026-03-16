@@ -9,7 +9,7 @@
 	import 'driver.js/dist/driver.css'
 	import { startCreateEventTour } from '$lib/tours/createEventTour'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
-	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
+	import ProductionManagerSelector from '$lib/components/ui/ProductionManagerSelector.svelte'
 	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
 	import TimePicker from '$lib/components/ui/TimePicker.svelte'
 
@@ -37,6 +37,7 @@
 	let numberOfAttendees = $state<number | null>(null)
 	let numberOfMusicians = $state<number | null>(null)
 	let productionManagerArtistId = $state<string | null>(null)
+	let productionManagerId = $state<string | null>(null)
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -181,7 +182,8 @@
 				...(notes && { notes }),
 				...(numberOfAttendees !== null && { number_of_attendees: numberOfAttendees }),
 				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
-			...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
+				...(productionManagerId && { production_manager_id: productionManagerId }),
+				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -439,11 +441,14 @@
 			<!-- Production Manager (artist with is_production_manager) -->
 			<div class="border-t border-base-300 pt-4 mt-4">
 				<h4 class="font-medium text-sm mb-3">Production Manager</h4>
-				<ProductionManagerArtistSelector
-					value={productionManagerArtistId}
+				<ProductionManagerSelector
+					value={productionManagerId}
 					placeholder="Select a production manager (optional)"
 					disabled={submitting}
-					onchange={(artistId) => productionManagerArtistId = artistId}
+					onchange={(selectedProductionManagerId, productionManager) => {
+						productionManagerId = selectedProductionManagerId
+						productionManagerArtistId = productionManager?.artist_id ?? null
+					}}
 				/>
 			</div>
 

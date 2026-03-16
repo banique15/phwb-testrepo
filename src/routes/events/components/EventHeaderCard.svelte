@@ -9,7 +9,7 @@
 	import { browser } from '$app/environment'
 	import { goto } from '$app/navigation'
 	import { page } from '$app/stores'
-	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
+	import ProductionManagerSelector from '$lib/components/ui/ProductionManagerSelector.svelte'
 	import { X } from 'lucide-svelte'
 
 	interface Props {
@@ -224,11 +224,12 @@
 					</div>
 					<div>
 						<label class="text-sm font-medium opacity-70 block mb-1">Production Manager</label>
-						<ProductionManagerArtistSelector
-							value={event.production_manager_artist_id ?? null}
+						<ProductionManagerSelector
+							value={event.production_manager_id ?? null}
 							placeholder="Select a production manager (optional)"
-							onchange={async (artistId) => {
-								await onUpdateField('production_manager_artist_id', artistId)
+							onchange={async (productionManagerId, productionManager) => {
+								await onUpdateField('production_manager_id', productionManagerId)
+								await onUpdateField('production_manager_artist_id', productionManager?.artist_id ?? null)
 							}}
 						/>
 					</div>

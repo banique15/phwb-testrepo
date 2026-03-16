@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { EnhancedEvent } from '$lib/stores/events'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, DollarSign, Edit, X, BarChart, Users, CheckCircle } from 'lucide-svelte'
+import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, DollarSign, Edit, X, BarChart, Users, CheckCircle, Music } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import ScheduleDisplay from './ScheduleDisplay.svelte'
 	import RequirementsDisplay from './RequirementsDisplay.svelte'
@@ -12,7 +12,6 @@
 	import RequirementsEditor from './RequirementsEditor.svelte'
 	import UnifiedArtistAssignment from '$lib/components/UnifiedArtistAssignment.svelte'
 	import ProgramSelector from '$lib/components/ui/ProgramSelector.svelte'
-	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
 	import CreateEnsemble from '../../ensembles/components/modals/CreateEnsemble.svelte'
 	import type { Ensemble } from '$lib/schemas/ensemble'
 	import { supabase } from '$lib/supabase'
@@ -46,10 +45,11 @@
 		schedule: event?.schedule || null,
 		requirements: event?.requirements || null,
 		artist_assignments: event?.artists?.assignments || [],
-		selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
+		selected_artists: event?.artists?.assignments?.map((a: any) => a.artist_id) || [],
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
-		production_manager_artist_id: event?.production_manager_artist_id || null
+		production_manager_artist_id: event?.production_manager_artist_id || null,
+		production_manager_id: event?.production_manager_id || null
 	})
 
 	// Update form data when event changes
@@ -67,10 +67,11 @@
 				schedule: event.schedule || null,
 				requirements: event.requirements || null,
 				artist_assignments: event.artists?.assignments || [],
-				selected_artists: event.artists?.assignments?.map(a => a.artist_id) || [],
+				selected_artists: event.artists?.assignments?.map((a: any) => a.artist_id) || [],
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
-				production_manager_artist_id: event.production_manager_artist_id || null
+				production_manager_artist_id: event.production_manager_artist_id || null,
+				production_manager_id: event.production_manager_id || null
 			}
 		}
 	})
@@ -148,9 +149,11 @@
 				schedule: event.schedule || null,
 				requirements: event.requirements || null,
 				artist_assignments: event.artists?.assignments || [],
-				selected_artists: event.artists?.assignments?.map(a => a.artist_id) || [],
+				selected_artists: event.artists?.assignments?.map((a: any) => a.artist_id) || [],
 				number_of_attendees: event.number_of_attendees || undefined,
-				production_manager_artist_id: event.production_manager_artist_id || null
+				number_of_musicians: event.number_of_musicians || undefined,
+				production_manager_artist_id: event.production_manager_artist_id || null,
+				production_manager_id: event.production_manager_id || null
 			}
 		}
 		errors = {}
@@ -325,11 +328,11 @@
 					}
 				})
 
-				const existingArtistIds = new Set(formData.artist_assignments.map(a => a.artist_id))
-				const uniqueNewAssignments = newAssignments.filter(a => !existingArtistIds.has(a.artist_id))
+				const existingArtistIds = new Set(formData.artist_assignments.map((a: any) => a.artist_id))
+				const uniqueNewAssignments = newAssignments.filter((a: any) => !existingArtistIds.has(a.artist_id))
 				
 				formData.artist_assignments = [...formData.artist_assignments, ...uniqueNewAssignments]
-				formData.selected_artists = formData.artist_assignments.map(a => a.artist_id)
+				formData.selected_artists = formData.artist_assignments.map((a: any) => a.artist_id)
 			}
 		} catch (err) {
 			console.error('Error assigning ensemble:', err)

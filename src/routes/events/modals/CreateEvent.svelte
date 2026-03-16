@@ -10,7 +10,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 	import 'driver.js/dist/driver.css'
 	import { startCreateEventTour } from '$lib/tours/createEventTour'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
-	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
+	import ProductionManagerSelector from '$lib/components/ui/ProductionManagerSelector.svelte'
 	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
 
 	interface Props {
@@ -34,6 +34,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 	let selectedLocation = $state<LocationWithFacility | null>(null)
 	let artistAssignments = $state<ArtistAssignment[]>([])
 	let productionManagerArtistId = $state<string | null>(null)
+	let productionManagerId = $state<string | null>(null)
 	let numberOfAttendees = $state<number | undefined>(undefined)
 
 	// UI state
@@ -141,6 +142,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 				...(locationId && { location_id: locationId }),
 				notes: '',
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
+				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
@@ -217,6 +219,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 				location_id: locationId,
 				notes: '',
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
+				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
@@ -250,6 +253,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 		selectedLocation = null
 		artistAssignments = []
 		productionManagerArtistId = null
+		productionManagerId = null
 		numberOfAttendees = undefined
 		error = null
 	}
@@ -449,11 +453,14 @@ import { enhancedLookup } from '$lib/stores/lookup'
 					<label class="label">
 						<span class="label-text">Production Manager</span>
 					</label>
-					<ProductionManagerArtistSelector
-						value={productionManagerArtistId}
+					<ProductionManagerSelector
+						value={productionManagerId}
 						placeholder="Select a production manager (optional)"
 						disabled={submitting}
-						onchange={(artistId) => productionManagerArtistId = artistId}
+						onchange={(selectedProductionManagerId, productionManager) => {
+							productionManagerId = selectedProductionManagerId
+							productionManagerArtistId = productionManager?.artist_id ?? null
+						}}
 					/>
 				</div>
 			</div>

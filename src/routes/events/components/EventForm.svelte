@@ -9,7 +9,7 @@
 	import StatusManager from './StatusManager.svelte'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
 	import ProgramSelector from '$lib/components/ui/ProgramSelector.svelte'
-	import ProductionManagerArtistSelector from '$lib/components/ui/ProductionManagerArtistSelector.svelte'
+	import ProductionManagerSelector from '$lib/components/ui/ProductionManagerSelector.svelte'
 	import TimePicker from '$lib/components/ui/TimePicker.svelte'
 	import CreateEnsemble from '../../ensembles/components/modals/CreateEnsemble.svelte'
 	import type { Ensemble } from '$lib/schemas/ensemble'
@@ -42,7 +42,8 @@
 		selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
-		production_manager_artist_id: event?.production_manager_artist_id || null
+		production_manager_artist_id: event?.production_manager_artist_id || null,
+		production_manager_id: event?.production_manager_id || null
 	})
 	
 	let loading = $state(false)
@@ -329,7 +330,8 @@
 			selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
 			number_of_attendees: event?.number_of_attendees || undefined,
 			number_of_musicians: event?.number_of_musicians || undefined,
-			production_manager_artist_id: event?.production_manager_artist_id || null
+			production_manager_artist_id: event?.production_manager_artist_id || null,
+			production_manager_id: event?.production_manager_id || null
 		}
 		errors = {}
 		submitError = ''
@@ -427,7 +429,8 @@
 				requirements: formData.requirements,
 				number_of_attendees: formData.number_of_attendees,
 				number_of_musicians: formData.number_of_musicians,
-				production_manager_artist_id: formData.production_manager_artist_id
+				production_manager_artist_id: formData.production_manager_artist_id,
+				production_manager_id: formData.production_manager_id
 			}))
 			
 			// Handle artist assignments - ensure it's always an array
@@ -694,11 +697,14 @@
 					<label class="label">
 						<span class="label-text">Production Manager</span>
 					</label>
-					<ProductionManagerArtistSelector
-						value={formData.production_manager_artist_id}
+					<ProductionManagerSelector
+						value={formData.production_manager_id}
 						placeholder="Select a production manager (optional)"
 						disabled={loading}
-						onchange={(artistId) => formData.production_manager_artist_id = artistId}
+						onchange={(productionManagerId, productionManager) => {
+							formData.production_manager_id = productionManagerId
+							formData.production_manager_artist_id = productionManager?.artist_id ?? null
+						}}
 					/>
 				</div>
 				

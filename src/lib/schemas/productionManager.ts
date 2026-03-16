@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
-export const productionManagerSchema = z.object({
+const productionManagerBaseSchema = z.object({
 	id: z.string().uuid().optional(),
 	created_at: z.string().optional(),
 	updated_at: z.string().optional(),
 	full_name: z.string().optional(),
-	legal_first_name: z.string().min(1, 'First name is required'),
+	legal_first_name: z.string().optional(),
 	legal_last_name: z.string().optional(),
 	email: z.string().email('Invalid email format').optional(),
 	phone: z.string().optional(),
@@ -18,15 +18,31 @@ export const productionManagerSchema = z.object({
 	notes: z.string().optional(),
 	user_id: z.string().uuid().optional().nullable(),
 	facility_id: z.number().int().optional().nullable(),
+	artist_id: z.string().uuid().optional().nullable(),
+	source_type: z.enum(['artist', 'non_artist']).optional(),
 })
 
-export const createProductionManagerSchema = productionManagerSchema.omit({
+export const productionManagerSchema = productionManagerBaseSchema.refine((data) => {
+	return Boolean(data.full_name?.trim() || data.legal_first_name?.trim())
+}, {
+	message: 'Either full name or legal first name is required',
+	path: ['full_name']
+})
+
+const createProductionManagerBaseSchema = productionManagerBaseSchema.omit({
 	id: true,
 	created_at: true,
 	updated_at: true,
 })
 
-export const updateProductionManagerSchema = createProductionManagerSchema.partial()
+export const createProductionManagerSchema = createProductionManagerBaseSchema.refine((data) => {
+	return Boolean(data.full_name?.trim() || data.legal_first_name?.trim())
+}, {
+	message: 'Either full name or legal first name is required',
+	path: ['full_name']
+})
+
+export const updateProductionManagerSchema = createProductionManagerBaseSchema.partial()
 
 export type ProductionManager = z.infer<typeof productionManagerSchema>
 export type CreateProductionManager = z.infer<typeof createProductionManagerSchema>
