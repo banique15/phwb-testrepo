@@ -27,11 +27,20 @@ CREATE TABLE IF NOT EXISTS phwb_production_managers (
 );
 
 -- Add foreign key for facility_id if facilities table exists
-ALTER TABLE phwb_production_managers
-  ADD CONSTRAINT IF NOT EXISTS fk_production_managers_facility
-  FOREIGN KEY (facility_id)
-  REFERENCES phwb_facilities(id)
-  ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'fk_production_managers_facility'
+  ) THEN
+    ALTER TABLE phwb_production_managers
+      ADD CONSTRAINT fk_production_managers_facility
+      FOREIGN KEY (facility_id)
+      REFERENCES phwb_facilities(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- Add index to speed up lookups by user_id
 CREATE INDEX IF NOT EXISTS idx_production_managers_user_id
@@ -45,9 +54,18 @@ CREATE INDEX IF NOT EXISTS idx_production_managers_facility_id
 ALTER TABLE phwb_location_contacts
   ADD COLUMN IF NOT EXISTS production_manager_id uuid;
 
-ALTER TABLE phwb_location_contacts
-  ADD CONSTRAINT IF NOT EXISTS fk_location_contacts_production_manager
-  FOREIGN KEY (production_manager_id)
-  REFERENCES phwb_production_managers(id)
-  ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'fk_location_contacts_production_manager'
+  ) THEN
+    ALTER TABLE phwb_location_contacts
+      ADD CONSTRAINT fk_location_contacts_production_manager
+      FOREIGN KEY (production_manager_id)
+      REFERENCES phwb_production_managers(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
 

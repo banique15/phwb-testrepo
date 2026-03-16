@@ -8,11 +8,20 @@ ALTER TABLE phwb_events
   ADD COLUMN IF NOT EXISTS production_manager_artist_id uuid;
 
 -- Foreign key to artists (only artists with is_production_manager = true should be assigned)
-ALTER TABLE phwb_events
-  ADD CONSTRAINT fk_events_production_manager_artist
-  FOREIGN KEY (production_manager_artist_id)
-  REFERENCES phwb_artists(id)
-  ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'fk_events_production_manager_artist'
+  ) THEN
+    ALTER TABLE phwb_events
+      ADD CONSTRAINT fk_events_production_manager_artist
+      FOREIGN KEY (production_manager_artist_id)
+      REFERENCES phwb_artists(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
 
 COMMENT ON COLUMN phwb_events.production_manager_artist_id IS 'Artist (with is_production_manager = true) assigned as production manager for this event.';
 
