@@ -162,6 +162,9 @@
 					{#if artist.sightreads}
 						<span class="badge badge-info badge-sm">Sight Reads</span>
 					{/if}
+					{#if artist.is_production_manager}
+						<span class="badge badge-secondary badge-sm">Production Manager</span>
+					{/if}
 				</div>
 			</div>
 			<div class="flex gap-2">

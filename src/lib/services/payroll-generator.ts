@@ -38,6 +38,8 @@ interface EventWithAssignments {
 	number_of_musicians: number | null
 	pm_hours: number | null
 	pm_rate: number | null
+	production_manager_id: string | null
+	production_manager_artist_id: string | null
 	artists: {
 		assignments?: ArtistAssignment[]
 	} | null
@@ -46,6 +48,11 @@ interface EventWithAssignments {
 		title: string
 		program_type: string | null
 	} | null
+}
+
+interface ProductionManagerPayrollInfo {
+	artistId: string | null
+	name: string
 }
 
 interface GenerationOptions {
@@ -102,6 +109,62 @@ function calculateHoursFromEventTimes(startTime: string | null, endTime: string 
 		return durationMinutes / 60
 	} catch {
 		return null
+	}
+}
+
+function getDisplayNameFromParts(
+	fullName: string | null | undefined,
+	firstName: string | null | undefined,
+	lastName: string | null | undefined,
+	fallback = 'Production Manager'
+): string {
+	if (fullName) return fullName
+	const fromParts = [firstName || '', lastName || ''].filter(Boolean).join(' ').trim()
+	return fromParts || fallback
+}
+
+function getDisplayRateForRule(rule: RateRule): number {
+	if (rule.rate_type === 'flat') return rule.flat_rate || 0
+	if (rule.rate_type === 'tiered') return rule.first_hour_rate || 0
+	return rule.hourly_rate || 0
+}
+
+async function resolveProductionManagerPayrollInfo(event: EventWithAssignments): Promise<ProductionManagerPayrollInfo | null> {
+	let artistId = event.production_manager_artist_id || null
+	let displayName: string | null = null
+
+	if (event.production_manager_id) {
+		const { data: pmRow } = await supabase
+			.from('phwb_production_managers')
+			.select('full_name, legal_first_name, legal_last_name, artist_id')
+			.eq('id', event.production_manager_id)
+			.maybeSingle()
+
+		if (pmRow) {
+			artistId = artistId || pmRow.artist_id || null
+			displayName = getDisplayNameFromParts(pmRow.full_name, pmRow.legal_first_name, pmRow.legal_last_name)
+		}
+	}
+
+	if (artistId) {
+		const { data: artistRow } = await supabase
+			.from('phwb_artists')
+			.select('full_name, legal_first_name, legal_last_name, artist_name')
+			.eq('id', artistId)
+			.maybeSingle()
+
+		if (artistRow) {
+			displayName =
+				artistRow.full_name ||
+				getDisplayNameFromParts(null, artistRow.legal_first_name, artistRow.legal_last_name, artistRow.artist_name || 'Production Manager')
+		}
+	}
+
+	if (!event.production_manager_id && !artistId) return null
+
+	return {
+		artistId,
+		name: displayName || 'Production Manager'
 	}
 }
 
@@ -325,6 +388,8 @@ export async function generatePayrollForDateRange(
 				number_of_musicians,
 				pm_hours,
 				pm_rate,
+				production_manager_id,
+				production_manager_artist_id,
 				artists,
 				programs:program(id, title, program_type)
 			`)
@@ -417,38 +482,46 @@ export async function generatePayrollForDateRange(
 					result.totalAmount += calculation.totalPay
 				}
 				
-				// Process PM hours if set
-				if (event.pm_hours && event.pm_hours > 0) {
+				// Process production manager payroll:
+				// Event duration + 2 hours (1 hour before and 1 hour after), using PM rate card rule.
+				const pmInfo = await resolveProductionManagerPayrollInfo(event)
+				if (pmInfo) {
 					const pmRateRule = await getRateRule(rateCard.id, 'pm')
-					const pmRate = event.pm_rate || pmRateRule?.hourly_rate || 39.79
-					const pmTotalPay = event.pm_hours * pmRate
-					
-					const pmEntry: GeneratedPayrollEntry = {
-						event_id: event.id,
-						event_date: event.date,
-						artist_id: null,
-						artist_name: 'Production Manager',
-						venue_id: event.venue,
-						program_id: event.program,
-						hours: event.pm_hours,
-						rate: pmRate,
-						additional_pay: 0,
-						additional_pay_reason: null,
-						total_pay: pmTotalPay,
-						number_of_musicians: musicianCount,
-						gig_duration: gigDuration,
-						employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
-						rate_card_id: rateCard.id,
-						rate_rule_id: pmRateRule?.id || 0,
-						status: PaymentStatus.PLANNED,
-						payment_type: PaymentType.OTHER,
-						creation_method: CreationMethod.EVENT_AUTOMATION,
-						source_event_id: event.id,
-						notes: `Production Manager - Auto-generated from event: ${event.title}`
+					if (!pmRateRule) {
+						result.errors.push(`No PM rate rule found for event "${event.title}"`)
+					} else {
+						const baseDuration = gigDuration || rateRule.min_hours || 1
+						const pmHours = baseDuration + 2
+						const pmCalculation = calculateArtistPay(pmHours, pmRateRule, false, musicianCount, null)
+						const pmRate = getDisplayRateForRule(pmRateRule)
+
+						const pmEntry: GeneratedPayrollEntry = {
+							event_id: event.id,
+							event_date: event.date,
+							artist_id: pmInfo.artistId,
+							artist_name: pmInfo.name,
+							venue_id: event.venue,
+							program_id: event.program,
+							hours: pmHours,
+							rate: pmRate,
+							additional_pay: 0,
+							additional_pay_reason: null,
+							total_pay: pmCalculation.totalPay,
+							number_of_musicians: musicianCount,
+							gig_duration: gigDuration,
+							employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
+							rate_card_id: rateCard.id,
+							rate_rule_id: pmRateRule.id,
+							status: PaymentStatus.PLANNED,
+							payment_type: PaymentType.OTHER,
+							creation_method: CreationMethod.EVENT_AUTOMATION,
+							source_event_id: event.id,
+							notes: `Production Manager (${pmHours.toFixed(2)}h = event duration + 2h) - Auto-generated from event: ${event.title}`
+						}
+						
+						result.entries.push(pmEntry)
+						result.totalAmount += pmCalculation.totalPay
 					}
-					
-					result.entries.push(pmEntry)
-					result.totalAmount += pmTotalPay
 				}
 				
 				result.eventsProcessed++
@@ -595,6 +668,8 @@ export async function generatePayrollForEvent(
 				number_of_musicians,
 				pm_hours,
 				pm_rate,
+				production_manager_id,
+				production_manager_artist_id,
 				artists,
 				programs:program(id, title, program_type)
 			`)
@@ -686,38 +761,46 @@ export async function generatePayrollForEvent(
 			result.totalAmount += calculation.totalPay
 		}
 
-		// Process PM hours if set
-		if (typedEvent.pm_hours && typedEvent.pm_hours > 0) {
+		// Process production manager payroll:
+		// Event duration + 2 hours (1 hour before and 1 hour after), using PM rate card rule.
+		const pmInfo = await resolveProductionManagerPayrollInfo(typedEvent)
+		if (pmInfo) {
 			const pmRateRule = await getRateRule(rateCard.id, 'pm')
-			const pmRate = typedEvent.pm_rate || pmRateRule?.hourly_rate || 39.79
-			const pmTotalPay = typedEvent.pm_hours * pmRate
+			if (!pmRateRule) {
+				result.errors.push('No PM rate rule found')
+			} else {
+				const baseDuration = gigDuration || rateRule.min_hours || 1
+				const pmHours = baseDuration + 2
+				const pmCalculation = calculateArtistPay(pmHours, pmRateRule, false, musicianCount, null)
+				const pmRate = getDisplayRateForRule(pmRateRule)
 
-			const pmEntry: GeneratedPayrollEntry = {
-				event_id: typedEvent.id,
-				event_date: typedEvent.date,
-				artist_id: null,
-				artist_name: 'Production Manager',
-				venue_id: typedEvent.venue,
-				program_id: typedEvent.program,
-				hours: typedEvent.pm_hours,
-				rate: pmRate,
-				additional_pay: 0,
-				additional_pay_reason: null,
-				total_pay: pmTotalPay,
-				number_of_musicians: musicianCount,
-				gig_duration: gigDuration,
-				employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
-				rate_card_id: rateCard.id,
-				rate_rule_id: pmRateRule?.id || 0,
-				status: PaymentStatus.PLANNED,
-				payment_type: PaymentType.OTHER,
-				creation_method: CreationMethod.EVENT_AUTOMATION,
-				source_event_id: typedEvent.id,
-				notes: `Production Manager - Auto-generated on event completion: ${typedEvent.title}`
+				const pmEntry: GeneratedPayrollEntry = {
+					event_id: typedEvent.id,
+					event_date: typedEvent.date,
+					artist_id: pmInfo.artistId,
+					artist_name: pmInfo.name,
+					venue_id: typedEvent.venue,
+					program_id: typedEvent.program,
+					hours: pmHours,
+					rate: pmRate,
+					additional_pay: 0,
+					additional_pay_reason: null,
+					total_pay: pmCalculation.totalPay,
+					number_of_musicians: musicianCount,
+					gig_duration: gigDuration,
+					employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
+					rate_card_id: rateCard.id,
+					rate_rule_id: pmRateRule.id,
+					status: PaymentStatus.PLANNED,
+					payment_type: PaymentType.OTHER,
+					creation_method: CreationMethod.EVENT_AUTOMATION,
+					source_event_id: typedEvent.id,
+					notes: `Production Manager (${pmHours.toFixed(2)}h = event duration + 2h) - Auto-generated on event completion: ${typedEvent.title}`
+				}
+
+				result.entries.push(pmEntry)
+				result.totalAmount += pmCalculation.totalPay
 			}
-
-			result.entries.push(pmEntry)
-			result.totalAmount += pmTotalPay
 		}
 
 		result.eventsProcessed = 1

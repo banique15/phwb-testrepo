@@ -233,7 +233,7 @@
 							<div class="badge badge-neutral">{pagination.total}</div>
 						{/if}
 					</div>
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-2 flex-wrap justify-end">
 						{#if masterActions}
 							{@render masterActions()}
 						{/if}

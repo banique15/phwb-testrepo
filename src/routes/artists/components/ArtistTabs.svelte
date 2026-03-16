@@ -46,6 +46,24 @@
 		return onUpdateField(field, items)
 	}
 
+	let savingBooleanField = $state<string | null>(null)
+	let booleanSaveError = $state<string | null>(null)
+
+	async function handleBooleanToggle(
+		field: 'sightreads' | 'can_be_soloist' | 'is_production_manager',
+		checked: boolean
+	) {
+		savingBooleanField = field
+		booleanSaveError = null
+		try {
+			await onUpdateField(field, checked)
+		} catch (error: any) {
+			booleanSaveError = error?.message || 'Failed to save update'
+		} finally {
+			savingBooleanField = null
+		}
+	}
+
 	const employmentStatusOptions = [
 		{ value: 'Employee', label: 'Employee/W2' },
 		{ value: '1099', label: 'LLC/1099' },
@@ -224,26 +242,50 @@
 							formatDisplay={(val) => val || 'Not specified'}
 						/>
 					</div>
-					<div class="flex gap-4">
-						<div class="flex-1">
-							<InlineEditableField
-								value={artist.sightreads}
-								field="sightreads"
-								type="checkbox"
-								label="Sight Reads"
-								onSave={(value) => onUpdateField('sightreads', value)}
-							/>
+					<div class="flex flex-wrap gap-4">
+						<div class="form-control min-w-[220px]">
+							<label class="label cursor-pointer justify-start gap-3">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									checked={!!artist.sightreads}
+									disabled={savingBooleanField === 'sightreads'}
+									onchange={(e) => handleBooleanToggle('sightreads', e.currentTarget.checked)}
+								/>
+								<span class="label-text">Sight Reads</span>
+							</label>
 						</div>
-						<div class="flex-1">
-							<InlineEditableField
-								value={artist.can_be_soloist}
-								field="can_be_soloist"
-								type="checkbox"
-								label="Can Be Soloist"
-								onSave={(value) => onUpdateField('can_be_soloist', value)}
-							/>
+						<div class="form-control min-w-[220px]">
+							<label class="label cursor-pointer justify-start gap-3">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									checked={!!artist.can_be_soloist}
+									disabled={savingBooleanField === 'can_be_soloist'}
+									onchange={(e) => handleBooleanToggle('can_be_soloist', e.currentTarget.checked)}
+								/>
+								<span class="label-text">Can Be Soloist</span>
+							</label>
+						</div>
+						<div class="form-control min-w-[220px]">
+							<label class="label cursor-pointer justify-start gap-3">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									checked={!!artist.is_production_manager}
+									disabled={savingBooleanField === 'is_production_manager'}
+									onchange={(e) => handleBooleanToggle('is_production_manager', e.currentTarget.checked)}
+								/>
+								<span class="label-text">Production Manager</span>
+							</label>
 						</div>
 					</div>
+					{#if savingBooleanField}
+						<p class="text-xs opacity-70">Saving toggle update...</p>
+					{/if}
+					{#if booleanSaveError}
+						<p class="text-xs text-error">{booleanSaveError}</p>
+					{/if}
 				</div>
 			</div>
 		{:else if activeTab === 'biography'}

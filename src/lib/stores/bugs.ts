@@ -47,13 +47,10 @@ export const bugsStore = {
 	async changeStatus(bugId: number, newStatus: Bug['status'], userId?: string) {
 		const updateData: UpdateBug = { status: newStatus }
 		
-		// Set resolved/closed timestamps if applicable
+		// Set resolved timestamps if applicable
 		if (newStatus === 'resolved') {
 			updateData.resolved_at = new Date().toISOString()
 			if (userId) updateData.resolved_by = userId
-		} else if (newStatus === 'closed') {
-			updateData.closed_at = new Date().toISOString()
-			if (userId) updateData.closed_by = userId
 		}
 
 		// Use our API-based update to bypass RLS

@@ -72,6 +72,7 @@
 		instruments: [] as string[],
 		canBeSoloist: null as boolean | null,
 		sightReads: null as boolean | null,
+		isProductionManager: null as boolean | null,
 		hideIncomplete: false as boolean,
 		hasEnsemble: false as boolean,
 		employmentStatus: null as string | null
@@ -160,6 +161,11 @@
 			result = result.filter(artist => artist.sightreads === artistFilters.sightReads)
 		}
 
+		// Production manager filter
+		if (artistFilters.isProductionManager !== null) {
+			result = result.filter(artist => !!artist.is_production_manager === artistFilters.isProductionManager)
+		}
+
 		// Has ensemble filter
 		if (artistFilters.hasEnsemble) {
 			result = result.filter(artist => artist.id && artistsWithEnsembles.has(artist.id))
@@ -204,6 +210,7 @@
 		artistFilters.instruments.length > 0 ||
 		artistFilters.canBeSoloist !== null ||
 		artistFilters.sightReads !== null ||
+		artistFilters.isProductionManager !== null ||
 		artistFilters.hideIncomplete ||
 		artistFilters.hasEnsemble ||
 		artistFilters.employmentStatus !== null
@@ -578,7 +585,7 @@
 	}
 
 	function getArtistDetail(item: any): string {
-		// Return empty - we're not using the badge for artists
+		if (item?.is_production_manager) return 'Production Manager'
 		return ''
 	}
 </script>
@@ -730,11 +737,12 @@
 							type="button"
 							class="btn btn-ghost btn-xs"
 							onclick={() => {
-								artistFilters = {
+									artistFilters = {
 									genres: [],
 									instruments: [],
 									canBeSoloist: null,
 									sightReads: null,
+									isProductionManager: null,
 									hideIncomplete: false,
 									hasEnsemble: false,
 									employmentStatus: null
@@ -787,6 +795,20 @@
 							}}
 						/>
 						<span class="label-text text-sm">Sight reads</span>
+					</label>
+				</div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-2 py-1">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm"
+							checked={artistFilters.isProductionManager === true}
+							onchange={(e) => {
+								artistFilters.isProductionManager = e.currentTarget.checked ? true : null
+							}}
+						/>
+						<span class="label-text text-sm">Production managers</span>
 					</label>
 				</div>
 

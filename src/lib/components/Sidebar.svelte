@@ -19,9 +19,10 @@
 	import { Bell } from "lucide-svelte";
 	import { formatDistanceToNow } from "date-fns";
 
-	const navItems = [
+const navItems = [
 		{ name: "Dashboard", href: "/", disabled: false },
 		{ name: "Artists", href: "/artists", disabled: false },
+		{ name: "Production Managers", href: "/production-managers", disabled: false },
 		{ name: "Ensembles", href: "/ensembles", disabled: false },
 		{ name: "Partners", href: "/partners", disabled: false },
 		{ name: "Programs", href: "/programs", disabled: false },

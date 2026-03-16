@@ -20,6 +20,7 @@ const locationContactSchemaBase = z.object({
 	availability_notes: z.string().optional().nullable(),
 	active: z.boolean().default(true),
 	notes: z.string().optional().nullable(),
+	production_manager_id: z.string().uuid().optional().nullable(),
 })
 
 // Refined schema with validation

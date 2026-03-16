@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Payroll } from '$lib/schemas/payroll'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { ClipboardList, CheckCircle, Search, BarChart, CalendarPlus, CreditCard, Wallet, Download, Upload } from 'lucide-svelte'
+import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Download, Upload } from 'lucide-svelte'
 	import PayrollInlineTable from '../PayrollInlineTable.svelte'
 	import PayrollFiltersButton from '../PayrollFiltersButton.svelte'
 	import PayrollMetricsFilterButton from '../PayrollMetricsFilterButton.svelte'
@@ -336,16 +336,7 @@
 			<div class="space-y-4">
 				<!-- Actions Bar -->
 				<div class="flex justify-between items-center">
-					<!-- Generate Payroll Button -->
 					<div class="flex items-center gap-2">
-						<button 
-							class="btn btn-primary btn-sm"
-							onclick={onOpenGeneration}
-						>
-							<CalendarPlus class="w-4 h-4 mr-2" />
-							Generate Weekly Payroll
-						</button>
-
 						<button
 							class="btn btn-outline btn-sm"
 							onclick={() => goto('/payroll/import')}
