@@ -633,7 +633,7 @@
 						<th class="w-40">Venue</th>
 						<th class="w-32">Program</th>
 						<th class="w-16">Musicians</th>
-						<th class="w-20">Type</th>
+						<th class="w-36">Type</th>
 					<th class="w-20">Duration</th>
 					<th class="w-16">Gig Dur.</th>
 						<th class="w-64">Rate</th>
@@ -823,7 +823,7 @@
 							{#if isEditingCell(entry.id!, 'employee_contractor_status') || isNew}
 								<div class="flex items-center gap-1">
 									<select
-										class="select select-bordered select-xs flex-1"
+										class="select select-bordered select-xs flex-1 min-w-[6.5rem]"
 										value={editData.employee_contractor_status || ''}
 										onchange={(e) => updateField(entry.id!, 'employee_contractor_status', e.currentTarget.value || null)}
 									>
