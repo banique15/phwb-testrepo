@@ -1,15 +1,34 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
 	import { page } from '$app/stores'
-	import { ArrowLeft, Edit, Check, X, User, Calendar, Clock, Tag, AlertCircle } from 'lucide-svelte'
+	import { env } from '$env/dynamic/public'
+	import { ArrowLeft, Edit, Check, X, User, Calendar, Clock, Tag, AlertCircle, Wrench, Loader2 } from 'lucide-svelte'
 	import { bugsStore } from '$lib/stores/bugs'
 	import type { BugDetailPageData } from './+page.server'
 	import type { Bug as BugType } from '$lib/schemas/bug'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import { formatDistanceToNow } from 'date-fns'
 	import BugDetailTabs from './components/BugDetailTabs.svelte'
+
+	function formatDistanceSafe(dateStr: string | null | undefined, fallback = '—'): string {
+		if (dateStr == null || dateStr === '') return fallback
+		const d = new Date(dateStr)
+		if (Number.isNaN(d.getTime())) return fallback
+		return formatDistanceToNow(d, { addSuffix: true })
+	}
 	import BugStatusChange from './components/BugStatusChange.svelte'
 	import BugAssigneeSelect from './components/BugAssigneeSelect.svelte'
+
+	// Ensure full URL: http(s)://host:port (default http://localhost:8000 in dev)
+	function normalizeVoiceAgentUrl(raw: string | undefined): string {
+		const s = (raw || '').trim()
+		if (!s && import.meta.env.DEV) return 'http://localhost:8000'
+		if (!s) return ''
+		if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '')
+		const host = s.startsWith(':') ? 'localhost' + s : s.includes(':') ? s : 'localhost:' + s
+		return 'http://' + host.replace(/^\/+/, '')
+	}
+	const VOICE_AGENT_URL = normalizeVoiceAgentUrl(env.PUBLIC_VOICE_AGENT_URL)
 
 	interface Props {
 		data: BugDetailPageData
@@ -17,32 +36,51 @@
 
 	let { data }: Props = $props()
 
-	let bug = $state<BugType>(data.bug as BugType)
+	// Seed from server data so we don't flash "Loading..." when data is already available
+	const initialBug = (): BugType | null => {
+		const b = data?.bug
+		return (b != null && typeof b === 'object' && 'id' in b && 'title' in b) ? (b as BugType) : null
+	}
+	let bug = $state<BugType | null>(initialBug())
 
 	const validTabs = ['description', 'comments', 'attachments', 'activity', 'time', 'replication', 'testing'] as const
 	type TabId = typeof validTabs[number]
 	const initialTab = $page.url.searchParams.get('tab') as TabId | null
 	let activeTab = $state<TabId>(initialTab && validTabs.includes(initialTab) ? initialTab : 'description')
+	let skipUrlSyncCount = $state(0)
+
+	// Keep activeTab in sync with URL (back/forward or direct link). Skip a couple of effect runs
+	// after we change tab so we don't overwrite activeTab with the old URL before goto() has updated it.
+	$effect(() => {
+		if (skipUrlSyncCount > 0) {
+			skipUrlSyncCount = skipUrlSyncCount - 1
+			return
+		}
+		const tabParam = $page.url.searchParams.get('tab') as TabId | null
+		if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
+			activeTab = tabParam
+		}
+	})
 	let editingTitle = $state(false)
 	let editingDescription = $state(false)
-	let titleValue = $state(bug.title)
-	let descriptionValue = $state(bug.description || '')
+	let titleValue = $state(bug?.title ?? data?.bug?.title ?? '')
+	let descriptionValue = $state(bug?.description ?? data?.bug?.description ?? '')
 
 	// Keep bug in sync with server data (only when data.bug.id or updated_at changes)
 	$effect(() => {
-		const newBug = data.bug as BugType
+		const newBug = data?.bug as BugType | undefined
+		if (!newBug) {
+			bug = null
+			return
+		}
 		const bugId = newBug.id
 		const updatedAt = newBug.updated_at
-		
-		// Only update if bug ID changed or if it's a different bug instance (updated_at changed)
-		if (bug.id !== bugId || bug.updated_at !== updatedAt) {
+		const current = bug
+		if (!current || current.id !== bugId || current.updated_at !== updatedAt) {
 			bug = newBug
-			if (!editingTitle) {
-				titleValue = bug.title
-			}
-			if (!editingDescription) {
-				descriptionValue = bug.description || ''
-			}
+			if (!editingTitle) titleValue = newBug.title
+			if (!editingDescription) descriptionValue = newBug.description || ''
+			if (!editingCategory) categoryValue = newBug.category || ''
 		}
 	})
 
@@ -87,6 +125,7 @@
 	}
 
 	async function handleStatusChange(newStatus: BugType['status']) {
+		if (!bug) return
 		try {
 			await bugsStore.changeStatus(bug.id as number, newStatus)
 			bug = { ...bug, status: newStatus }
@@ -96,6 +135,7 @@
 	}
 
 	async function handleAssigneeChange(userId: string | null) {
+		if (!bug) return
 		try {
 			await bugsStore.assignBug(bug.id as number, userId)
 			bug = { ...bug, assigned_to: userId }
@@ -105,6 +145,7 @@
 	}
 
 	async function saveTitle() {
+		if (!bug) return
 		try {
 			await bugsStore.update(bug.id as number, { title: titleValue })
 			bug = { ...bug, title: titleValue }
@@ -115,6 +156,7 @@
 	}
 
 	async function saveDescription() {
+		if (!bug) return
 		try {
 			await bugsStore.update(bug.id as number, { description: descriptionValue })
 			bug = { ...bug, description: descriptionValue }
@@ -125,6 +167,7 @@
 	}
 
 	async function handlePriorityChange(newPriority: BugType['priority']) {
+		if (!bug) return
 		try {
 			await bugsStore.update(bug.id as number, { priority: newPriority })
 			bug = { ...bug, priority: newPriority }
@@ -134,17 +177,107 @@
 	}
 
 	let editingCategory = $state(false)
-	let categoryValue = $state(bug.category || '')
+	let categoryValue = $state(bug?.category ?? data?.bug?.category ?? '')
 
 	const categoryOptions = ['Artists', 'Events', 'Events/Payroll', 'Facilities', 'Feature Request', 'Payroll', 'Programs', 'UI/UX']
 
 	async function saveCategory() {
+		if (!bug) return
 		try {
 			await bugsStore.update(bug.id as number, { category: categoryValue })
 			bug = { ...bug, category: categoryValue }
 			editingCategory = false
 		} catch (error) {
 			console.error('Failed to save category:', error)
+		}
+	}
+
+	// Dev Agent: Initiate dev fix (voiceaiagentv5)
+	let devFixLoading = $state(false)
+	let devFixError = $state<string | null>(null)
+	let devFixWorkflowId = $state<string | null>(null)
+	let agentLogs = $state<Array<{ id: number; step: string; message: string; level: string; created_at?: string }>>([])
+	let clearLogsLoading = $state(false)
+
+	// Poll phwb_dev_logs for this bug so Agent activity shows live logs
+	$effect(() => {
+		const bid = bug?.id
+		if (bid == null) return
+		let cancelled = false
+		async function fetchLogs() {
+			if (cancelled) return
+			try {
+				const res = await fetch(`/api/bugs/${bid}/dev-logs`)
+				if (!res.ok || cancelled) return
+				const data = await res.json()
+				if (!cancelled && Array.isArray(data)) {
+					agentLogs = data.map((row: { id: number; step: string; message: string; level: string; created_at?: string }) => ({
+						id: row.id,
+						step: row.step ?? '',
+						message: row.message ?? '',
+						level: row.level ?? 'info',
+						created_at: row.created_at
+					}))
+				}
+			} catch {
+				// ignore
+			}
+		}
+		fetchLogs()
+		const interval = setInterval(fetchLogs, 2000)
+		return () => {
+			cancelled = true
+			clearInterval(interval)
+		}
+	})
+
+	async function clearAgentLogs() {
+		const bid = bug?.id
+		if (bid == null) return
+		clearLogsLoading = true
+		try {
+			const res = await fetch(`/api/bugs/${bid}/dev-logs`, { method: 'DELETE' })
+			if (res.ok) agentLogs = []
+		} catch {
+			// ignore
+		} finally {
+			clearLogsLoading = false
+		}
+	}
+
+	async function initiateDevFix() {
+		if (!bug || !VOICE_AGENT_URL) return
+		devFixLoading = true
+		devFixError = null
+		devFixWorkflowId = null
+		try {
+			const base = VOICE_AGENT_URL.replace(/\/$/, '')
+			const res = await fetch(`${base}/api/dev/fix`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					id: bug.id,
+					title: bug.title,
+					description: bug.description ?? '',
+					category: bug.category ?? '',
+					status: bug.status
+				})
+			})
+			const json = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				devFixError = json.detail ?? json.error ?? `Request failed (${res.status})`
+				return
+			}
+			devFixWorkflowId = json.workflow_id ?? null
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Failed to start dev fix'
+			const isConnectionRefused =
+				/failed to fetch|connection refused|ERR_CONNECTION_REFUSED|NetworkError/i.test(msg) || msg === 'Failed to fetch'
+			devFixError = isConnectionRefused
+				? `Cannot reach the dev fix backend at ${VOICE_AGENT_URL}. Is voiceaiagentv5 running? (Start it and ensure Temporal is running too.)`
+				: msg
+		} finally {
+			devFixLoading = false
 		}
 	}
 </script>
@@ -161,6 +294,15 @@
 			</div>
 		</div>
 
+		{#if !bug}
+			<div class="flex-1 flex items-center justify-center p-8">
+				<div class="text-center text-base-content/70">
+					<p class="mb-4">Loading bug details…</p>
+					<button class="btn btn-sm btn-ghost" onclick={() => goto('/bugs')}>Back to Issues</button>
+				</div>
+			</div>
+		{:else}
+		{@const b = bug}
 		<!-- Main Content -->
 		<div class="flex-1 flex gap-6 p-6 min-h-0 overflow-hidden">
 			<!-- Left Column - Main Content -->
@@ -176,14 +318,14 @@
 									bind:value={titleValue}
 									onkeydown={(e) => {
 										if (e.key === 'Enter') saveTitle()
-										if (e.key === 'Escape') { editingTitle = false; titleValue = bug.title }
+										if (e.key === 'Escape') { editingTitle = false; titleValue = b.title }
 									}}
 								/>
 								<button class="btn btn-sm btn-success gap-2" onclick={saveTitle}>
 									<Check class="w-4 h-4" />
 									Save
 								</button>
-								<button class="btn btn-sm btn-ghost gap-2" onclick={() => { editingTitle = false; titleValue = bug.title }}>
+								<button class="btn btn-sm btn-ghost gap-2" onclick={() => { editingTitle = false; titleValue = b.title }}>
 									<X class="w-4 h-4" />
 									Cancel
 								</button>
@@ -192,15 +334,15 @@
 							<div class="flex items-start justify-between gap-4">
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center gap-3 mb-2">
-										<span class="badge badge-lg badge-outline font-mono font-semibold">#{bug.id}</span>
-										{#if bug.category}
+										<span class="badge badge-lg badge-outline font-mono font-semibold">#{b.id}</span>
+										{#if b.category}
 											<span class="badge badge-lg badge-ghost">
 												<Tag class="w-3 h-3 mr-1" />
-												{bug.category}
+												{b.category}
 											</span>
 										{/if}
 									</div>
-									<h1 class="text-3xl font-bold leading-tight">{bug.title}</h1>
+									<h1 class="text-3xl font-bold leading-tight">{b.title}</h1>
 								</div>
 								<button class="btn btn-sm btn-ghost gap-2 flex-shrink-0" onclick={() => editingTitle = true}>
 									<Edit class="w-4 h-4" />
@@ -213,10 +355,19 @@
 
 				<!-- Tabs Content -->
 				<div class="flex-1 min-h-0 flex flex-col">
-					<BugDetailTabs
-					bug={bug}
+								<BugDetailTabs
+					bug={b}
 					activeTab={activeTab}
-					onTabChange={(tab) => activeTab = tab}
+					onTabChange={(tab) => {
+					activeTab = tab
+					skipUrlSyncCount = 2
+					// Update URL without re-running load (avoids 500 on /bugs/id?tab=comments)
+					goto(`${$page.url.pathname}?tab=${tab}`, {
+						replaceState: true,
+						keepFocus: true,
+						invalidateAll: false
+					})
+				}}
 					comments={data.comments}
 					attachments={data.attachments}
 					labels={data.labels}
@@ -244,13 +395,13 @@
 					<div class="space-y-3">
 						<div>
 							<label class="text-xs font-medium text-base-content/60 mb-1 block">Status</label>
-							<BugStatusChange bug={bug} onStatusChange={handleStatusChange} />
+							<BugStatusChange bug={b} onStatusChange={handleStatusChange} />
 						</div>
 						<div>
 							<label class="text-xs font-medium text-base-content/60 mb-1 block">Priority</label>
 							<select
 								class="select select-bordered select-sm w-full"
-								value={bug.priority}
+								value={b.priority}
 								onchange={(e) => handlePriorityChange(e.currentTarget.value as BugType['priority'])}
 							>
 								<option value="low">Low</option>
@@ -274,7 +425,7 @@
 										list="category-options"
 										onkeydown={(e) => {
 											if (e.key === 'Enter') saveCategory()
-											if (e.key === 'Escape') { editingCategory = false; categoryValue = bug.category || '' }
+											if (e.key === 'Escape') { editingCategory = false; categoryValue = b.category || '' }
 										}}
 									/>
 									<datalist id="category-options">
@@ -284,16 +435,16 @@
 									</datalist>
 									<div class="flex gap-1">
 										<button class="btn btn-xs btn-success flex-1" onclick={saveCategory}>Save</button>
-										<button class="btn btn-xs btn-ghost flex-1" onclick={() => { editingCategory = false; categoryValue = bug.category || '' }}>Cancel</button>
+										<button class="btn btn-xs btn-ghost flex-1" onclick={() => { editingCategory = false; categoryValue = b.category || '' }}>Cancel</button>
 									</div>
 								</div>
 							{:else}
 								<button
 									class="btn btn-sm btn-ghost w-full justify-start text-left font-normal"
-									onclick={() => { categoryValue = bug.category || ''; editingCategory = true }}
+									onclick={() => { categoryValue = b.category || ''; editingCategory = true }}
 								>
-									{#if bug.category}
-										<span class="badge badge-ghost badge-sm">{bug.category}</span>
+									{#if b.category}
+										<span class="badge badge-ghost badge-sm">{b.category}</span>
 									{:else}
 										<span class="text-base-content/40 italic">No category</span>
 									{/if}
@@ -314,7 +465,7 @@
 									<User class="w-3 h-3" />
 									Assigned to
 								</label>
-								<BugAssigneeSelect bug={bug} users={data.users} onAssigneeChange={handleAssigneeChange} />
+								<BugAssigneeSelect bug={b} users={data.users} onAssigneeChange={handleAssigneeChange} />
 							</div>
 							<div>
 								<label class="text-xs font-medium text-base-content/60 mb-1 flex items-center gap-1">
@@ -322,7 +473,7 @@
 									Reported by
 								</label>
 								<div class="text-sm font-medium">
-									{data.bug.profiles_reported?.full_name || 'Unknown'}
+									{data?.bug?.profiles_reported?.full_name || 'Unknown'}
 								</div>
 							</div>
 							<div>
@@ -331,28 +482,28 @@
 									Created
 								</label>
 								<div class="text-sm">
-									{formatDistanceToNow(new Date(bug.created_at || ''), { addSuffix: true })}
+									{formatDistanceSafe(b.created_at)}
 								</div>
 							</div>
-							{#if bug.updated_at && bug.updated_at !== bug.created_at}
+							{#if b.updated_at && b.updated_at !== b.created_at}
 								<div>
 									<label class="text-xs font-medium text-base-content/60 mb-1 flex items-center gap-1">
 										<Clock class="w-3 h-3" />
 										Last updated
 									</label>
 									<div class="text-sm">
-										{formatDistanceToNow(new Date(bug.updated_at), { addSuffix: true })}
+										{formatDistanceSafe(b.updated_at)}
 									</div>
 								</div>
 							{/if}
-							{#if bug.due_date}
+							{#if b.due_date}
 								<div>
 									<label class="text-xs font-medium text-base-content/60 mb-1 flex items-center gap-1">
 										<Calendar class="w-3 h-3" />
 										Due date
 									</label>
 									<div class="text-sm font-medium">
-										{new Date(bug.due_date).toLocaleDateString('en-US', { 
+										{new Date(b.due_date).toLocaleDateString('en-US', { 
 											weekday: 'short', 
 											year: 'numeric', 
 											month: 'short', 
@@ -361,21 +512,88 @@
 									</div>
 								</div>
 							{/if}
-							{#if bug.resolved_at}
+							{#if b.resolved_at}
 								<div>
 									<label class="text-xs font-medium text-base-content/60 mb-1 flex items-center gap-1">
 										<Check class="w-3 h-3" />
 										Resolved
 									</label>
 									<div class="text-sm">
-										{formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}
+										{formatDistanceSafe(b.resolved_at)}
 									</div>
 								</div>
 							{/if}
 						</div>
 					</div>
 				</div>
+
+				<!-- Dev Agent: Initiate dev fix + live logs -->
+				<div class="card bg-base-100 shadow-sm flex-1 min-h-0 flex flex-col">
+					<div class="card-body p-4 flex flex-col min-h-0">
+						<h3 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-3 flex items-center gap-2">
+							<Wrench class="w-4 h-4" />
+							Dev Agent
+						</h3>
+						<div class="flex flex-col gap-3 flex-shrink-0">
+							<button
+								type="button"
+								class="btn btn-primary btn-sm w-full gap-2"
+								onclick={initiateDevFix}
+								disabled={devFixLoading || !VOICE_AGENT_URL}
+								title={!VOICE_AGENT_URL ? 'Set PUBLIC_VOICE_AGENT_URL (e.g. http://localhost:8000) to enable' : ''}
+							>
+								{#if devFixLoading}
+									<Loader2 class="w-4 h-4 animate-spin" />
+									Starting…
+								{:else}
+									<Wrench class="w-4 h-4" />
+									Initiate dev fix
+								{/if}
+							</button>
+							{#if devFixError}
+								<div class="alert alert-error text-xs py-2">
+									<span>{devFixError}</span>
+								</div>
+							{/if}
+							{#if devFixWorkflowId}
+								<p class="text-xs text-success">Workflow started: <span class="font-mono truncate block">{devFixWorkflowId}</span></p>
+							{/if}
+						</div>
+						<!-- Live logs: placeholder for phwb_dev_logs integration -->
+						<div class="mt-3 flex-1 min-h-0 flex flex-col border border-base-300 rounded-lg overflow-hidden">
+							<div class="bg-base-200/60 px-2 py-1.5 text-xs font-medium text-base-content/60 border-b border-base-300 flex items-center justify-between gap-2">
+								<span>Agent activity</span>
+								<button
+									type="button"
+									class="btn btn-ghost btn-xs"
+									onclick={clearAgentLogs}
+									disabled={clearLogsLoading || agentLogs.length === 0}
+									title="Clear logs for this issue"
+								>
+									{#if clearLogsLoading}
+										<span class="loading loading-spinner loading-xs"></span>
+									{:else}
+										Clear logs
+									{/if}
+								</button>
+							</div>
+							<div class="flex-1 overflow-y-auto min-h-[120px] max-h-[200px] p-2 bg-base-200/30 font-mono text-xs">
+								{#if agentLogs.length === 0}
+									<p class="text-base-content/50 italic">Live logs will appear here when a fix is running.</p>
+								{:else}
+									{#each agentLogs as log (log.id)}
+										<div class="py-0.5 border-b border-base-300/50 last:border-0" class:text-error={log.level === 'error'} class:text-warning={log.level === 'warning'}>
+											<span class="text-base-content/60">{log.step}</span>
+											<span>{log.message}</span>
+										</div>
+									{/each}
+								{/if}
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
+		{/if}
 	</div>
 </ErrorBoundary>

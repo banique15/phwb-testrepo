@@ -10,8 +10,14 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui",
 		"docs:status": "bun run docs/scripts/doc-status.ts",
-		"docs:help": "echo 'Documentation commands:' && echo '  bun docs:status  - Generate documentation status report' && echo '  bun docs:new     - Create new document from template' && echo '  See docs/README.md for more information'"
+		"docs:help": "echo 'Documentation commands:' && echo '  bun docs:status  - Generate documentation status report' && echo '  bun docs:new     - Create new document from template' && echo '  See docs/README.md for more information'",
+		"test:dev-fix-flow": "npx -y tsx scripts/test-dev-fix-flow.ts",
+		"test-dev-fix": "npx -y tsx scripts/test-dev-fix-flow.ts",
+		"test-repo": "TEST_MODE=1 npx -y tsx scripts/test-dev-fix-flow.ts",
+		"clean:test-bugs": "npx -y tsx scripts/clean-test-bugs.ts"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.54.1",

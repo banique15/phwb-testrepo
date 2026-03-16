@@ -241,13 +241,22 @@ export const eventsStore = {
 					if (rpcError) {
 						logger.error('RPC sync failed:', rpcError)
 						// Fallback: manual sequence sync
-						await supabase.from('phwb_events').select('id').order('id', { ascending: false }).limit(1).single()
-							.then(({ data }) => {
-								if (data) {
-									return supabase.rpc('setval', { sequence_name: 'phwb_events_id_seq', new_value: data.id + 1 })
-								}
-							})
-							.catch(logger.error)
+						try {
+							const { data } = await supabase
+								.from('phwb_events')
+								.select('id')
+								.order('id', { ascending: false })
+								.limit(1)
+								.single()
+							if (data) {
+								await supabase.rpc('setval', {
+									sequence_name: 'phwb_events_id_seq',
+									new_value: data.id + 1
+								})
+							}
+						} catch (e) {
+							logger.error('Fallback sequence sync failed:', e)
+						}
 					}
 					
 					const { data: retryData, error: retryError } = await supabase

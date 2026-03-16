@@ -18,7 +18,7 @@
 		status: 'new',
 		priority: 'medium',
 		severity: 'moderate',
-		category: '',
+		category: 'UI/UX',
 		assigned_to: null,
 		due_date: null,
 		reported_by: undefined
@@ -27,12 +27,18 @@
 	let errors = $state<Record<string, string>>({})
 	let submitting = $state(false)
 	let users = $state<Array<{ id: string; full_name: string | null }>>([])
+	let currentUserName = $state<string>('')
+
+	const categoryOptions = ['Artists', 'Events', 'Events/Payroll', 'Facilities', 'Feature Request', 'Payroll', 'Programs', 'UI/UX']
+	const statusOptions = ['new', 'planning', 'in_progress', 'testing', 'review', 'resolved', 'closed'] as const
 
 	// Load current user and available users
 	async function loadUsers() {
 		const { data: { user } } = await supabase.auth.getUser()
 		if (user) {
 			formData.reported_by = user.id
+			const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+			currentUserName = profile?.full_name ?? user.email ?? 'You'
 		}
 
 		const { data } = await supabase
@@ -67,7 +73,7 @@
 				status: 'new',
 				priority: 'medium',
 				severity: 'moderate',
-				category: '',
+				category: 'UI/UX',
 				assigned_to: null,
 				due_date: null,
 				reported_by: undefined
@@ -106,7 +112,7 @@
 			status: 'new',
 			priority: 'medium',
 			severity: 'moderate',
-			category: '',
+			category: 'UI/UX',
 			assigned_to: null,
 			due_date: null,
 			reported_by: undefined
@@ -168,6 +174,18 @@
 					{/if}
 				</div>
 
+				<!-- Status (matches table) -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text font-medium">Status</span>
+					</label>
+					<select class="select select-bordered" bind:value={formData.status}>
+						{#each statusOptions as s}
+							<option value={s}>{s.replace('_', ' ')}</option>
+						{/each}
+					</select>
+				</div>
+
 				<!-- Priority -->
 				<div class="form-control">
 					<label class="label">
@@ -181,18 +199,28 @@
 					</select>
 				</div>
 
-				<!-- Category -->
+				<!-- Category (same options as bugs table/detail) -->
 				<div class="form-control">
 					<label class="label">
 						<span class="label-text font-medium">Category</span>
 					</label>
-					<input
-						type="text"
-						class="input input-bordered"
-						placeholder="e.g., UI, Backend, Database, API"
-						bind:value={formData.category}
-					/>
+					<select class="select select-bordered" bind:value={formData.category}>
+						<option value="">— Select category —</option>
+						{#each categoryOptions as c}
+							<option value={c}>{c}</option>
+						{/each}
+					</select>
 				</div>
+
+				<!-- Reported by (read-only, matches table) -->
+				{#if currentUserName}
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text font-medium">Reported by</span>
+						</label>
+						<p class="text-sm text-base-content/70">{currentUserName}</p>
+					</div>
+				{/if}
 
 				<!-- Assignee and Due Date -->
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">

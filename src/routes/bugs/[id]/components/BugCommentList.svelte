@@ -7,6 +7,13 @@
 	import type { BugComment } from '$lib/schemas/bug-comment'
 	import { onMount, tick } from 'svelte'
 
+	function formatCommentDate(dateStr: string | null | undefined, fallback = '—'): string {
+		if (dateStr == null || dateStr === '') return fallback
+		const d = new Date(dateStr)
+		if (Number.isNaN(d.getTime())) return fallback
+		return formatDistanceToNow(d, { addSuffix: true })
+	}
+
 	interface Props {
 		bugId: number
 		comments: Array<BugComment & { profiles?: { full_name: string | null; avatar_url: string | null } | null }>
@@ -116,11 +123,20 @@
 		textareaRef.setSelectionRange(newCursorPos, newCursorPos)
 	}
 	
-	// Render comment content with highlighted @mentions
+	// Render comment content: linkify URLs (e.g. PR links) and highlight @mentions
 	function renderCommentWithMentions(content: string): string {
-		// Match @mentions (word characters after @)
+		if (!content || typeof content !== 'string') return ''
+		// 1) Linkify http(s) URLs so PR links are clickable
+		const urlRegex = /https?:\/\/[^\s<>"']+/g
+		let out = content.replace(urlRegex, (url) => {
+			const href = url.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+			const text = url.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+			return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="link link-primary">${text}</a>`
+		})
+		// 2) Highlight @mentions
 		const mentionRegex = /@([\w\s]+?)(?=\s@|\s|$)/g
-		return content.replace(mentionRegex, '<span class="text-primary font-medium">@$1</span>')
+		out = out.replace(mentionRegex, '<span class="text-primary font-medium">@$1</span>')
+		return out
 	}
 
 	async function handleSubmit() {
@@ -263,7 +279,7 @@
 								</span>
 							{/if}
 							<span class="text-xs text-base-content/60">
-								{formatDistanceToNow(new Date(comment.created_at || ''), { addSuffix: true })}
+								{formatCommentDate(comment.created_at)}
 							</span>
 							{#if comment.edited_at}
 								<span class="text-xs text-base-content/40 italic">(edited)</span>

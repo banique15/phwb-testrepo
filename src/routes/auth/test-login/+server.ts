@@ -4,31 +4,14 @@ import type { RequestHandler } from './$types'
 // Only allow in development
 const isDev = process.env.NODE_ENV === 'development'
 
-// Known user emails for dev testing
-const DEV_USERS = [
-	'it@singforhope.org',
-	'marty@singforhope.org',
-	'javier@singforhope.org'
-]
-
-// Display names for dev users
-const DEV_USER_NAMES: Record<string, string> = {
-	'it@singforhope.org': 'IT Dev',
-	'marty@singforhope.org': 'Marty',
-	'javier@singforhope.org': 'Javier'
-}
-
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	if (!isDev) {
 		throw redirect(303, '/login?error=Test login only available in development')
 	}
 
-	// Get email from query param or use default test user
-	const email = url.searchParams.get('email') || 'it@singforhope.org'
-	const displayName = DEV_USER_NAMES[email.toLowerCase()] || email.split('@')[0]
-
-	if (!DEV_USERS.includes(email.toLowerCase())) {
-		throw redirect(303, `/login?error=Test user not found: ${email}. Available test users: ${DEV_USERS.join(', ')}`)
+	const email = url.searchParams.get('email')?.trim()
+	if (!email) {
+		throw redirect(303, '/login?error=Email required (e.g. /auth/test-login?email=user@example.com)')
 	}
 
 	// Use the admin client to generate a magic link for the user
@@ -42,16 +25,23 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
 		
 		let userId: string | undefined
+		let displayName = email.split('@')[0]
 		if (!listError && users) {
 			const existingUser = users.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
-			userId = existingUser?.id
+			if (existingUser) {
+				userId = existingUser.id
+				displayName =
+					(existingUser.user_metadata?.full_name as string) ||
+					(existingUser.user_metadata?.name as string) ||
+					displayName
+			}
 		}
 
 		// If user doesn't exist, create them
 		if (!userId) {
 			const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
 				email: email,
-				email_confirm: true, // Auto-confirm email
+				email_confirm: true,
 				user_metadata: { full_name: displayName }
 			})
 			

@@ -103,7 +103,7 @@ export const bugsStore = {
 			// Fetch relations
 			const { data: relations } = await supabase
 				.from('phwb_bug_relations')
-				.select('*, related_bug:related_bug_id(id, title, status)')
+				.select('*, related_bug:phwb_bugs!related_bug_id(id, title, status)')
 				.eq('bug_id', bugId)
 
 			// Fetch activity
