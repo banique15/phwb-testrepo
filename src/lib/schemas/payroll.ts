@@ -14,7 +14,7 @@ export const payrollSchema = z.object({
 	insperity_hours: z.number().min(0, 'Artist service hours must be non-negative').optional(),
 	paid_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Paid date must be in YYYY-MM-DD format').optional().nullable(),
 	status: z.enum(['Planned', 'Approved', 'Paid', 'Cancelled']),
-	event_id: z.number().optional(),
+	event_id: z.coerce.number().optional(),
 	// Worker status and type fields
 	employee_contractor_status: z.enum(['employee', 'contractor', 'roster_artist', 'llc']).optional().nullable(),
 	invoice_number: z.string().max(100, 'Invoice number must be less than 100 characters').optional().nullable(),
@@ -38,7 +38,7 @@ export const payrollSchema = z.object({
 	// Source tracking fields
 	created_by: z.string().max(50, 'Created by must be less than 50 characters').optional().nullable(),
 	creation_method: z.enum(['manual', 'event-automation']).optional().nullable(),
-	source_event_id: z.number().optional().nullable(),
+	source_event_id: z.coerce.number().optional().nullable(),
 	// New fields for payroll automation (Issue #61)
 	program_id: z.number().optional().nullable(),
 	number_of_musicians: z.number().optional().nullable(),
