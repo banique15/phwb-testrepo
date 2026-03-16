@@ -372,7 +372,21 @@
 									</div>
 								</div>
 							{/if}
-						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Actions Card -->
+			<div class="card bg-base-100 shadow-sm">
+				<div class="card-body p-4">
+					<h3 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-3">Actions</h3>
+					<div class="space-y-2">
+						<button class="btn btn-sm btn-outline w-full">
+							Test
+						</button>
+						<button class="btn btn-sm btn-primary w-full">
+							Initiate Dev Fix
+						</button>
 					</div>
 				</div>
 			</div>
