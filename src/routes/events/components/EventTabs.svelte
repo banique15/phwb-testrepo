@@ -411,6 +411,20 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 
 		{#if activeTab === 'performers'}
 			<div class="space-y-4">
+				<div class="flex items-center justify-between border-b pb-2">
+					<h3 class="text-lg font-semibold">Performers</h3>
+					{#if !editingTab}
+						<button
+							type="button"
+							class="btn btn-sm btn-outline"
+							onclick={() => startEdit('performers')}
+						>
+							<Edit class="w-4 h-4 mr-1" />
+							Edit
+						</button>
+					{/if}
+				</div>
+
 				{#if editingTab === 'performers'}
 					<div class="space-y-4">
 						<!-- Ensemble Selector -->
