@@ -144,7 +144,24 @@ export const eventsStore = {
 		// Use enhanced create method that doesn't generate UUIDs
 		return eventsStore.enhanced.create(eventData)
 	},
-	update: baseStore.update,
+	update: async (id: string | number, updates: UpdateEvent) => {
+		const updatedEvent = await baseStore.update(id, updates)
+		const isCompletedTransition = updates.status === 'completed' && updatedEvent.status === 'completed'
+		if (isCompletedTransition) {
+			try {
+				const normalizedId = typeof updatedEvent.id === 'string'
+					? parseInt(updatedEvent.id, 10)
+					: updatedEvent.id
+				if (normalizedId) {
+					await generatePayrollForEvent(normalizedId, { dryRun: false })
+				}
+			} catch (error) {
+				// Event status updates must still succeed even if payroll generation fails.
+				logger.error('Event completed but payroll generation failed:', error)
+			}
+		}
+		return updatedEvent
+	},
 	delete: baseStore.delete,
 	getById: baseStore.getById,
 	subscribeToChanges: baseStore.subscribeToChanges,
@@ -304,8 +321,8 @@ export const eventsStore = {
 					throw new Error(`Invalid event ID: ${id}`)
 				}
 
-				// Use the base store update method instead of custom logic
-				const updatedEvent = await baseStore.update(normalizedId, updates)
+				// Use consolidated update method so status completion also triggers payroll automation
+				const updatedEvent = await eventsStore.update(normalizedId, updates)
 
 				logger.debug('Base store returned:', updatedEvent)
 				
