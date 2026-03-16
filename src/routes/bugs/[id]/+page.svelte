@@ -8,6 +8,19 @@
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import { formatDistanceToNow } from 'date-fns'
 	import BugDetailTabs from './components/BugDetailTabs.svelte'
+
+	function formatDistanceSafe(dateStr: string | null | undefined, fallback = '—'): string {
+		if (dateStr == null || dateStr === '') return fallback
+		const d = new Date(dateStr)
+		if (Number.isNaN(d.getTime())) return fallback
+		return formatDistanceToNow(d, { addSuffix: true })
+	}
+	function formatDateSafe(dateStr: string | null | undefined, fallback = '—'): string {
+		if (dateStr == null || dateStr === '') return fallback
+		const d = new Date(dateStr)
+		if (Number.isNaN(d.getTime())) return fallback
+		return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+	}
 	import BugStatusChange from './components/BugStatusChange.svelte'
 	import BugAssigneeSelect from './components/BugAssigneeSelect.svelte'
 
@@ -331,7 +344,7 @@
 									Created
 								</label>
 								<div class="text-sm">
-									{formatDistanceToNow(new Date(bug.created_at || ''), { addSuffix: true })}
+									{formatDistanceSafe(bug.created_at)}
 								</div>
 							</div>
 							{#if bug.updated_at && bug.updated_at !== bug.created_at}
@@ -341,7 +354,7 @@
 										Last updated
 									</label>
 									<div class="text-sm">
-										{formatDistanceToNow(new Date(bug.updated_at), { addSuffix: true })}
+										{formatDistanceSafe(bug.updated_at)}
 									</div>
 								</div>
 							{/if}
@@ -352,12 +365,7 @@
 										Due date
 									</label>
 									<div class="text-sm font-medium">
-										{new Date(bug.due_date).toLocaleDateString('en-US', { 
-											weekday: 'short', 
-											year: 'numeric', 
-											month: 'short', 
-											day: 'numeric' 
-										})}
+										{formatDateSafe(bug.due_date)}
 									</div>
 								</div>
 							{/if}
@@ -368,7 +376,7 @@
 										Resolved
 									</label>
 									<div class="text-sm">
-										{formatDistanceToNow(new Date(bug.resolved_at), { addSuffix: true })}
+										{formatDistanceSafe(bug.resolved_at)}
 									</div>
 								</div>
 							{/if}

@@ -7,6 +7,13 @@
 	import type { BugComment } from '$lib/schemas/bug-comment'
 	import { onMount, tick } from 'svelte'
 
+	function formatCommentDate(dateStr: string | null | undefined, fallback = '—'): string {
+		if (dateStr == null || dateStr === '') return fallback
+		const d = new Date(dateStr)
+		if (Number.isNaN(d.getTime())) return fallback
+		return formatDistanceToNow(d, { addSuffix: true })
+	}
+
 	interface Props {
 		bugId: number
 		comments: Array<BugComment & { profiles?: { full_name: string | null; avatar_url: string | null } | null }>
@@ -263,7 +270,7 @@
 								</span>
 							{/if}
 							<span class="text-xs text-base-content/60">
-								{formatDistanceToNow(new Date(comment.created_at || ''), { addSuffix: true })}
+								{formatCommentDate(comment.created_at)}
 							</span>
 							{#if comment.edited_at}
 								<span class="text-xs text-base-content/40 italic">(edited)</span>
