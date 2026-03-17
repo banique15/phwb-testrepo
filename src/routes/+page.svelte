@@ -165,3 +165,5 @@
 		</div>
 	{/if}
 </ErrorBoundary>
+
+<!-- E2E flow test: UI only -->
