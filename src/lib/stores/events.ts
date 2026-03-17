@@ -10,6 +10,10 @@ import type { Facility } from '$lib/schemas/facility'
 import type { Location } from '$lib/schemas/location'
 import type { Artist } from '$lib/schemas/artist'
 import { generatePayrollForEvent } from '$lib/services/payroll-generator'
+import {
+	queueEventCompletedNotifications,
+	queueInvitationNotificationsForEvent
+} from '$lib/services/notification-producer'
 
 // Enhanced event type with resolved names
 export interface EnhancedEvent extends Event {
@@ -145,7 +149,27 @@ export const eventsStore = {
 		return eventsStore.enhanced.create(eventData)
 	},
 	update: async (id: string | number, updates: UpdateEvent) => {
+		let previousEvent: Event | null = null
+		try {
+			previousEvent = await baseStore.getById(id)
+		} catch {
+			previousEvent = null
+		}
+
 		const updatedEvent = await baseStore.update(id, updates)
+		const hasArtistUpdates = Object.prototype.hasOwnProperty.call(updates, 'artists')
+		if (hasArtistUpdates) {
+			try {
+				await queueInvitationNotificationsForEvent(
+					updatedEvent,
+					previousEvent?.artists,
+					updatedEvent.artists
+				)
+			} catch (error) {
+				logger.error('Failed queuing assignment invitation notifications:', error)
+			}
+		}
+
 		const isCompletedTransition = updates.status === 'completed' && updatedEvent.status === 'completed'
 		if (isCompletedTransition) {
 			try {
@@ -158,6 +182,11 @@ export const eventsStore = {
 			} catch (error) {
 				// Event status updates must still succeed even if payroll generation fails.
 				logger.error('Event completed but payroll generation failed:', error)
+			}
+			try {
+				await queueEventCompletedNotifications(updatedEvent, updatedEvent.artists)
+			} catch (error) {
+				logger.error('Failed queuing event completed notifications:', error)
 			}
 		}
 		return updatedEvent
@@ -409,6 +438,23 @@ export const eventsStore = {
 				if (error) throw error
 
 				const enhancedEvents = enhanceEvents(data || [])
+
+				if (updates.status === 'completed') {
+					await Promise.all(
+						(data || []).map(async (event) => {
+							try {
+								await generatePayrollForEvent(event.id, { dryRun: false })
+							} catch (error) {
+								logger.error('Bulk complete payroll generation failed:', error)
+							}
+							try {
+								await queueEventCompletedNotifications(event, event.artists)
+							} catch (error) {
+								logger.error('Bulk complete notification queue failed:', error)
+							}
+						})
+					)
+				}
 
 				enhancedState.update(state => ({
 					...state,

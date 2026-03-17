@@ -1,6 +1,7 @@
 import { createBaseStore } from './base'
 import { artistSchema, type Artist, type CreateArtist, type UpdateArtist } from '$lib/schemas/artist'
 import { supabase } from '$lib/supabase'
+import { queueArtistAddedNotification } from '$lib/services/notification-producer'
 
 export const artistsStore = createBaseStore<Artist, CreateArtist, UpdateArtist>({
 	tableName: 'phwb_artists',
@@ -53,6 +54,11 @@ async function syncProductionManagerRecord(artist: Artist) {
 export async function createArtist(data: CreateArtist) {
 	const created = await artistsStore.create(data)
 	await syncProductionManagerRecord(created)
+	try {
+		await queueArtistAddedNotification(created)
+	} catch (error) {
+		console.error('Failed to queue artist added notification:', error)
+	}
 	return created
 }
 

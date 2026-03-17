@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { supabase } from '$lib/supabase'
 import { z } from 'zod'
+import { queueInvitationNotificationsForEvent } from '$lib/services/notification-producer'
 
 // Schema for associating artists with an event
 const associateArtistsSchema = z.object({
@@ -62,6 +63,12 @@ export const POST: RequestHandler = async ({ request, params, locals }) => {
 		if (updateError) {
 			console.error('Error associating artists:', updateError)
 			return json({ error: 'Failed to associate artists with event' }, { status: 500 })
+		}
+
+		try {
+			await queueInvitationNotificationsForEvent(updatedEvent, event.artists, artistsData)
+		} catch (notificationError) {
+			console.error('Failed queuing invitation notifications:', notificationError)
 		}
 
 		return json({ 

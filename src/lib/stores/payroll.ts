@@ -5,6 +5,7 @@ import { payrollSchema, type Payroll, type CreatePayroll, type UpdatePayroll, Pa
 import { type CreatePayrollAudit, AuditAction } from '$lib/schemas/payroll-audit'
 import { type PaymentBatch, type CreatePaymentBatch } from '$lib/schemas/payment-batch'
 import type { PaginationOptions, StoreState } from '$lib/types'
+import { queuePayoutProcessedNotifications } from '$lib/services/notification-producer'
 
 const initialState: StoreState<Payroll> = {
 	items: [],
@@ -389,6 +390,12 @@ export const payrollStore = {
 				})
 			)
 			await Promise.all(auditPromises)
+
+			try {
+				await queuePayoutProcessedNotifications(data || [], new Date().toISOString())
+			} catch (notificationError) {
+				console.error('Failed to queue payout processed notifications:', notificationError)
+			}
 
 			payrollState.update(state => ({
 				...state,
