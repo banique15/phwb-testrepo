@@ -129,6 +129,33 @@ function getDisplayRateForRule(rule: RateRule): number {
 	return rule.hourly_rate || 0
 }
 
+function getRateDetailsForRule(rule: RateRule): Pick<GeneratedPayrollEntry, 'rate_type' | 'base_rate' | 'additional_rate' | 'rate_description'> {
+	if (rule.rate_type === 'tiered') {
+		return {
+			rate_type: 'tiered',
+			base_rate: rule.first_hour_rate ?? null,
+			additional_rate: rule.subsequent_hour_rate ?? null,
+			rate_description: rule.description ?? null
+		}
+	}
+
+	if (rule.rate_type === 'flat') {
+		return {
+			rate_type: 'flat',
+			base_rate: rule.flat_rate ?? null,
+			additional_rate: null,
+			rate_description: rule.description ?? null
+		}
+	}
+
+	return {
+		rate_type: 'hourly',
+		base_rate: rule.hourly_rate ?? null,
+		additional_rate: null,
+		rate_description: rule.description ?? null
+	}
+}
+
 async function resolveProductionManagerPayrollInfo(event: EventWithAssignments): Promise<ProductionManagerPayrollInfo | null> {
 	let artistId = event.production_manager_artist_id || null
 	let displayName: string | null = null
@@ -453,6 +480,7 @@ export async function generatePayrollForDateRange(
 					const effectiveRate = assignment.hourly_rate && assignment.hourly_rate > 0
 						? assignment.hourly_rate
 						: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
+					const rateDetails = getRateDetailsForRule(rateRule)
 					
 					const entry: GeneratedPayrollEntry = {
 						event_id: event.id,
@@ -463,6 +491,10 @@ export async function generatePayrollForDateRange(
 						program_id: event.program,
 						hours,
 						rate: effectiveRate,
+						rate_type: rateDetails.rate_type,
+						base_rate: rateDetails.base_rate,
+						additional_rate: rateDetails.additional_rate,
+						rate_description: rateDetails.rate_description,
 						additional_pay: calculation.additionalPay,
 						additional_pay_reason: calculation.additionalPayReason,
 						total_pay: calculation.totalPay,
@@ -494,6 +526,7 @@ export async function generatePayrollForDateRange(
 						const pmHours = baseDuration + 2
 						const pmCalculation = calculateArtistPay(pmHours, pmRateRule, false, musicianCount, null)
 						const pmRate = getDisplayRateForRule(pmRateRule)
+						const pmRateDetails = getRateDetailsForRule(pmRateRule)
 
 						const pmEntry: GeneratedPayrollEntry = {
 							event_id: event.id,
@@ -504,6 +537,10 @@ export async function generatePayrollForDateRange(
 							program_id: event.program,
 							hours: pmHours,
 							rate: pmRate,
+							rate_type: pmRateDetails.rate_type,
+							base_rate: pmRateDetails.base_rate,
+							additional_rate: pmRateDetails.additional_rate,
+							rate_description: pmRateDetails.rate_description,
 							additional_pay: 0,
 							additional_pay_reason: null,
 							total_pay: pmCalculation.totalPay,
@@ -543,6 +580,10 @@ export async function generatePayrollForDateRange(
 				event_id: entry.event_id,
 				hours: entry.hours,
 				rate: entry.rate,
+				rate_type: entry.rate_type,
+				base_rate: entry.base_rate,
+				additional_rate: entry.additional_rate,
+				rate_description: entry.rate_description,
 				additional_pay: entry.additional_pay,
 				additional_pay_reason: entry.additional_pay_reason,
 				status: entry.status,
@@ -732,6 +773,7 @@ export async function generatePayrollForEvent(
 			const effectiveRate = assignment.hourly_rate && assignment.hourly_rate > 0
 				? assignment.hourly_rate
 				: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
+			const rateDetails = getRateDetailsForRule(rateRule)
 
 			const entry: GeneratedPayrollEntry = {
 				event_id: typedEvent.id,
@@ -742,6 +784,10 @@ export async function generatePayrollForEvent(
 				program_id: typedEvent.program,
 				hours,
 				rate: effectiveRate,
+				rate_type: rateDetails.rate_type,
+				base_rate: rateDetails.base_rate,
+				additional_rate: rateDetails.additional_rate,
+				rate_description: rateDetails.rate_description,
 				additional_pay: calculation.additionalPay,
 				additional_pay_reason: calculation.additionalPayReason,
 				total_pay: calculation.totalPay,
@@ -773,6 +819,7 @@ export async function generatePayrollForEvent(
 				const pmHours = baseDuration + 2
 				const pmCalculation = calculateArtistPay(pmHours, pmRateRule, false, musicianCount, null)
 				const pmRate = getDisplayRateForRule(pmRateRule)
+				const pmRateDetails = getRateDetailsForRule(pmRateRule)
 
 				const pmEntry: GeneratedPayrollEntry = {
 					event_id: typedEvent.id,
@@ -783,6 +830,10 @@ export async function generatePayrollForEvent(
 					program_id: typedEvent.program,
 					hours: pmHours,
 					rate: pmRate,
+					rate_type: pmRateDetails.rate_type,
+					base_rate: pmRateDetails.base_rate,
+					additional_rate: pmRateDetails.additional_rate,
+					rate_description: pmRateDetails.rate_description,
 					additional_pay: 0,
 					additional_pay_reason: null,
 					total_pay: pmCalculation.totalPay,
@@ -814,6 +865,10 @@ export async function generatePayrollForEvent(
 				event_id: entry.event_id,
 				hours: entry.hours,
 				rate: entry.rate,
+				rate_type: entry.rate_type,
+				base_rate: entry.base_rate,
+				additional_rate: entry.additional_rate,
+				rate_description: entry.rate_description,
 				additional_pay: entry.additional_pay,
 				additional_pay_reason: entry.additional_pay_reason,
 				status: entry.status,
