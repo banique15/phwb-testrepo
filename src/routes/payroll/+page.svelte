@@ -38,7 +38,7 @@
 	let employeeContractorFilter = $state<string>('')
 	let dateRangeStart = $state<string>('')
 	let dateRangeEnd = $state<string>('')
-	let sortBy = $state('event_date')
+	let sortBy = $state('created_at')
 	let sortOrder = $state<'asc' | 'desc'>('desc')
 
 	// Metrics filter state (separate from table filters)
@@ -98,7 +98,7 @@
 		employeeContractorFilter = params.get('employee_contractor') || ''
 		dateRangeStart = params.get('date_start') || ''
 		dateRangeEnd = params.get('date_end') || ''
-		sortBy = params.get('sort_by') || 'event_date'
+		sortBy = params.get('sort_by') || 'created_at'
 		sortOrder = (params.get('sort_order') as 'asc' | 'desc') || 'desc'
 		currentPage = parseInt(params.get('page') || '1')
 		limit = parseInt(params.get('limit') || '25')

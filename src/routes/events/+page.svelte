@@ -154,6 +154,33 @@
 		}
 	})
 
+	// Keep URL-driven selection/edit mode in sync after initial load.
+	// This is required when navigating to /events?id=...&edit=true from inside this page.
+	$effect(() => {
+		if (!browser || !events || events.length === 0) return
+
+		const urlId = $page.url.searchParams.get('id')
+		const shouldEdit = $page.url.searchParams.get('edit') === 'true'
+		if (!urlId) return
+
+		const eventId = Number(urlId)
+		if (Number.isNaN(eventId)) return
+
+		const urlEvent = events.find((e: EnhancedEvent) => e.id === eventId)
+		if (!urlEvent) return
+
+		if (!selectedEvent || selectedEvent.id !== urlEvent.id) {
+			selectedEvent = updatedEvents.get(urlEvent.id!) || urlEvent
+			localStorage.setItem(STORAGE_KEY, urlEvent.id!.toString())
+		}
+
+		if (shouldEdit) {
+			// Ensure the edit context is visible on the events page.
+			viewMode = 'list'
+			externalActiveTab = 'settings'
+		}
+	})
+
 	async function selectEvent(event: EnhancedEvent) {
 		showCreateForm = false
 		// Use updated event from cache if available, otherwise use the passed event

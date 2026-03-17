@@ -3,8 +3,7 @@
 	import type { Payroll, CreatePayroll, UpdatePayroll } from '$lib/schemas/payroll'
 	import { payrollStore } from '$lib/stores/payroll'
 	import { artistsStore } from '$lib/stores/artists'
-	import { venuesStore } from '$lib/stores/venues'
-	import { artistLookup, venueLookup } from '$lib/stores/lookup'
+	import { facilitiesStore } from '$lib/stores/facilities'
 	import { PaymentStatus, PaymentType, EmployeeContractorStatus } from '$lib/schemas/payroll'
 	import { rateCardStore, type RateRuleOption } from '$lib/stores/rate-cards'
 	import { DollarSign } from 'lucide-svelte'
@@ -60,14 +59,6 @@
 	// Validation state
 	let validationErrors = $state<Map<string, Record<string, string>>>(new Map())
 	
-	// Venue type colors
-	const venueTypeColors: Record<string, string> = {
-		'Healing Arts': 'text-green-600',
-		'Creative Placemaking': 'text-blue-600',
-		'Training': 'text-purple-600',
-		'Administrative': 'text-gray-600'
-	}
-	
 	// Rate rule options loaded from the active rate card
 	let rateRuleOptions = $state<RateRuleOption[]>([])
 	
@@ -113,7 +104,7 @@
 
 	// Store subscriptions
 	let artists = $state<any[]>([])
-	let venues = $state<any[]>([])
+	let facilities = $state<any[]>([])
 	
 	// Text size management
 	const TEXT_SIZE_KEY = 'payroll-table-text-size'
@@ -147,7 +138,7 @@
 	onMount(() => {
 		// Load lookup data
 		artistsStore.fetchAll()
-		venuesStore.fetchAll()
+		facilitiesStore.fetchAll()
 		rateCardStore.fetchActiveRuleOptions()
 		
 		// Subscribe to stores
@@ -155,8 +146,8 @@
 			artists = state.items
 		})
 		
-		const unsubVenues = venuesStore.subscribe(state => {
-			venues = state.items
+		const unsubFacilities = facilitiesStore.subscribe(state => {
+			facilities = state.items
 		})
 
 		const unsubRateCards = rateCardStore.subscribe((state: { ruleOptions: RateRuleOption[] }) => {
@@ -165,7 +156,7 @@
 		
 		return () => {
 			unsubArtists()
-			unsubVenues()
+			unsubFacilities()
 			unsubRateCards()
 		}
 	})
@@ -178,7 +169,7 @@
 		editingRows.set(tempId, {
 			event_date: today,
 			artist_id: '',
-			venue_id: undefined,
+			facility_id: undefined,
 			hours: 0,
 			rate: 0,
 			rate_type: undefined,
@@ -476,14 +467,6 @@
 		return `${formatCurrency(entry.rate || 0)}/hr`
 	}
 
-	// Get venue type color
-	function getVenueColor(venueId: number | undefined): string {
-		if (!venueId) return ''
-		const venue = venues.find(v => v.id === venueId)
-		if (!venue || !venue.type) return ''
-		return venueTypeColors[venue.type] || ''
-	}
-
 	// Format helpers
 	function formatDate(dateStr: string): string {
 		if (!dateStr) return '-'
@@ -630,7 +613,7 @@
 						<th class="w-10"></th>
 						<th class="w-28">Date</th>
 						<th class="w-48">Artist</th>
-						<th class="w-40">Venue</th>
+						<th class="w-40">Facility</th>
 						<th class="w-32">Program</th>
 						<th class="w-16">Musicians</th>
 						<th class="w-36">Type</th>
@@ -763,19 +746,19 @@
 								{/if}
 							</td>
 							
-							<!-- Venue -->
+							<!-- Facility -->
 							<td class="relative group">
-								{#if isEditingCell(entry.id!, 'venue_id') || isNew}
+								{#if isEditingCell(entry.id!, 'facility_id') || isNew}
 									<div class="flex items-center gap-1">
 										<select
 											class="select select-bordered select-xs flex-1"
-											value={editData.venue_id || ''}
-											onchange={(e) => updateField(entry.id!, 'venue_id', e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
+											value={editData.facility_id || ''}
+											onchange={(e) => updateField(entry.id!, 'facility_id', e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
 										>
-											<option value="">Select venue...</option>
-											{#each venues as venue}
-												<option value={venue.id} class={getVenueColor(venue.id)}>
-													{venue.name}
+											<option value="">Select facility...</option>
+											{#each facilities as facility}
+												<option value={facility.id}>
+													{facility.name}
 												</option>
 											{/each}
 										</select>
@@ -794,10 +777,10 @@
 									</div>
 								{:else}
 									<div 
-										class="cursor-pointer hover:bg-base-200 hover:shadow-sm px-2 py-1 rounded truncate transition-all duration-150 border border-transparent hover:border-base-300 {getVenueColor(entry.venue_id)}" 
-										onclick={() => startEditingCell(entry, 'venue_id')}
+										class="cursor-pointer hover:bg-base-200 hover:shadow-sm px-2 py-1 rounded truncate transition-all duration-150 border border-transparent hover:border-base-300" 
+										onclick={() => startEditingCell(entry, 'facility_id')}
 									>
-										{entry.venues?.name || '-'}
+										{entry.facilities?.name || '-'}
 									</div>
 								{/if}
 							</td>

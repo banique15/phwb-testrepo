@@ -35,6 +35,7 @@ interface EventWithAssignments {
 	status: string
 	program: number | null
 	venue: number | null
+	location_id: number | null
 	number_of_musicians: number | null
 	pm_hours: number | null
 	pm_rate: number | null
@@ -258,6 +259,30 @@ async function getBandleaderFee(rateCardId: number): Promise<AdditionalFee | nul
 	return data
 }
 
+async function buildLocationFacilityMap(locationIds: number[]): Promise<Map<number, number | null>> {
+	const map = new Map<number, number | null>()
+	if (locationIds.length === 0) return map
+
+	const uniqueLocationIds = Array.from(new Set(locationIds.filter((id) => Number.isFinite(id))))
+	if (uniqueLocationIds.length === 0) return map
+
+	const { data, error } = await supabase
+		.from('phwb_locations')
+		.select('id, facility_id')
+		.in('id', uniqueLocationIds)
+
+	if (error || !data) {
+		console.error('Failed to resolve location facility mapping:', error)
+		return map
+	}
+
+	for (const row of data) {
+		map.set(row.id, row.facility_id ?? null)
+	}
+
+	return map
+}
+
 /**
  * Calculate pay for an artist based on rate rule.
  * musicianCount is used only to determine bandleader fee eligibility (e.g. quartet+);
@@ -412,6 +437,7 @@ export async function generatePayrollForDateRange(
 				status,
 				program,
 				venue,
+				location_id,
 				number_of_musicians,
 				pm_hours,
 				pm_rate,
@@ -440,6 +466,11 @@ export async function generatePayrollForDateRange(
 		// 5. Filter events that don't have payroll yet
 		const eventsToProcess = events.filter(e => !existingPayrollEventIds.has(e.id)) as unknown as EventWithAssignments[]
 		result.skippedEvents = events.length - eventsToProcess.length
+		const locationFacilityMap = await buildLocationFacilityMap(
+			eventsToProcess
+				.map((event) => event.location_id)
+				.filter((id): id is number => typeof id === 'number')
+		)
 		
 		// 6. Process each event
 		for (const event of eventsToProcess) {
@@ -447,6 +478,9 @@ export async function generatePayrollForDateRange(
 				const assignments = event.artists?.assignments || []
 				const musicianCount = assignments.length || event.number_of_musicians || 1
 				const programType = event.programs?.program_type || 'other'
+				const facilityId = typeof event.location_id === 'number'
+					? (locationFacilityMap.get(event.location_id) ?? null)
+					: null
 				
 				// Get rate rule for this program type
 				const rateRule = await getRateRule(rateCard.id, programType)
@@ -488,6 +522,7 @@ export async function generatePayrollForDateRange(
 						artist_id: assignment.artist_id,
 						artist_name: assignment.artist_name || 'Unknown Artist',
 						venue_id: event.venue,
+						facility_id: facilityId,
 						program_id: event.program,
 						hours,
 						rate: effectiveRate,
@@ -534,6 +569,7 @@ export async function generatePayrollForDateRange(
 							artist_id: pmInfo.artistId,
 							artist_name: pmInfo.name,
 							venue_id: event.venue,
+							facility_id: facilityId,
 							program_id: event.program,
 							hours: pmHours,
 							rate: pmRate,
@@ -577,6 +613,7 @@ export async function generatePayrollForDateRange(
 				event_date: entry.event_date,
 				artist_id: entry.artist_id,
 				venue_id: entry.venue_id,
+				facility_id: entry.facility_id ?? null,
 				event_id: entry.event_id,
 				hours: entry.hours,
 				rate: entry.rate,
@@ -706,6 +743,7 @@ export async function generatePayrollForEvent(
 				status,
 				program,
 				venue,
+				location_id,
 				number_of_musicians,
 				pm_hours,
 				pm_rate,
@@ -740,6 +778,12 @@ export async function generatePayrollForEvent(
 		const assignments = typedEvent.artists?.assignments || []
 		const musicianCount = assignments.length || typedEvent.number_of_musicians || 1
 		const programType = typedEvent.programs?.program_type || 'other'
+		const locationFacilityMap = await buildLocationFacilityMap(
+			typeof typedEvent.location_id === 'number' ? [typedEvent.location_id] : []
+		)
+		const facilityId = typeof typedEvent.location_id === 'number'
+			? (locationFacilityMap.get(typedEvent.location_id) ?? null)
+			: null
 
 		// Get rate rule for this program type
 		const rateRule = await getRateRule(rateCard.id, programType)
@@ -781,6 +825,7 @@ export async function generatePayrollForEvent(
 				artist_id: assignment.artist_id,
 				artist_name: assignment.artist_name || 'Unknown Artist',
 				venue_id: typedEvent.venue,
+				facility_id: facilityId,
 				program_id: typedEvent.program,
 				hours,
 				rate: effectiveRate,
@@ -827,6 +872,7 @@ export async function generatePayrollForEvent(
 					artist_id: pmInfo.artistId,
 					artist_name: pmInfo.name,
 					venue_id: typedEvent.venue,
+					facility_id: facilityId,
 					program_id: typedEvent.program,
 					hours: pmHours,
 					rate: pmRate,
@@ -862,6 +908,7 @@ export async function generatePayrollForEvent(
 				event_date: entry.event_date,
 				artist_id: entry.artist_id,
 				venue_id: entry.venue_id,
+				facility_id: entry.facility_id ?? null,
 				event_id: entry.event_id,
 				hours: entry.hours,
 				rate: entry.rate,
