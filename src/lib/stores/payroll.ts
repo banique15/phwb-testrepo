@@ -34,6 +34,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`, { count: 'exact' })
 			
@@ -176,6 +177,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.order('event_date', { ascending: false })
@@ -203,6 +205,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -242,6 +245,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -308,6 +312,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -375,6 +380,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 
@@ -432,6 +438,7 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -465,6 +472,7 @@ export const payrollStore = {
 				*,
 				artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 				venues:venue_id(id, name),
+				facilities:facility_id(id, name),
 				programs:program_id(id, title, program_type)
 			`)
 			.in('id', ids)
@@ -516,7 +524,8 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, first_name, last_name),
-				venues:venue_id(id, name)
+				venues:venue_id(id, name),
+				facilities:facility_id(id, name)
 			`)
 			.eq('batch_id', batchId)
 
@@ -535,7 +544,8 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, first_name, last_name, email),
-				venues:venue_id(id, name)
+				venues:venue_id(id, name),
+				facilities:facility_id(id, name)
 			`)
 
 		if (filters.status?.length) {

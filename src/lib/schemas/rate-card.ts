@@ -127,9 +127,14 @@ export interface GeneratedPayrollEntry {
 	artist_id: string | null
 	artist_name: string
 	venue_id: number | null
+	facility_id?: number | null
 	program_id: number | null
 	hours: number
 	rate: number
+	rate_type?: RateTypeValue | null
+	base_rate?: number | null
+	additional_rate?: number | null
+	rate_description?: string | null
 	additional_pay: number
 	additional_pay_reason: string | null
 	total_pay: number
