@@ -323,6 +323,14 @@ export const eventsStore = {
 		
 		// Helper method to handle successful creation
 		handleCreateSuccess(data: Event) {
+			// Queue invitations for artists included during initial event creation
+			// so create flow mirrors assignment updates on existing events.
+			if (data.artists) {
+				queueInvitationNotificationsForEvent(data, null, data.artists).catch((error) => {
+					logger.error('Failed queuing assignment invitation notifications on event create:', error)
+				})
+			}
+
 			const enhancedEvent = enhanceEvents([data])[0]
 			
 			enhancedState.update(state => ({
