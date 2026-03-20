@@ -219,11 +219,12 @@
 	<div class="flex-none mb-3">
 		<div class="tabs tabs-boxed">
 			{#each tabs as tab}
+				{@const Icon = tab.icon}
 				<button
 					class="tab {activeTab === tab.id ? 'tab-active' : ''}"
 					onclick={() => setActiveTab(tab.id)}
 				>
-					<svelte:component this={tab.icon} class="w-4 h-4 mr-2" />
+					<Icon class="w-4 h-4 mr-2" />
 					{tab.label}
 				</button>
 			{/each}
@@ -333,7 +334,7 @@
 			<div class="space-y-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Audit Log</h3>
 				<div class="space-y-4">
-					<button class="btn btn-primary" onclick={onOpenAudit}>
+					<button class="btn btn-primary" type="button" onclick={() => onOpenAudit(auditPaymentId)}>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
 						</svg>

@@ -386,8 +386,8 @@
 				</div>
 			</div>
 
-			<!-- Right Sidebar - Metadata -->
-			<div class="w-80 flex-shrink-0 flex flex-col gap-4">
+			<!-- Right Sidebar - Metadata (scroll when tall; avoids clipping Dev Agent / logs) -->
+			<div class="w-80 flex-shrink-0 flex flex-col gap-4 min-h-0 overflow-y-auto overscroll-y-contain pr-1">
 			<!-- Status, Priority & Category Card -->
 			<div class="card bg-base-100 shadow-sm">
 				<div class="card-body p-4">
@@ -528,8 +528,8 @@
 				</div>
 
 				<!-- Dev Agent: Initiate dev fix + live logs -->
-				<div class="card bg-base-100 shadow-sm flex-1 min-h-0 flex flex-col">
-					<div class="card-body p-4 flex flex-col min-h-0">
+				<div class="card bg-base-100 shadow-sm flex flex-col flex-shrink-0">
+					<div class="card-body p-4 flex flex-col">
 						<h3 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-3 flex items-center gap-2">
 							<Wrench class="w-4 h-4" />
 							Dev Agent
@@ -560,8 +560,8 @@
 							{/if}
 						</div>
 						<!-- Live logs: placeholder for phwb_dev_logs integration -->
-						<div class="mt-3 flex-1 min-h-0 flex flex-col border border-base-300 rounded-lg overflow-hidden">
-							<div class="bg-base-200/60 px-2 py-1.5 text-xs font-medium text-base-content/60 border-b border-base-300 flex items-center justify-between gap-2">
+						<div class="mt-3 flex flex-col border border-base-300 rounded-lg overflow-hidden">
+							<div class="bg-base-200/60 px-2 py-1.5 text-xs font-medium text-base-content/60 border-b border-base-300 flex items-center justify-between gap-2 flex-shrink-0">
 								<span>Agent activity</span>
 								<button
 									type="button"
@@ -577,7 +577,7 @@
 									{/if}
 								</button>
 							</div>
-							<div class="flex-1 overflow-y-auto min-h-[120px] max-h-[200px] p-2 bg-base-200/30 font-mono text-xs">
+							<div class="overflow-y-auto min-h-48 max-h-[min(75vh,32rem)] p-2 bg-base-200/30 font-mono text-xs whitespace-pre-wrap wrap-break-word">
 								{#if agentLogs.length === 0}
 									<p class="text-base-content/50 italic">Live logs will appear here when a fix is running.</p>
 								{:else}

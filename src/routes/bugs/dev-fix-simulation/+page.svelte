@@ -363,7 +363,7 @@
 							{/if}
 						</button>
 					</div>
-					<div class="p-3 font-mono text-xs bg-base-200/30 min-h-[80px] max-h-40 overflow-y-auto">
+					<div class="p-3 font-mono text-xs bg-base-200/30 min-h-48 max-h-[min(75vh,32rem)] overflow-y-auto whitespace-pre-wrap wrap-break-word">
 						{#if agentLogs.length === 0}
 							<p class="text-base-content/50 italic">Enter a bug ID and run Initiate dev fix to see live activity here.</p>
 						{:else}
