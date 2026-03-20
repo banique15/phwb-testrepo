@@ -11,6 +11,7 @@ import type { Location } from '$lib/schemas/location'
 import type { Artist } from '$lib/schemas/artist'
 import { generatePayrollForEvent } from '$lib/services/payroll-generator'
 import {
+	queueBookingConfirmationNotificationsForEvent,
 	queueEventCompletedNotifications,
 	queueInvitationNotificationsForEvent
 } from '$lib/services/notification-producer'
@@ -167,6 +168,15 @@ export const eventsStore = {
 				)
 			} catch (error) {
 				logger.error('Failed queuing assignment invitation notifications:', error)
+			}
+			try {
+				await queueBookingConfirmationNotificationsForEvent(
+					updatedEvent,
+					previousEvent?.artists,
+					updatedEvent.artists
+				)
+			} catch (error) {
+				logger.error('Failed queuing booking confirmation notifications:', error)
 			}
 		}
 

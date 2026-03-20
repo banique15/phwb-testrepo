@@ -60,7 +60,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		'/auth/callback',
 		'/auth/test-login',
 		'/api/notifications/dispatch',
-		'/api/notifications/callbacks'
+		'/api/notifications/callbacks',
+		'/api/notifications/respond'
 	]
 	const isPublicRoute = publicRoutes.some(route =>
 		event.url.pathname === route || event.url.pathname.startsWith(route + '/')

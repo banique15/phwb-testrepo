@@ -4,6 +4,7 @@ import { logger } from '$lib/utils/logger'
 type NotificationType =
   | 'artist_added_to_system'
   | 'artist_added_to_event_invited'
+  | 'artist_booking_confirmation'
   | 'artist_thank_you_after_completed'
   | 'artist_feedback_request'
   | 'artist_payout_processed'
@@ -70,6 +71,17 @@ function extractAssignments(artistsField: unknown): ArtistAssignment[] {
   }
 
   return []
+}
+
+function normalizeAssignmentStatus(status: unknown): string {
+  return typeof status === 'string' ? status.trim().toLowerCase() : ''
+}
+
+function getAppBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return ''
 }
 
 async function getLocationName(locationId?: number | null): Promise<string> {
@@ -202,6 +214,7 @@ export async function queueInvitationNotificationsForEvent(
     .in('id', artistIds)
 
   const artistLookup = new Map((artists || []).map((artist) => [artist.id, artist]))
+  const appBaseUrl = getAppBaseUrl()
 
   await Promise.all(
     newAssignments.map(async (assignment) => {
@@ -222,8 +235,74 @@ export async function queueInvitationNotificationsForEvent(
           event_date: event.date ?? '',
           event_start_time: event.start_time ?? '',
           facility_name: locationName,
-          accept_link: '',
-          decline_link: ''
+          accept_link: appBaseUrl
+            ? `${appBaseUrl}/api/notifications/respond?action=accept&event_id=${eventId}&artist_id=${artist.id}`
+            : '',
+          decline_link: appBaseUrl
+            ? `${appBaseUrl}/api/notifications/respond?action=decline&event_id=${eventId}&artist_id=${artist.id}`
+            : ''
+        }
+      })
+    })
+  )
+}
+
+export async function queueBookingConfirmationNotificationsForEvent(
+  event: EventLike,
+  previousArtistsField: unknown,
+  nextArtistsField: unknown
+) {
+  const eventId = normalizeEventId(event.id)
+  if (!eventId) return
+
+  const previousAssignments = extractAssignments(previousArtistsField)
+  const nextAssignments = extractAssignments(nextArtistsField)
+  if (nextAssignments.length === 0) return
+
+  const previousStatusByArtist = new Map(
+    previousAssignments
+      .filter((assignment) => !!assignment.artist_id)
+      .map((assignment) => [assignment.artist_id as string, normalizeAssignmentStatus(assignment.status)])
+  )
+
+  const newlyConfirmedArtistIds = nextAssignments
+    .filter((assignment) => {
+      if (!assignment.artist_id) return false
+      const nextStatus = normalizeAssignmentStatus(assignment.status)
+      const previousStatus = previousStatusByArtist.get(assignment.artist_id) || ''
+      return nextStatus === 'confirmed' && previousStatus !== 'confirmed'
+    })
+    .map((assignment) => assignment.artist_id as string)
+
+  if (newlyConfirmedArtistIds.length === 0) return
+
+  const locationName = await getLocationName(event.location_id ?? null)
+  const { data: artists } = await supabase
+    .from('phwb_artists')
+    .select('id, full_name, email')
+    .in('id', newlyConfirmedArtistIds)
+
+  await Promise.all(
+    (artists || []).map(async (artist) => {
+      if (!artist.email) return
+      await insertRun({
+        notificationType: 'artist_booking_confirmation',
+        recipientEmail: artist.email,
+        recipientName: artist.full_name ?? null,
+        artistId: artist.id,
+        eventId,
+        dedupeKey: `artist_booking_confirmation:${eventId}:${artist.id}`,
+        payload: {
+          artist_name: artist.full_name ?? '',
+          artist_email: artist.email,
+          event_title: event.title ?? '',
+          event_date: event.date ?? '',
+          event_start_time: event.start_time ?? '',
+          facility_name: locationName,
+          compensation_amount: '',
+          arrival_instructions: '',
+          event_contact_name: '',
+          event_contact_phone: ''
         }
       })
     })

@@ -29,9 +29,13 @@
     artist_payout_processed: 'Payout Processed'
   }
 
+  const configuredLogoUrl = (import.meta.env.PUBLIC_NOTIFICATION_LOGO_URL as string | undefined)?.trim()
+  const defaultLogoUrl = configuredLogoUrl || 'https://dummyimage.com/280x80/0f766e/ffffff.png&text=Sing+for+Hope'
+
   const sampleTokens: Record<string, string> = {
     artist_name: 'Alex Rivera',
     artist_email: 'alex@example.com',
+    logo_url: defaultLogoUrl,
     event_title: 'Healing Arts at Bellevue',
     event_date: 'Apr 8, 2026',
     event_start_time: '4:00 PM',
@@ -358,7 +362,7 @@
   }
 
   function interpolateTemplate(template: string, values: Record<string, string>): string {
-    return template.replace(/\{\{\s*([\w_]+)\s*\}\}/g, (_match, key) => values[key] ?? `{{${key}}}`)
+    return template.replace(/\{\{\s*([\w_]+)\s*\}\}/g, (_match, key) => values[key] ?? '')
   }
 
   function formatDate(value?: string | null): string {
@@ -593,18 +597,10 @@
             </div>
           </div>
 
-          <div class="rounded-lg border border-base-300 bg-base-200 p-4">
-            <div class="rounded-lg border border-base-300 overflow-hidden bg-base-100">
-              <div class="bg-[#0f766e] text-white p-3 flex items-center gap-3">
-                <img src="/sfh-logo.png" alt="Sing for Hope" class="h-8 w-auto bg-white rounded p-1" />
-                <div class="font-semibold">Sing for Hope</div>
-              </div>
-              <div class="p-4">
-                <p class="font-semibold mb-2">{previewSubject || '(No subject)'}</p>
-                <div class="prose max-w-none text-sm" style="--tw-prose-body: hsl(var(--bc));">
-                  {@html previewBody || '<p>(No body content)</p>'}
-                </div>
-              </div>
+          <div class="rounded-lg border border-base-300 bg-base-100 p-4">
+            <p class="font-semibold mb-3">{previewSubject || '(No subject)'}</p>
+            <div class="prose max-w-none text-sm" style="--tw-prose-body: hsl(var(--bc));">
+              {@html previewBody || '<p>(No body content)</p>'}
             </div>
           </div>
         {/if}

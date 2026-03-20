@@ -44,10 +44,22 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     return json({ error: fetchError.message }, { status: 500 })
   }
 
+  const nowMs = new Date(nowIso).getTime()
   const runnable = (candidates || []).filter((row) => {
-    const scheduledFor = row.next_attempt_at || row.scheduled_for
-    if (!scheduledFor) return true
-    return new Date(scheduledFor).getTime() <= new Date(nowIso).getTime()
+    if (row.status === 'pending') {
+      const scheduledFor = row.scheduled_for
+      if (!scheduledFor) return true
+      return new Date(scheduledFor).getTime() <= nowMs
+    }
+
+    if (row.status === 'scheduled') {
+      // Only retry scheduled runs that explicitly have a retry timestamp.
+      // Runs already queued to voiceai wait in "scheduled" until callback.
+      if (!row.next_attempt_at) return false
+      return new Date(row.next_attempt_at).getTime() <= nowMs
+    }
+
+    return false
   })
 
   const results: Array<{ run_id: string; ok: boolean; message?: string }> = []

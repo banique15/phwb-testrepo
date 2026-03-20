@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { z } from 'zod'
 import { verifyIntegrationAuth } from '$lib/server/integration-auth'
+import { queueBookingConfirmationNotificationsForEvent } from '$lib/services/notification-producer'
 
 const responseCallbackSchema = z.object({
   contract_version: z.string().default('v1'),
@@ -17,17 +18,16 @@ const responseCallbackSchema = z.object({
 function normalizeArtistsField(artistsField: unknown): { assignments: Array<Record<string, unknown>> } {
   if (Array.isArray(artistsField)) {
     return {
-      assignments: artistsField
-        .map((artistId) =>
-          typeof artistId === 'string'
-            ? {
-                artist_id: artistId,
-                role: 'performer',
-                status: 'pending'
-              }
-            : null
-        )
-        .filter((entry): entry is Record<string, unknown> => !!entry)
+      assignments: artistsField.reduce<Array<Record<string, unknown>>>((acc, artistId) => {
+        if (typeof artistId === 'string') {
+          acc.push({
+            artist_id: artistId,
+            role: 'performer',
+            status: 'pending'
+          })
+        }
+        return acc
+      }, [])
     }
   }
 
@@ -110,6 +110,23 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     .from('phwb_events')
     .update({ artists: { assignments: updatedAssignments } })
     .eq('id', payload.event_id)
+
+  try {
+    if (payload.response === 'accepted') {
+      await queueBookingConfirmationNotificationsForEvent(
+        {
+          id: eventRow.id,
+          title: run.payload?.event_title as string | undefined,
+          date: run.payload?.event_date as string | undefined,
+          start_time: run.payload?.event_start_time as string | undefined
+        },
+        eventRow.artists,
+        { assignments: updatedAssignments }
+      )
+    }
+  } catch (error) {
+    console.error('Failed to queue booking confirmation after response callback:', error)
+  }
 
   await locals.supabaseAdmin
     .from('phwb_notification_runs')
