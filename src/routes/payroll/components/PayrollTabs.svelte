@@ -236,14 +236,25 @@
 			<div class="space-y-4">
 				<!-- Actions Bar -->
 				<div class="flex justify-between items-center">
-					<!-- Generate Payroll Button -->
-					<button 
-						class="btn btn-primary btn-sm"
-						onclick={onOpenGeneration}
-					>
-						<CalendarPlus class="w-4 h-4 mr-2" />
-						Generate Weekly Payroll
-					</button>
+					<!-- Left side buttons -->
+					<div class="flex gap-2">
+						<!-- Generate Payroll Button -->
+						<button 
+							class="btn btn-primary btn-sm"
+							onclick={onOpenGeneration}
+						>
+							<CalendarPlus class="w-4 h-4 mr-2" />
+							Generate Weekly Payroll
+						</button>
+						
+						<!-- Test Button -->
+						<button 
+							class="btn btn-secondary btn-sm"
+							onclick={() => console.log('Test button clicked')}
+						>
+							Test
+						</button>
+					</div>
 					
 					<!-- Metrics Filter -->
 					<PayrollMetricsFilterButton
