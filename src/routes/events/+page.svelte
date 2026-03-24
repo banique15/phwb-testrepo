@@ -19,9 +19,15 @@
 	import EventsBulkActions from './components/EventsBulkActions.svelte'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
+	import PayrollReviewModal from './modals/PayrollReviewModal.svelte'
 	import { Calendar } from 'lucide-svelte'
 	import { updateEventSchema } from '$lib/schemas/event'
 	import { z } from 'zod'
+	import { generatePayrollForEvent } from '$lib/services/payroll-generator'
+	import type { GeneratedPayrollEntry } from '$lib/schemas/rate-card'
+	import { toast } from '$lib/stores/toast'
+	import { supabase } from '$lib/supabase'
+	import { PaymentStatus, PaymentType, EmployeeContractorStatus, CreationMethod } from '$lib/schemas/payroll'
 
 	interface Props {
 		data: PageData
@@ -56,6 +62,11 @@
 	let showCreateForm = $state(false)
 	let showDeleteModal = $state(false)
 	let createFormInitialDate = $state<string | undefined>(undefined)
+	
+	// Payroll review modal states
+	let showPayrollReviewModal = $state(false)
+	let payrollPreviewEntries = $state<GeneratedPayrollEntry[]>([])
+	let pendingStatusChange = $state<{ field: string; value: any } | null>(null)
 	
 	let eventArtistsCount = $state(0)
 
@@ -214,6 +225,28 @@
 				}
 			}
 
+			// Special handling for status change to "completed"
+			if (field === 'status' && finalValue === 'completed' && selectedEvent.status !== 'completed') {
+				// Check if event has artists assigned
+				const artists = formatArtists(selectedEvent.artists)
+				if (artists.length > 0) {
+					// Generate preview of payroll entries
+					try {
+						const result = await generatePayrollForEvent(selectedEvent.id, { dryRun: true })
+						if (result.success && result.entries.length > 0) {
+							// Store the pending status change and show the payroll review modal
+							pendingStatusChange = { field, value: finalValue }
+							payrollPreviewEntries = result.entries
+							showPayrollReviewModal = true
+							return // Don't update the event yet, wait for user decision
+						}
+					} catch (err) {
+						logger.error('Failed to generate payroll preview:', err)
+						// Continue with normal status update if preview fails
+					}
+				}
+			}
+
 			// Update event
 			const updatedEvent = await eventsStore.update(selectedEvent.id, updateData)
 			
@@ -234,6 +267,122 @@
 			}
 			throw error
 		}
+	}
+
+	// Payroll Review Modal Handlers
+	async function handlePayrollReviewConfirm(event: CustomEvent<{ entries: GeneratedPayrollEntry[] }>) {
+		if (!selectedEvent?.id || !pendingStatusChange) return
+
+		try {
+			loading = true
+			
+			// Update event status to completed
+			const updatedEvent = await eventsStore.update(selectedEvent.id, { 
+				[pendingStatusChange.field]: pendingStatusChange.value 
+			})
+			
+			// Save payroll entries with custom values from the modal
+			const entriesToInsert = event.detail.entries.map(entry => ({
+				event_date: entry.event_date,
+				artist_id: entry.artist_id,
+				venue_id: entry.venue_id,
+				event_id: entry.event_id,
+				hours: entry.hours,
+				rate: entry.rate,
+				additional_pay: entry.additional_pay || 0,
+				additional_pay_reason: entry.additional_pay_reason,
+				status: PaymentStatus.PLANNED,
+				payment_type: entry.payment_type,
+				employee_contractor_status: entry.employee_contractor_status,
+				program_id: entry.program_id,
+				number_of_musicians: entry.number_of_musicians,
+				gig_duration: entry.gig_duration,
+				rate_card_id: entry.rate_card_id,
+				rate_rule_id: entry.rate_rule_id,
+				creation_method: CreationMethod.EVENT_AUTOMATION,
+				source_event_id: entry.source_event_id,
+				notes: entry.notes,
+				created_by: 'user' // TODO: Get actual user ID
+			}))
+
+			const { error: insertError } = await supabase
+				.from('phwb_payroll')
+				.insert(entriesToInsert)
+
+			if (insertError) {
+				throw new Error(`Failed to create payroll entries: ${insertError.message}`)
+			}
+
+			// Enhance and update the event
+			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			selectedEvent = enhanced
+			updatedEvents.set(enhanced.id!, enhanced)
+			updatedEvents = new Map(updatedEvents)
+
+			// Close modal and reset state
+			showPayrollReviewModal = false
+			payrollPreviewEntries = []
+			pendingStatusChange = null
+
+			toast.success(`Event completed and ${entriesToInsert.length} payroll entries created`)
+		} catch (error) {
+			logger.error('Failed to complete event with payroll:', error)
+			toast.error(error instanceof Error ? error.message : 'Failed to create payroll')
+		} finally {
+			loading = false
+		}
+	}
+
+	async function handlePayrollReviewSkip() {
+		if (!selectedEvent?.id || !pendingStatusChange) return
+
+		try {
+			loading = true
+			
+			// Update event status to completed
+			const updatedEvent = await eventsStore.update(selectedEvent.id, { 
+				[pendingStatusChange.field]: pendingStatusChange.value 
+			})
+
+			// Generate payroll automatically (without review)
+			const result = await generatePayrollForEvent(selectedEvent.id, { dryRun: false })
+
+			if (!result.success) {
+				logger.warn('Payroll generation had errors:', result.errors)
+			}
+
+			// Enhance and update the event
+			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			selectedEvent = enhanced
+			updatedEvents.set(enhanced.id!, enhanced)
+			updatedEvents = new Map(updatedEvents)
+
+			// Close modal and reset state
+			showPayrollReviewModal = false
+			payrollPreviewEntries = []
+			pendingStatusChange = null
+
+			if (result.success && result.entriesCreated > 0) {
+				toast.success(`Event completed and ${result.entriesCreated} payroll entries created automatically`)
+			} else {
+				toast.success('Event completed')
+				if (result.errors.length > 0) {
+					toast.error(`Payroll generation errors: ${result.errors.join(', ')}`)
+				}
+			}
+		} catch (error) {
+			logger.error('Failed to complete event:', error)
+			toast.error(error instanceof Error ? error.message : 'Failed to complete event')
+		} finally {
+			loading = false
+		}
+	}
+
+	function handlePayrollReviewCancel() {
+		// Reset modal state without making changes
+		 showPayrollReviewModal = false
+		payrollPreviewEntries = []
+		pendingStatusChange = null
 	}
 
 	function formatDate(dateStr: string | undefined) {
@@ -397,6 +546,122 @@
 	function formatRequirements(requirements: any) {
 		if (!requirements || typeof requirements !== 'object') return []
 		return Object.entries(requirements).map(([key, value]) => ({ key, value }))
+	}
+
+	// Payroll Review Modal Handlers
+	async function handlePayrollReviewConfirm(event: CustomEvent<{ entries: GeneratedPayrollEntry[] }>) {
+		if (!selectedEvent?.id || !pendingStatusChange) return
+
+		try {
+			loading = true
+			
+			// Update event status to completed
+			const updatedEvent = await eventsStore.update(selectedEvent.id, { 
+				[pendingStatusChange.field]: pendingStatusChange.value 
+			})
+			
+			// Save payroll entries with custom values from the modal
+			const entriesToInsert = event.detail.entries.map(entry => ({
+				event_date: entry.event_date,
+				artist_id: entry.artist_id,
+				venue_id: entry.venue_id,
+				event_id: entry.event_id,
+				hours: entry.hours,
+				rate: entry.rate,
+				additional_pay: entry.additional_pay || 0,
+				additional_pay_reason: entry.additional_pay_reason,
+				status: PaymentStatus.PLANNED,
+				payment_type: entry.payment_type,
+				employee_contractor_status: entry.employee_contractor_status,
+				program_id: entry.program_id,
+				number_of_musicians: entry.number_of_musicians,
+				gig_duration: entry.gig_duration,
+				rate_card_id: entry.rate_card_id,
+				rate_rule_id: entry.rate_rule_id,
+				creation_method: CreationMethod.EVENT_AUTOMATION,
+				source_event_id: entry.source_event_id,
+				notes: entry.notes,
+				created_by: 'user' // TODO: Get actual user ID
+			}))
+
+			const { error: insertError } = await supabase
+				.from('phwb_payroll')
+				.insert(entriesToInsert)
+
+			if (insertError) {
+				throw new Error(`Failed to create payroll entries: ${insertError.message}`)
+			}
+
+			// Enhance and update the event
+			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			selectedEvent = enhanced
+			updatedEvents.set(enhanced.id!, enhanced)
+			updatedEvents = new Map(updatedEvents)
+
+			// Close modal and reset state
+			showPayrollReviewModal = false
+			payrollPreviewEntries = []
+			pendingStatusChange = null
+
+			toast.success(`Event completed and ${entriesToInsert.length} payroll entries created`)
+		} catch (error) {
+			logger.error('Failed to complete event with payroll:', error)
+			toast.error(error instanceof Error ? error.message : 'Failed to create payroll')
+		} finally {
+			loading = false
+		}
+	}
+
+	async function handlePayrollReviewSkip() {
+		if (!selectedEvent?.id || !pendingStatusChange) return
+
+		try {
+			loading = true
+			
+			// Update event status to completed
+			const updatedEvent = await eventsStore.update(selectedEvent.id, { 
+				[pendingStatusChange.field]: pendingStatusChange.value 
+			})
+
+			// Generate payroll automatically (without review)
+			const result = await generatePayrollForEvent(selectedEvent.id, { dryRun: false })
+
+			if (!result.success) {
+				logger.warn('Payroll generation had errors:', result.errors)
+			}
+
+			// Enhance and update the event
+			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			selectedEvent = enhanced
+			updatedEvents.set(enhanced.id!, enhanced)
+			updatedEvents = new Map(updatedEvents)
+
+			// Close modal and reset state
+			showPayrollReviewModal = false
+			payrollPreviewEntries = []
+			pendingStatusChange = null
+
+			if (result.success && result.entriesCreated > 0) {
+				toast.success(`Event completed and ${result.entriesCreated} payroll entries created automatically`)
+			} else {
+				toast.success('Event completed')
+				if (result.errors.length > 0) {
+					toast.error(`Payroll generation errors: ${result.errors.join(', ')}`)
+				}
+			}
+		} catch (error) {
+			logger.error('Failed to complete event:', error)
+			toast.error(error instanceof Error ? error.message : 'Failed to complete event')
+		} finally {
+			loading = false
+		}
+	}
+
+	function handlePayrollReviewCancel() {
+		// Reset modal state without making changes
+		showPayrollReviewModal = false
+		payrollPreviewEntries = []
+		pendingStatusChange = null
 	}
 
 	function isUpcoming(dateStr: string | undefined) {
@@ -1051,6 +1316,18 @@
 			onSuccess={handleModalSuccess}
 		/>
 	{/await}
+{/if}
+
+<!-- Payroll Review Modal -->
+{#if selectedEvent}
+	<PayrollReviewModal
+		event={selectedEvent}
+		payrollEntries={payrollPreviewEntries}
+		open={showPayrollReviewModal}
+		on:confirm={handlePayrollReviewConfirm}
+		on:skip={handlePayrollReviewSkip}
+		on:cancel={handlePayrollReviewCancel}
+	/>
 {/if}
 
 <!-- Bulk Actions Toolbar -->
