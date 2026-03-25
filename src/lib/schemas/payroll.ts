@@ -13,10 +13,10 @@ export const payrollSchema = z.object({
 	total_pay: z.number().min(0, 'Total pay must be non-negative').optional(),
 	insperity_hours: z.number().min(0, 'Artist service hours must be non-negative').optional(),
 	paid_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Paid date must be in YYYY-MM-DD format').optional().nullable(),
-	status: z.enum(['Planned', 'Approved', 'Paid', 'Cancelled']),
+	status: z.enum(['Planned', 'Approved', 'Paid', 'With Issues', 'Cancelled']),
 	event_id: z.coerce.number().optional(),
 	// Worker status and type fields
-	employee_contractor_status: z.enum(['employee', 'contractor', 'roster_artist', 'llc']).optional().nullable(),
+	employee_contractor_status: z.enum(['W-2', '1099', 'employee', 'contractor', 'roster_artist', 'llc']).optional().nullable(),
 	invoice_number: z.string().max(100, 'Invoice number must be less than 100 characters').optional().nullable(),
 	notes: z.string().max(1000, 'Notes must be less than 1000 characters').optional().nullable(),
 	payment_type: z.enum(['performance', 'training', 'special_event', 'other']).optional().nullable(),
@@ -39,6 +39,10 @@ export const payrollSchema = z.object({
 	created_by: z.string().max(50, 'Created by must be less than 50 characters').optional().nullable(),
 	creation_method: z.enum(['manual', 'event-automation']).optional().nullable(),
 	source_event_id: z.coerce.number().optional().nullable(),
+	linked_payroll_id: z.number().optional().nullable(),
+	adjustment_type: z.enum(['increase', 'decrease', 'correction']).optional().nullable(),
+	payee_name: z.string().max(255, 'Payee name must be less than 255 characters').optional().nullable(),
+	is_production_manager: z.boolean().optional(),
 	// New fields for payroll automation (Issue #61)
 	program_id: z.number().optional().nullable(),
 	number_of_musicians: z.number().optional().nullable(),
@@ -57,7 +61,7 @@ export const createPayrollSchema = payrollSchema.omit({
 // Enhanced schema for CSV import with additional validation
 export const csvImportPayrollSchema = payrollSchema.extend({
 	// Override required fields for CSV import context
-	employee_contractor_status: z.enum(['employee', 'contractor', 'roster_artist', 'llc']),
+	employee_contractor_status: z.enum(['W-2', '1099', 'employee', 'contractor', 'roster_artist', 'llc']),
 	payment_type: z.enum(['performance', 'training', 'special_event', 'other']),
 }).omit({
 	id: true,
@@ -95,10 +99,8 @@ export type CsvImportPayroll = z.infer<typeof csvImportPayrollSchema>
 
 // Enum types for easier reference and validation
 export const EmployeeContractorStatus = {
-	EMPLOYEE: 'employee' as const,
-	CONTRACTOR: 'contractor' as const,
-	ROSTER_ARTIST: 'roster_artist' as const,
-	LLC: 'llc' as const,
+	W2: 'W-2' as const,
+	T1099: '1099' as const,
 } as const
 
 export const PaymentType = {
@@ -120,6 +122,7 @@ export const PaymentStatus = {
 	PLANNED: 'Planned' as const,
 	APPROVED: 'Approved' as const,
 	PAID: 'Paid' as const,
+	WITH_ISSUES: 'With Issues' as const,
 	CANCELLED: 'Cancelled' as const,
 } as const
 

@@ -55,7 +55,7 @@
 			key: 'artist_name',
 			label: 'Artist',
 			sortable: true,
-			render: (entry: Payroll) => entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'
+			render: (entry: Payroll) => entry.payee_name || entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'
 		},
 		{
 			key: 'payment_type',
@@ -175,7 +175,7 @@
 
 	function formatEmployeeStatus(status: string | undefined): string {
 		if (!status) return '-'
-		return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+		return status
 	}
 
 	function getDisplayTotalPay(entry: Payroll): number {
@@ -185,8 +185,9 @@
 	function getStatusBadgeClass(status: string): string {
 		switch (status) {
 			case 'Paid': return 'badge-success'
-			case 'Unpaid': return 'badge-warning'
 			case 'Planned': return 'badge-info'
+			case 'Approved': return 'badge-info'
+			case 'With Issues': return 'badge-warning'
 			case 'Cancelled': return 'badge-error'
 			default: return 'badge-ghost'
 		}
@@ -319,7 +320,10 @@
 							<!-- Artist -->
 							<td class="whitespace-nowrap">
 								<div class="font-medium">
-									{entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'}
+									{entry.payee_name || entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'}
+									{#if entry.is_production_manager}
+										<span class="badge badge-secondary badge-xs ml-2">PM</span>
+									{/if}
 								</div>
 							</td>
 							

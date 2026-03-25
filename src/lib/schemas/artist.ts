@@ -55,6 +55,7 @@ export const artistSchema = z.object({
 	hire_date: z.string().optional(),
 	termination_date: z.string().optional(),
 	llc_name: z.string().optional(),
+	paid_through_artist_id: z.string().uuid('Invalid paid-through artist ID').optional().nullable(),
 	onboarding_complete: z.boolean().optional(),
 	ensembles_text: z.string().optional(),
 	// Demographics

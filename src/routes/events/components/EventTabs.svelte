@@ -79,6 +79,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 	let loading = $state(false)
 	let errors = $state<Record<string, string>>({})
 	let submitError = $state('')
+	let showPayrollImpactModal = $state(false)
+	let payrollImpactResolver: ((confirmed: boolean) => void) | null = null
 
 	// Ensemble state
 	let ensembles = $state<(Ensemble & { member_count?: number })[]>([])
@@ -160,6 +162,32 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		submitError = ''
 	}
 
+	function hasPayrollImpactingChanges(updateData: UpdateEvent): boolean {
+		return (
+			Object.prototype.hasOwnProperty.call(updateData, 'artists') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'start_time') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'end_time') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'number_of_musicians') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'pm_hours') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'pm_rate') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'production_manager_id') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'production_manager_artist_id')
+		)
+	}
+
+	async function confirmPayrollImpact(): Promise<boolean> {
+		showPayrollImpactModal = true
+		return await new Promise((resolve) => {
+			payrollImpactResolver = resolve
+		})
+	}
+
+	function resolvePayrollImpact(confirmed: boolean) {
+		showPayrollImpactModal = false
+		payrollImpactResolver?.(confirmed)
+		payrollImpactResolver = null
+	}
+
 	async function saveEdit() {
 		if (!event?.id) return
 
@@ -232,6 +260,13 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 
 			// Only update if there are changes
 			if (Object.keys(updateData).length > 0) {
+				if (event.status === 'completed' && hasPayrollImpactingChanges(updateData)) {
+					const confirmed = await confirmPayrollImpact()
+					if (!confirmed) {
+						loading = false
+						return
+					}
+				}
 				await eventsStore.enhanced.update(event.id, updateData)
 				
 				// Refresh event data
@@ -799,3 +834,18 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 	on:close={() => isCreateEnsembleModalOpen = false}
 	on:success={handleEnsembleCreated}
 />
+
+{#if showPayrollImpactModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Review Payroll Impact</h3>
+			<p class="text-sm opacity-80 mt-2">
+				This completed-event edit affects payroll. Continue and review/reconcile payroll updates?
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolvePayrollImpact(false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={() => resolvePayrollImpact(true)}>Continue</button>
+			</div>
+		</div>
+	</div>
+{/if}

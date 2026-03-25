@@ -199,7 +199,8 @@
 									<td>
 										<span class="badge badge-sm 
 											{record.status === 'Paid' ? 'badge-success' :
-											 record.status === 'Unpaid' ? 'badge-error' :
+											 record.status === 'With Issues' ? 'badge-warning' :
+											 record.status === 'Approved' ? 'badge-info' :
 											 record.status === 'Cancelled' ? 'badge-ghost' : 'badge-warning'}">
 											{record.status}
 										</span>

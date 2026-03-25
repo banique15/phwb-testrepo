@@ -31,12 +31,38 @@ async function syncProductionManagerRecord(artist: Artist) {
 			zip_code: artist.zip_code || null
 		}
 
-		const { error } = await supabase
+		// NOTE:
+		// `onConflict: 'artist_id'` can be unreliable when environments use
+		// a partial unique index on artist_id. Use explicit select->update/insert
+		// so artist PM sync is deterministic across schemas.
+		const { data: existing, error: lookupError } = await supabase
 			.from('phwb_production_managers')
-			.upsert(payload, { onConflict: 'artist_id' })
+			.select('id')
+			.eq('artist_id', artist.id)
+			.maybeSingle()
 
-		if (error) {
-			console.error('Failed syncing production manager row for artist:', error)
+		if (lookupError) {
+			console.error('Failed looking up production manager row for artist:', lookupError)
+			return
+		}
+
+		if (existing?.id) {
+			const { error: updateError } = await supabase
+				.from('phwb_production_managers')
+				.update(payload)
+				.eq('id', existing.id)
+
+			if (updateError) {
+				console.error('Failed updating production manager row for artist:', updateError)
+			}
+		} else {
+			const { error: insertError } = await supabase
+				.from('phwb_production_managers')
+				.insert(payload)
+
+			if (insertError) {
+				console.error('Failed creating production manager row for artist:', insertError)
+			}
 		}
 		return
 	}

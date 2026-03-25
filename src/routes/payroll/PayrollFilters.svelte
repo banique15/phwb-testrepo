@@ -42,7 +42,7 @@
 		{ value: 'Planned', label: 'Planned' },
 		{ value: 'Approved', label: 'Approved' },
 		{ value: 'Paid', label: 'Paid' },
-		{ value: 'Completed', label: 'Completed' },
+		{ value: 'With Issues', label: 'With Issues' },
 		{ value: 'Cancelled', label: 'Cancelled' }
 	]
 
@@ -58,9 +58,8 @@
 	// Employee contractor status options
 	const employeeContractorOptions = [
 		{ value: '', label: 'All Statuses' },
-		{ value: 'employee', label: 'Employee' },
-		{ value: 'contractor', label: 'Contractor' },
-		{ value: 'roster_artist', label: 'Roster Artist' }
+		{ value: 'W-2', label: 'W-2' },
+		{ value: '1099', label: '1099' }
 	]
 
 	// Apply filters
@@ -306,11 +305,11 @@
 					<button 
 						class="btn btn-outline btn-xs"
 						onclick={() => {
-							localStatus = 'Unpaid'
+							localStatus = 'With Issues'
 							applyFilters()
 						}}
 					>
-						Unpaid Only
+						With Issues
 					</button>
 					<button 
 						class="btn btn-outline btn-xs"
@@ -346,20 +345,20 @@
 					<button 
 						class="btn btn-outline btn-xs"
 						onclick={() => {
-							localEmployeeContractor = 'contractor'
+							localEmployeeContractor = '1099'
 							applyFilters()
 						}}
 					>
-						Contractors Only
+						1099 Only
 					</button>
 					<button 
 						class="btn btn-outline btn-xs"
 						onclick={() => {
-							localEmployeeContractor = 'employee'
+							localEmployeeContractor = 'W-2'
 							applyFilters()
 						}}
 					>
-						Employees Only
+						W-2 Only
 					</button>
 					<button 
 						class="btn btn-outline btn-xs"

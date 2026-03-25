@@ -6,7 +6,7 @@
 	
 	interface Props {
 		event: Event
-		onStatusChange?: (newStatus: string) => void
+		onStatusChange?: (newStatus: string, options?: { reviewPayroll?: boolean }) => void
 		readonly?: boolean
 	}
 	
@@ -71,11 +71,13 @@
 	let showTransitionModal = $state(false)
 	let selectedNewStatus = $state('')
 	let transitionReason = $state('')
+	let reviewPayrollBeforeComplete = $state(false)
 	let confirming = $state(false)
 	
 	function openStatusTransition(newStatus: string) {
 		selectedNewStatus = newStatus
 		transitionReason = ''
+		reviewPayrollBeforeComplete = newStatus === 'completed'
 		showTransitionModal = true
 	}
 	
@@ -83,6 +85,7 @@
 		showTransitionModal = false
 		selectedNewStatus = ''
 		transitionReason = ''
+		reviewPayrollBeforeComplete = false
 		confirming = false
 	}
 	
@@ -91,7 +94,7 @@
 		
 		confirming = true
 		try {
-			await onStatusChange?.(selectedNewStatus)
+			await onStatusChange?.(selectedNewStatus, { reviewPayroll: selectedNewStatus === 'completed' && reviewPayrollBeforeComplete })
 			closeTransitionModal()
 		} catch (error) {
 			console.error('Failed to update status:', error)
@@ -298,6 +301,15 @@
 						rows="3"
 					></textarea>
 				</div>
+
+				{#if selectedNewStatus === 'completed'}
+					<div class="form-control">
+						<label class="label cursor-pointer justify-start gap-3">
+							<input type="checkbox" class="checkbox checkbox-sm" bind:checked={reviewPayrollBeforeComplete} />
+							<span class="label-text">Review payroll details before generating entries</span>
+						</label>
+					</div>
+				{/if}
 				
 				</div>
 				

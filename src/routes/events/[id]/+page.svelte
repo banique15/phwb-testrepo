@@ -7,6 +7,9 @@
 	import { toast } from '$lib/stores/toast'
 	import { updateEventSchema } from '$lib/schemas/event'
 	import { z } from 'zod'
+	import { generatePayrollForEvent, previewCompletedEventPayrollChanges } from '$lib/services/payroll-generator'
+	import type { GeneratedPayrollEntry } from '$lib/schemas/rate-card'
+	import type { PayrollReconcilePreviewRow } from '$lib/services/payroll-generator'
 	import type { PageData } from './$types'
 	import EventHeaderCard from '../components/EventHeaderCard.svelte'
 	import EventTabs from '../components/EventTabs.svelte'
@@ -27,6 +30,14 @@
 	let eventArtistsCount = $state(0)
 	let showDeleteModal = $state(false)
 	let externalActiveTab = $state<string | null>(data.tab || null)
+	let showPayrollReviewModal = $state(false)
+	let showPayrollImpactModal = $state(false)
+	let showPayrollChangePreviewModal = $state(false)
+	let payrollPreviewLoading = $state(false)
+	let payrollPreviewEntries = $state<GeneratedPayrollEntry[]>([])
+	let payrollImpactResolver: ((confirmed: boolean) => void) | null = null
+	let payrollChangePreviewRows = $state<PayrollReconcilePreviewRow[]>([])
+	let payrollChangePreviewResolver: ((confirmed: boolean) => void) | null = null
 
 	// Handle tab from query params on initial load
 	$effect(() => {
@@ -75,6 +86,48 @@
 		try {
 			// Prepare update data - handle null/empty values
 			const finalValue = value === "" || value === null ? null : value
+			const normalizedStatusValue =
+				field === 'status' && typeof finalValue === 'string'
+					? finalValue.trim().toLowerCase()
+					: null
+
+			// In the active event detail flow, intercept completion to review payroll first.
+			if (field === 'status' && normalizedStatusValue === 'completed') {
+				payrollPreviewLoading = true
+				const preview = await generatePayrollForEvent(event.id, { dryRun: true })
+				payrollPreviewEntries = preview.entries.map((entry) => ({ ...entry }))
+				showPayrollReviewModal = true
+				return
+			}
+
+			const payrollDriverFields = new Set([
+				'artists',
+				'start_time',
+				'end_time',
+				'number_of_musicians',
+				'pm_hours',
+				'pm_rate',
+				'production_manager_id',
+				'production_manager_artist_id'
+			])
+			if (event.status === 'completed' && payrollDriverFields.has(field)) {
+				const confirmed = await confirmPayrollImpact()
+				if (!confirmed) return
+
+				const previewResult = await previewCompletedEventPayrollChanges(event.id, {
+					eventOverride: { [field]: finalValue }
+				})
+				if (!previewResult.success) {
+					toast.error(previewResult.errors.join('; ') || 'Failed to preview payroll changes')
+					return
+				}
+				payrollChangePreviewRows = previewResult.rows
+				if (previewResult.rows.length > 0) {
+					const apply = await confirmPayrollChangePreview()
+					if (!apply) return
+				}
+			}
+
 			const updateData: any = { [field]: finalValue }
 
 			// Validate the field only if value is not null (for optional fields)
@@ -103,6 +156,63 @@
 				toast.error('Failed to update event')
 			}
 			throw error
+		} finally {
+			payrollPreviewLoading = false
+		}
+	}
+
+	async function confirmPayrollImpact(): Promise<boolean> {
+		showPayrollImpactModal = true
+		return await new Promise((resolve) => {
+			payrollImpactResolver = resolve
+		})
+	}
+
+	function resolvePayrollImpact(confirmed: boolean) {
+		showPayrollImpactModal = false
+		payrollImpactResolver?.(confirmed)
+		payrollImpactResolver = null
+	}
+
+	async function confirmPayrollChangePreview(): Promise<boolean> {
+		showPayrollChangePreviewModal = true
+		return await new Promise((resolve) => {
+			payrollChangePreviewResolver = resolve
+		})
+	}
+
+	function resolvePayrollChangePreview(confirmed: boolean) {
+		showPayrollChangePreviewModal = false
+		payrollChangePreviewResolver?.(confirmed)
+		payrollChangePreviewResolver = null
+	}
+
+	function updatePreviewEntry(index: number, field: 'hours' | 'rate' | 'additional_pay', value: number) {
+		const next = [...payrollPreviewEntries]
+		const current = { ...next[index] }
+		current[field] = value
+		current.total_pay = Number((current.hours * current.rate + current.additional_pay).toFixed(2))
+		next[index] = current
+		payrollPreviewEntries = next
+	}
+
+	async function confirmPayrollReviewAndComplete() {
+		if (!event?.id) return
+		payrollPreviewLoading = true
+		try {
+			const updatedEvent = await eventsStore.update(event.id, {
+				status: 'completed',
+				__reviewedPayrollEntries: payrollPreviewEntries
+			} as any)
+			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			event = enhanced
+			showPayrollReviewModal = false
+			toast.success('Event completed and payroll generated')
+		} catch (error) {
+			console.error('Failed to complete event with reviewed payroll:', error)
+			toast.error((error as any)?.message || 'Failed to complete event with payroll review')
+		} finally {
+			payrollPreviewLoading = false
 		}
 	}
 
@@ -249,4 +359,138 @@
 			onSuccess={handleDeleteSuccess}
 		/>
 	{/await}
+{/if}
+
+{#if showPayrollImpactModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Review Payroll Impact</h3>
+			<p class="text-sm opacity-80 mt-2">
+				This completed-event edit affects payroll. Continue and review/reconcile payroll updates?
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolvePayrollImpact(false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={() => resolvePayrollImpact(true)}>Continue</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showPayrollChangePreviewModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-4xl">
+			<h3 class="font-bold text-lg">Payroll Changes Preview</h3>
+			<p class="text-sm opacity-80 mt-2">Review current vs new payroll before applying this completed-event edit.</p>
+			<div class="overflow-x-auto mt-4 max-h-[50vh]">
+				<table class="table table-zebra table-sm">
+					<thead>
+						<tr>
+							<th>Payee</th>
+							<th>Action</th>
+							<th>Current</th>
+							<th>New</th>
+							<th>Difference</th>
+							<th>Note</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each payrollChangePreviewRows as row}
+							<tr>
+								<td>
+									{row.payee_name}
+									{#if row.is_production_manager}
+										<span class="badge badge-secondary badge-xs ml-2">PM</span>
+									{/if}
+								</td>
+								<td><span class="badge badge-outline badge-xs">{row.action}</span></td>
+								<td>${row.current_total.toFixed(2)}</td>
+								<td>${row.new_total.toFixed(2)}</td>
+								<td class={row.delta >= 0 ? 'text-success' : 'text-error'}>
+									{row.delta >= 0 ? '+' : ''}${row.delta.toFixed(2)}
+								</td>
+								<td class="text-xs opacity-80">{row.note || '-'}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolvePayrollChangePreview(false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={() => resolvePayrollChangePreview(true)}>Apply Changes</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showPayrollReviewModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-5xl">
+			<h3 class="font-bold text-lg">Review Payroll Before Completion</h3>
+			<p class="text-sm opacity-70 mt-1">Adjust entries as needed before payroll is generated for this completed event.</p>
+			<div class="overflow-x-auto mt-4 max-h-[50vh]">
+				<table class="table table-zebra table-sm">
+					<thead>
+						<tr>
+							<th>Payee</th>
+							<th>Date</th>
+							<th>Hours</th>
+							<th>Rate</th>
+							<th>Additional</th>
+							<th>Total</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each payrollPreviewEntries as entry, index}
+							<tr>
+								<td>
+									{entry.payee_name || entry.artist_name}
+									{#if entry.is_production_manager}
+										<span class="badge badge-secondary badge-xs ml-2">PM</span>
+									{/if}
+								</td>
+								<td>{entry.event_date}</td>
+								<td>
+									<input
+										type="number"
+										class="input input-bordered input-xs w-24"
+										min="0"
+										step="0.25"
+										value={entry.hours}
+										oninput={(e) => updatePreviewEntry(index, 'hours', Number(e.currentTarget.value || 0))}
+									/>
+								</td>
+								<td>
+									<input
+										type="number"
+										class="input input-bordered input-xs w-24"
+										min="0"
+										step="0.01"
+										value={entry.rate}
+										oninput={(e) => updatePreviewEntry(index, 'rate', Number(e.currentTarget.value || 0))}
+									/>
+								</td>
+								<td>
+									<input
+										type="number"
+										class="input input-bordered input-xs w-24"
+										step="0.01"
+										value={entry.additional_pay}
+										oninput={(e) => updatePreviewEntry(index, 'additional_pay', Number(e.currentTarget.value || 0))}
+									/>
+								</td>
+								<td>${entry.total_pay.toFixed(2)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => showPayrollReviewModal = false} disabled={payrollPreviewLoading}>Cancel</button>
+				<button class="btn btn-primary" onclick={confirmPayrollReviewAndComplete} disabled={payrollPreviewLoading}>
+					{#if payrollPreviewLoading}<span class="loading loading-spinner loading-sm"></span>{/if}
+					Complete Event & Generate Payroll
+				</button>
+			</div>
+		</div>
+	</div>
 {/if}

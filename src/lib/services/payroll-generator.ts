@@ -24,6 +24,7 @@ interface ArtistAssignment {
 	num_hours?: number
 	hourly_rate?: number
 	confirmation_status?: string
+	paid_through_artist_id?: string | null
 }
 
 interface EventWithAssignments {
@@ -61,6 +62,12 @@ interface GenerationOptions {
 	userId?: string
 	rateCardId?: number
 	overriddenEntries?: GeneratedPayrollEntry[]
+	eventOverride?: Record<string, any>
+}
+
+interface ArtistCompProfile {
+	employment_status: string | null
+	paid_through_artist_id: string | null
 }
 
 /**
@@ -157,6 +164,107 @@ function getRateDetailsForRule(rule: RateRule): Pick<GeneratedPayrollEntry, 'rat
 	}
 }
 
+function mapEmploymentStatusToWorkerType(employmentStatus: string | null | undefined): string {
+	return employmentStatus === 'W-2' ? EmployeeContractorStatus.W2 : EmployeeContractorStatus.T1099
+}
+
+function ensureProductionManagersInsertedLast(entries: GeneratedPayrollEntry[]): GeneratedPayrollEntry[] {
+	const performerRows = entries.filter((entry) => !entry.is_production_manager)
+	const pmRows = entries.filter((entry) => !!entry.is_production_manager)
+	return [...performerRows, ...pmRows]
+}
+
+function shouldRetryWithoutTotalPay(error: any): boolean {
+	const message = String(error?.message || '').toLowerCase()
+	return message.includes('total_pay') && message.includes('non-default')
+}
+
+async function insertPayrollRowsWithCompat(rows: Record<string, any>[]): Promise<{ error: any }> {
+	const firstAttempt = await supabase.from('phwb_payroll').insert(rows)
+	if (!firstAttempt.error || !shouldRetryWithoutTotalPay(firstAttempt.error)) {
+		return { error: firstAttempt.error }
+	}
+
+	// Some DB variants compute total_pay server-side (generated/default-only column).
+	// Retry without total_pay in that case.
+	const rowsWithoutTotal = rows.map((row) => {
+		const sanitized = { ...row }
+		delete (sanitized as any).total_pay
+		return sanitized
+	})
+	const secondAttempt = await supabase.from('phwb_payroll').insert(rowsWithoutTotal)
+	return { error: secondAttempt.error }
+}
+
+async function getArtistCompProfiles(artistIds: string[]): Promise<Map<string, ArtistCompProfile>> {
+	const profileMap = new Map<string, ArtistCompProfile>()
+	if (artistIds.length === 0) return profileMap
+
+	const uniqueIds = Array.from(new Set(artistIds))
+	const { data, error } = await supabase
+		.from('phwb_artists')
+		.select('id, employment_status, paid_through_artist_id')
+		.in('id', uniqueIds)
+
+	if (error || !data) {
+		console.error('Failed to load artist compensation profiles:', error)
+		return profileMap
+	}
+
+	for (const row of data) {
+		profileMap.set(row.id, {
+			employment_status: row.employment_status ?? null,
+			paid_through_artist_id: row.paid_through_artist_id ?? null
+		})
+	}
+
+	return profileMap
+}
+
+function applyLlcOwnerRollup(
+	entries: GeneratedPayrollEntry[],
+	assignments: ArtistAssignment[],
+	artistProfiles: Map<string, ArtistCompProfile>
+): GeneratedPayrollEntry[] {
+	const assignmentArtistIds = new Set(assignments.map((a) => a.artist_id))
+	const rollups = new Map<string, string>()
+
+	for (const assignment of assignments) {
+		const profile = artistProfiles.get(assignment.artist_id)
+		const ownerId = assignment.paid_through_artist_id ?? profile?.paid_through_artist_id ?? null
+		if (!ownerId || ownerId === assignment.artist_id) continue
+		if (!assignmentArtistIds.has(ownerId)) continue
+		rollups.set(assignment.artist_id, ownerId)
+	}
+
+	if (rollups.size === 0) return entries
+
+	const entryByArtistId = new Map<string, GeneratedPayrollEntry>()
+	for (const entry of entries) {
+		if (entry.artist_id && entry.payment_type === PaymentType.PERFORMANCE && !entry.is_production_manager) {
+			entryByArtistId.set(entry.artist_id, entry)
+		}
+	}
+
+	const subordinateIdsToRemove = new Set<string>()
+
+	for (const [subordinateId, ownerId] of rollups.entries()) {
+		const subordinateEntry = entryByArtistId.get(subordinateId)
+		const ownerEntry = entryByArtistId.get(ownerId)
+		if (!subordinateEntry || !ownerEntry) continue
+
+		ownerEntry.total_pay += subordinateEntry.total_pay
+		ownerEntry.additional_pay += subordinateEntry.additional_pay
+		ownerEntry.notes = `${ownerEntry.notes} | Includes ${subordinateEntry.artist_name} paid through LLC owner`
+		subordinateIdsToRemove.add(subordinateId)
+	}
+
+	return entries.filter((entry) => {
+		if (!entry.artist_id) return true
+		return !subordinateIdsToRemove.has(entry.artist_id)
+	})
+}
+
 async function resolveProductionManagerPayrollInfo(event: EventWithAssignments): Promise<ProductionManagerPayrollInfo | null> {
 	let artistId = event.production_manager_artist_id || null
 	let displayName: string | null = null
@@ -223,21 +331,31 @@ async function getRateRule(rateCardId: number, programType: string): Promise<Rat
 		.select('*')
 		.eq('rate_card_id', rateCardId)
 		.eq('program_type', programType)
-		.single()
+		.limit(1)
 	
 	if (error) {
 		// Try fallback to 'other' type
-		const { data: fallback } = await supabase
+		const { data: fallback, error: fallbackError } = await supabase
 			.from('phwb_rate_rules')
 			.select('*')
 			.eq('rate_card_id', rateCardId)
 			.eq('program_type', 'other')
-			.single()
-		
-		return fallback || null
+			.limit(1)
+		if (fallbackError) return null
+		return fallback?.[0] || null
 	}
-	
-	return data
+
+	if (data && data.length > 0) return data[0]
+
+	// No exact program-type match; try "other" without treating as an API error.
+	const { data: fallback, error: fallbackError } = await supabase
+		.from('phwb_rate_rules')
+		.select('*')
+		.eq('rate_card_id', rateCardId)
+		.eq('program_type', 'other')
+		.limit(1)
+	if (fallbackError) return null
+	return fallback?.[0] || null
 }
 
 /**
@@ -476,6 +594,7 @@ export async function generatePayrollForDateRange(
 		for (const event of eventsToProcess) {
 			try {
 				const assignments = event.artists?.assignments || []
+				const artistProfiles = await getArtistCompProfiles(assignments.map((a) => a.artist_id))
 				const musicianCount = assignments.length || event.number_of_musicians || 1
 				const programType = event.programs?.program_type || 'other'
 				const facilityId = typeof event.location_id === 'number'
@@ -492,6 +611,8 @@ export async function generatePayrollForDateRange(
 				// Calculate gig duration from event times
 				const gigDuration = calculateHoursFromEventTimes(event.start_time, event.end_time)
 				
+				const eventEntries: GeneratedPayrollEntry[] = []
+
 				// Process each artist assignment
 				for (const assignment of assignments) {
 					const isLeader = isLeaderAssignment(assignment, assignments)
@@ -516,11 +637,13 @@ export async function generatePayrollForDateRange(
 						: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
 					const rateDetails = getRateDetailsForRule(rateRule)
 					
+					const artistProfile = artistProfiles.get(assignment.artist_id)
 					const entry: GeneratedPayrollEntry = {
 						event_id: event.id,
 						event_date: event.date,
 						artist_id: assignment.artist_id,
 						artist_name: assignment.artist_name || 'Unknown Artist',
+						payee_name: assignment.artist_name || 'Unknown Artist',
 						venue_id: event.venue,
 						facility_id: facilityId,
 						program_id: event.program,
@@ -535,7 +658,7 @@ export async function generatePayrollForDateRange(
 						total_pay: calculation.totalPay,
 						number_of_musicians: musicianCount,
 						gig_duration: gigDuration,
-						employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
+						employee_contractor_status: mapEmploymentStatusToWorkerType(artistProfile?.employment_status),
 						rate_card_id: rateCard.id,
 						rate_rule_id: rateRule.id,
 						status: PaymentStatus.PLANNED,
@@ -545,10 +668,9 @@ export async function generatePayrollForDateRange(
 						notes: `Auto-generated from event: ${event.title}. ${calculation.calculationNotes}`
 					}
 					
-					result.entries.push(entry)
-					result.totalAmount += calculation.totalPay
+					eventEntries.push(entry)
 				}
-				
+
 				// Process production manager payroll:
 				// Event duration + 2 hours (1 hour before and 1 hour after), using PM rate card rule.
 				const pmInfo = await resolveProductionManagerPayrollInfo(event)
@@ -563,11 +685,15 @@ export async function generatePayrollForDateRange(
 						const pmRate = getDisplayRateForRule(pmRateRule)
 						const pmRateDetails = getRateDetailsForRule(pmRateRule)
 
+						const pmEmploymentStatus = pmInfo.artistId
+							? artistProfiles.get(pmInfo.artistId)?.employment_status ?? null
+							: null
 						const pmEntry: GeneratedPayrollEntry = {
 							event_id: event.id,
 							event_date: event.date,
 							artist_id: pmInfo.artistId,
 							artist_name: pmInfo.name,
+							payee_name: pmInfo.name,
 							venue_id: event.venue,
 							facility_id: facilityId,
 							program_id: event.program,
@@ -582,20 +708,24 @@ export async function generatePayrollForDateRange(
 							total_pay: pmCalculation.totalPay,
 							number_of_musicians: musicianCount,
 							gig_duration: gigDuration,
-							employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
+							employee_contractor_status: mapEmploymentStatusToWorkerType(pmEmploymentStatus),
 							rate_card_id: rateCard.id,
 							rate_rule_id: pmRateRule.id,
 							status: PaymentStatus.PLANNED,
 							payment_type: PaymentType.OTHER,
+							is_production_manager: true,
 							creation_method: CreationMethod.EVENT_AUTOMATION,
 							source_event_id: event.id,
 							notes: `Production Manager (${pmHours.toFixed(2)}h = event duration + 2h) - Auto-generated from event: ${event.title}`
 						}
 						
-						result.entries.push(pmEntry)
-						result.totalAmount += pmCalculation.totalPay
+						eventEntries.push(pmEntry)
 					}
 				}
+
+				const rolledUpEventEntries = applyLlcOwnerRollup(eventEntries, assignments, artistProfiles)
+				result.entries.push(...rolledUpEventEntries)
+				result.totalAmount += rolledUpEventEntries.reduce((sum, entry) => sum + entry.total_pay, 0)
 				
 				result.eventsProcessed++
 			} catch (err) {
@@ -606,7 +736,7 @@ export async function generatePayrollForDateRange(
 		// 7. Save entries if not dry run
 		if (!options.dryRun && result.entries.length > 0) {
 			// Use overridden entries if provided, otherwise use calculated entries
-			const finalEntries = options.overriddenEntries || result.entries
+			const finalEntries = ensureProductionManagersInsertedLast(options.overriddenEntries || result.entries)
 			
 			// Prepare entries for insert (remove artist_name which isn't in the table)
 			const entriesToInsert = finalEntries.map(entry => ({
@@ -623,6 +753,7 @@ export async function generatePayrollForDateRange(
 				rate_description: entry.rate_description,
 				additional_pay: entry.additional_pay,
 				additional_pay_reason: entry.additional_pay_reason,
+				total_pay: entry.total_pay,
 				status: entry.status,
 				payment_type: entry.payment_type,
 				employee_contractor_status: entry.employee_contractor_status,
@@ -633,13 +764,15 @@ export async function generatePayrollForDateRange(
 				rate_rule_id: entry.rate_rule_id,
 				creation_method: entry.creation_method,
 				source_event_id: entry.source_event_id,
+				payee_name: entry.payee_name ?? null,
+				is_production_manager: entry.is_production_manager ?? false,
+				linked_payroll_id: entry.linked_payroll_id ?? null,
+				adjustment_type: entry.adjustment_type ?? null,
 				notes: entry.notes,
 				created_by: options.userId || 'system'
 			}))
 			
-			const { error: insertError } = await supabase
-				.from('phwb_payroll')
-				.insert(entriesToInsert)
+			const { error: insertError } = await insertPayrollRowsWithCompat(entriesToInsert)
 			
 			if (insertError) {
 				result.errors.push(`Failed to save payroll entries: ${insertError.message}`)
@@ -698,7 +831,7 @@ export async function previewPayrollGeneration(
  */
 export async function generatePayrollForEvent(
 	eventId: number,
-	options: { dryRun?: boolean; userId?: string } = {}
+	options: { dryRun?: boolean; userId?: string; overriddenEntries?: GeneratedPayrollEntry[]; forceRegenerate?: boolean; eventOverride?: Record<string, any> } = {}
 ): Promise<PayrollGenerationResult> {
 	const result: PayrollGenerationResult = {
 		success: false,
@@ -725,7 +858,7 @@ export async function generatePayrollForEvent(
 			return result
 		}
 
-		if (existingPayroll && existingPayroll.length > 0) {
+		if (!options.dryRun && !options.forceRegenerate && existingPayroll && existingPayroll.length > 0) {
 			result.skippedEvents = 1
 			result.success = true
 			return result
@@ -774,8 +907,12 @@ export async function generatePayrollForEvent(
 		const bandleaderFee = await getBandleaderFee(rateCard.id)
 
 		// 5. Process the event
-		const typedEvent = event as unknown as EventWithAssignments
+		const typedEvent = {
+			...(event as unknown as EventWithAssignments),
+			...(options.eventOverride || {})
+		} as EventWithAssignments
 		const assignments = typedEvent.artists?.assignments || []
+		const artistProfiles = await getArtistCompProfiles(assignments.map((a) => a.artist_id))
 		const musicianCount = assignments.length || typedEvent.number_of_musicians || 1
 		const programType = typedEvent.programs?.program_type || 'other'
 		const locationFacilityMap = await buildLocationFacilityMap(
@@ -819,11 +956,13 @@ export async function generatePayrollForEvent(
 				: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
 			const rateDetails = getRateDetailsForRule(rateRule)
 
+			const artistProfile = artistProfiles.get(assignment.artist_id)
 			const entry: GeneratedPayrollEntry = {
 				event_id: typedEvent.id,
 				event_date: typedEvent.date,
 				artist_id: assignment.artist_id,
 				artist_name: assignment.artist_name || 'Unknown Artist',
+				payee_name: assignment.artist_name || 'Unknown Artist',
 				venue_id: typedEvent.venue,
 				facility_id: facilityId,
 				program_id: typedEvent.program,
@@ -838,7 +977,7 @@ export async function generatePayrollForEvent(
 				total_pay: calculation.totalPay,
 				number_of_musicians: musicianCount,
 				gig_duration: gigDuration,
-				employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
+				employee_contractor_status: mapEmploymentStatusToWorkerType(artistProfile?.employment_status),
 				rate_card_id: rateCard.id,
 				rate_rule_id: rateRule.id,
 				status: PaymentStatus.PLANNED,
@@ -851,6 +990,9 @@ export async function generatePayrollForEvent(
 			result.entries.push(entry)
 			result.totalAmount += calculation.totalPay
 		}
+
+		result.entries = applyLlcOwnerRollup(result.entries, assignments, artistProfiles)
+		result.totalAmount = result.entries.reduce((sum, entry) => sum + entry.total_pay, 0)
 
 		// Process production manager payroll:
 		// Event duration + 2 hours (1 hour before and 1 hour after), using PM rate card rule.
@@ -866,11 +1008,15 @@ export async function generatePayrollForEvent(
 				const pmRate = getDisplayRateForRule(pmRateRule)
 				const pmRateDetails = getRateDetailsForRule(pmRateRule)
 
+				const pmEmploymentStatus = pmInfo.artistId
+					? artistProfiles.get(pmInfo.artistId)?.employment_status ?? null
+					: null
 				const pmEntry: GeneratedPayrollEntry = {
 					event_id: typedEvent.id,
 					event_date: typedEvent.date,
 					artist_id: pmInfo.artistId,
 					artist_name: pmInfo.name,
+					payee_name: pmInfo.name,
 					venue_id: typedEvent.venue,
 					facility_id: facilityId,
 					program_id: typedEvent.program,
@@ -885,11 +1031,12 @@ export async function generatePayrollForEvent(
 					total_pay: pmCalculation.totalPay,
 					number_of_musicians: musicianCount,
 					gig_duration: gigDuration,
-					employee_contractor_status: EmployeeContractorStatus.CONTRACTOR,
+					employee_contractor_status: mapEmploymentStatusToWorkerType(pmEmploymentStatus),
 					rate_card_id: rateCard.id,
 					rate_rule_id: pmRateRule.id,
 					status: PaymentStatus.PLANNED,
 					payment_type: PaymentType.OTHER,
+					is_production_manager: true,
 					creation_method: CreationMethod.EVENT_AUTOMATION,
 					source_event_id: typedEvent.id,
 					notes: `Production Manager (${pmHours.toFixed(2)}h = event duration + 2h) - Auto-generated on event completion: ${typedEvent.title}`
@@ -901,6 +1048,11 @@ export async function generatePayrollForEvent(
 		}
 
 		result.eventsProcessed = 1
+
+		if (options.overriddenEntries && options.overriddenEntries.length > 0) {
+			result.entries = ensureProductionManagersInsertedLast(options.overriddenEntries)
+			result.totalAmount = result.entries.reduce((sum, entry) => sum + (entry.total_pay || 0), 0)
+		}
 
 		// 6. Save entries if not dry run
 		if (!options.dryRun && result.entries.length > 0) {
@@ -918,6 +1070,7 @@ export async function generatePayrollForEvent(
 				rate_description: entry.rate_description,
 				additional_pay: entry.additional_pay,
 				additional_pay_reason: entry.additional_pay_reason,
+				total_pay: entry.total_pay,
 				status: entry.status,
 				payment_type: entry.payment_type,
 				employee_contractor_status: entry.employee_contractor_status,
@@ -928,13 +1081,15 @@ export async function generatePayrollForEvent(
 				rate_rule_id: entry.rate_rule_id,
 				creation_method: entry.creation_method,
 				source_event_id: entry.source_event_id,
+				payee_name: entry.payee_name ?? null,
+				is_production_manager: entry.is_production_manager ?? false,
+				linked_payroll_id: entry.linked_payroll_id ?? null,
+				adjustment_type: entry.adjustment_type ?? null,
 				notes: entry.notes,
 				created_by: options.userId || 'system'
 			}))
 
-			const { error: insertError } = await supabase
-				.from('phwb_payroll')
-				.insert(entriesToInsert)
+			const { error: insertError } = await insertPayrollRowsWithCompat(entriesToInsert)
 
 			if (insertError) {
 				result.errors.push(`Failed to save payroll entries: ${insertError.message}`)
@@ -963,6 +1118,359 @@ export async function generatePayrollForEvent(
 
 	} catch (err) {
 		result.errors.push(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+		return result
+	}
+}
+
+interface PayrollReconcileResult {
+	success: boolean
+	created: number
+	updated: number
+	cancelled: number
+	adjustments: number
+	errors: string[]
+}
+
+export interface PayrollReconcilePreviewRow {
+	key: string
+	payee_name: string
+	is_production_manager: boolean
+	action: 'create' | 'update' | 'cancel' | 'adjustment'
+	current_total: number
+	new_total: number
+	delta: number
+	note?: string
+}
+
+export interface PayrollReconcilePreviewResult {
+	success: boolean
+	rows: PayrollReconcilePreviewRow[]
+	errors: string[]
+}
+
+export async function previewCompletedEventPayrollChanges(
+	eventId: number,
+	options: { userId?: string; eventOverride?: Record<string, any> } = {}
+): Promise<PayrollReconcilePreviewResult> {
+	const result: PayrollReconcilePreviewResult = {
+		success: false,
+		rows: [],
+		errors: []
+	}
+
+	try {
+		const preview = await generatePayrollForEvent(eventId, {
+			dryRun: true,
+			userId: options.userId,
+			eventOverride: options.eventOverride
+		})
+		if (!preview.success) {
+			result.errors.push(...preview.errors)
+			return result
+		}
+
+		const { data: existingRows, error: existingError } = await supabase
+			.from('phwb_payroll')
+			.select('*')
+			.eq('source_event_id', eventId)
+
+		if (existingError) {
+			result.errors.push(existingError.message)
+			return result
+		}
+
+		const existing = (existingRows || []) as Array<any>
+		const baseRows = existing.filter((row) => !row.adjustment_type)
+		const expectedByKey = new Map<string, GeneratedPayrollEntry>()
+		for (const entry of preview.entries) {
+			expectedByKey.set(getReconcileKey(entry), entry)
+		}
+		const generationWarning = preview.errors.length > 0 ? preview.errors.join('; ') : undefined
+
+		for (const existingRow of baseRows) {
+			const key = getReconcileKey(existingRow)
+			const expected = expectedByKey.get(key)
+
+			if (!expected) {
+				result.rows.push({
+					key,
+					payee_name: existingRow.payee_name || existingRow.artist_name || 'Unknown',
+					is_production_manager: !!existingRow.is_production_manager,
+					action: existingRow.status === PaymentStatus.PAID ? 'adjustment' : 'cancel',
+					current_total: Number(existingRow.total_pay || 0),
+					new_total: 0,
+					delta: -1 * Number(existingRow.total_pay || 0),
+					note: generationWarning
+						? `No replacement generated: ${generationWarning}`
+						: 'No replacement entry generated by current rules.'
+				})
+				continue
+			}
+
+			const existingTotal = Number(existingRow.total_pay || 0)
+			const expectedTotal = Number(expected.total_pay || 0)
+			const delta = Number((expectedTotal - existingTotal).toFixed(2))
+			expectedByKey.delete(key)
+
+			if (Math.abs(delta) < 0.01) continue
+
+			result.rows.push({
+				key,
+				payee_name: expected.payee_name || expected.artist_name || 'Unknown',
+				is_production_manager: !!expected.is_production_manager,
+				action: existingRow.status === PaymentStatus.PAID ? 'adjustment' : 'update',
+				current_total: existingTotal,
+				new_total: expectedTotal,
+				delta
+			})
+		}
+
+		for (const expected of expectedByKey.values()) {
+			result.rows.push({
+				key: getReconcileKey(expected),
+				payee_name: expected.payee_name || expected.artist_name || 'Unknown',
+				is_production_manager: !!expected.is_production_manager,
+				action: 'create',
+				current_total: 0,
+				new_total: Number(expected.total_pay || 0),
+				delta: Number(expected.total_pay || 0)
+			})
+		}
+
+		// Highlight PM entries first for quick review.
+		result.rows.sort((a, b) => Number(b.is_production_manager) - Number(a.is_production_manager))
+		result.success = true
+		return result
+	} catch (error) {
+		result.errors.push(error instanceof Error ? error.message : 'Unknown preview error')
+		return result
+	}
+}
+
+function getReconcileKey(entry: { artist_id: string | null; payee_name?: string | null; is_production_manager?: boolean }): string {
+	if (entry.artist_id) return `artist:${entry.artist_id}`
+	if (entry.is_production_manager) return `pm:${entry.payee_name || 'unknown'}`
+	return `payee:${entry.payee_name || 'unknown'}`
+}
+
+function toInsertPayload(entry: GeneratedPayrollEntry, userId?: string) {
+	return {
+		event_date: entry.event_date,
+		artist_id: entry.artist_id,
+		venue_id: entry.venue_id,
+		facility_id: entry.facility_id ?? null,
+		event_id: entry.event_id,
+		hours: entry.hours,
+		rate: entry.rate,
+		rate_type: entry.rate_type,
+		base_rate: entry.base_rate,
+		additional_rate: entry.additional_rate,
+		rate_description: entry.rate_description,
+		additional_pay: entry.additional_pay,
+		additional_pay_reason: entry.additional_pay_reason,
+		total_pay: entry.total_pay,
+		status: entry.status,
+		payment_type: entry.payment_type,
+		employee_contractor_status: entry.employee_contractor_status,
+		program_id: entry.program_id,
+		number_of_musicians: entry.number_of_musicians,
+		gig_duration: entry.gig_duration,
+		rate_card_id: entry.rate_card_id,
+		rate_rule_id: entry.rate_rule_id,
+		creation_method: entry.creation_method,
+		source_event_id: entry.source_event_id,
+		payee_name: entry.payee_name ?? null,
+		is_production_manager: entry.is_production_manager ?? false,
+		linked_payroll_id: entry.linked_payroll_id ?? null,
+		adjustment_type: entry.adjustment_type ?? null,
+		notes: entry.notes,
+		created_by: userId || 'system'
+	}
+}
+
+export async function reconcilePayrollForCompletedEvent(
+	eventId: number,
+	options: { dryRun?: boolean; userId?: string } = {}
+): Promise<PayrollReconcileResult> {
+	const result: PayrollReconcileResult = {
+		success: false,
+		created: 0,
+		updated: 0,
+		cancelled: 0,
+		adjustments: 0,
+		errors: []
+	}
+
+	try {
+		const preview = await generatePayrollForEvent(eventId, { dryRun: true, userId: options.userId })
+		if (!preview.success) {
+			result.errors.push(...preview.errors)
+			return result
+		}
+
+		const { data: existingRows, error: existingError } = await supabase
+			.from('phwb_payroll')
+			.select('*')
+			.eq('source_event_id', eventId)
+
+		if (existingError) {
+			result.errors.push(existingError.message)
+			return result
+		}
+
+		const existing = (existingRows || []) as Array<any>
+		const baseRows = existing.filter((row) => !row.adjustment_type)
+		const expectedByKey = new Map<string, GeneratedPayrollEntry>()
+		for (const entry of preview.entries) {
+			expectedByKey.set(getReconcileKey(entry), entry)
+		}
+
+		const creates: GeneratedPayrollEntry[] = []
+		const updates: Array<{ id: number; payload: Record<string, any> }> = []
+		const cancellations: number[] = []
+		const adjustmentEntries: GeneratedPayrollEntry[] = []
+
+		for (const existingRow of baseRows) {
+			const key = getReconcileKey(existingRow)
+			const expected = expectedByKey.get(key)
+			if (!expected) {
+				if (existingRow.status === PaymentStatus.PAID) {
+					adjustmentEntries.push({
+						event_id: existingRow.event_id,
+						event_date: existingRow.event_date,
+						artist_id: existingRow.artist_id,
+						artist_name: existingRow.payee_name || 'Adjustment',
+						payee_name: existingRow.payee_name,
+						venue_id: existingRow.venue_id,
+						facility_id: existingRow.facility_id,
+						program_id: existingRow.program_id,
+						hours: 0,
+						rate: 0,
+						rate_type: existingRow.rate_type,
+						base_rate: existingRow.base_rate,
+						additional_rate: existingRow.additional_rate,
+						rate_description: 'Post-completion removal adjustment',
+						additional_pay: 0,
+						additional_pay_reason: 'Removed from completed event',
+						total_pay: -1 * Number(existingRow.total_pay || 0),
+						number_of_musicians: existingRow.number_of_musicians || 1,
+						gig_duration: existingRow.gig_duration,
+						employee_contractor_status: existingRow.employee_contractor_status || EmployeeContractorStatus.T1099,
+						rate_card_id: existingRow.rate_card_id,
+						rate_rule_id: existingRow.rate_rule_id,
+						status: PaymentStatus.PLANNED,
+						payment_type: existingRow.payment_type || PaymentType.PERFORMANCE,
+						creation_method: CreationMethod.EVENT_AUTOMATION,
+						source_event_id: eventId,
+						linked_payroll_id: existingRow.id,
+						adjustment_type: 'decrease',
+						is_production_manager: existingRow.is_production_manager || false,
+						notes: `Adjustment for removed participant from completed event (original #${existingRow.id}).`
+					})
+				} else {
+					cancellations.push(existingRow.id)
+				}
+				continue
+			}
+
+			const existingTotal = Number(existingRow.total_pay || 0)
+			const expectedTotal = Number(expected.total_pay || 0)
+			const delta = Number((expectedTotal - existingTotal).toFixed(2))
+			expectedByKey.delete(key)
+
+			if (Math.abs(delta) < 0.01) {
+				continue
+			}
+
+			if (existingRow.status === PaymentStatus.PAID) {
+				adjustmentEntries.push({
+					...expected,
+					hours: 0,
+					rate: 0,
+					additional_pay: 0,
+					additional_pay_reason: 'Post-payment adjustment',
+					total_pay: delta,
+					linked_payroll_id: existingRow.id,
+					adjustment_type: delta >= 0 ? 'increase' : 'decrease',
+					notes: `Adjustment for completed event update (original #${existingRow.id}). Delta: ${delta}`
+				})
+			} else {
+				updates.push({
+					id: existingRow.id,
+					payload: {
+						artist_id: expected.artist_id,
+						payee_name: expected.payee_name ?? null,
+						hours: expected.hours,
+						rate: expected.rate,
+						rate_type: expected.rate_type,
+						base_rate: expected.base_rate,
+						additional_rate: expected.additional_rate,
+						rate_description: expected.rate_description,
+						additional_pay: expected.additional_pay,
+						additional_pay_reason: expected.additional_pay_reason,
+						employee_contractor_status: expected.employee_contractor_status,
+						number_of_musicians: expected.number_of_musicians,
+						gig_duration: expected.gig_duration,
+						rate_card_id: expected.rate_card_id,
+						rate_rule_id: expected.rate_rule_id,
+						payment_type: expected.payment_type,
+						is_production_manager: expected.is_production_manager ?? false,
+						notes: expected.notes
+					}
+				})
+			}
+		}
+
+		for (const expected of expectedByKey.values()) {
+			creates.push(expected)
+		}
+
+		if (options.dryRun) {
+			result.created = creates.length
+			result.updated = updates.length
+			result.cancelled = cancellations.length
+			result.adjustments = adjustmentEntries.length
+			result.success = true
+			return result
+		}
+
+		for (const updateItem of updates) {
+			const { error } = await supabase.from('phwb_payroll').update(updateItem.payload).eq('id', updateItem.id)
+			if (error) {
+				result.errors.push(`Failed updating payroll #${updateItem.id}: ${error.message}`)
+			} else {
+				result.updated += 1
+			}
+		}
+
+		if (cancellations.length > 0) {
+			const { error } = await supabase
+				.from('phwb_payroll')
+				.update({ status: PaymentStatus.CANCELLED, notes: 'Cancelled after completed-event reconciliation.' })
+				.in('id', cancellations)
+			if (error) {
+				result.errors.push(`Failed cancelling rows: ${error.message}`)
+			} else {
+				result.cancelled += cancellations.length
+			}
+		}
+
+		const newInserts = creates.map((entry) => toInsertPayload(entry, options.userId))
+		const adjustmentInserts = adjustmentEntries.map((entry) => toInsertPayload(entry, options.userId))
+		if (newInserts.length > 0 || adjustmentInserts.length > 0) {
+			const { error } = await insertPayrollRowsWithCompat([...newInserts, ...adjustmentInserts])
+			if (error) {
+				result.errors.push(`Failed inserting reconciled rows: ${error.message}`)
+			} else {
+				result.created += newInserts.length
+				result.adjustments += adjustmentInserts.length
+			}
+		}
+
+		result.success = result.errors.length === 0
+		return result
+	} catch (error) {
+		result.errors.push(error instanceof Error ? error.message : 'Unknown reconciliation error')
 		return result
 	}
 }

@@ -16,7 +16,7 @@
 			sightReads: boolean | null
 			hideIncomplete: boolean
 			positionStatus: 'all' | 'active' | 'terminated'
-			employmentType: 'all' | 'W2' | '1099'
+			employmentType: 'all' | 'W-2' | '1099'
 		}
 	}
 
@@ -328,10 +328,10 @@
 								type="radio"
 								name="employmentType"
 								class="radio radio-xs radio-info"
-								checked={filters.employmentType === 'W2'}
-								onchange={() => filters.employmentType = 'W2'}
+								checked={filters.employmentType === 'W-2'}
+								onchange={() => filters.employmentType = 'W-2'}
 							/>
-							<span class="label-text text-xs">W2</span>
+							<span class="label-text text-xs">W-2</span>
 						</label>
 						<label class="label cursor-pointer justify-start gap-1 py-0">
 							<input
@@ -428,7 +428,7 @@
 									<span class="badge badge-xs badge-error">Terminated</span>
 								{/if}
 								{#if artist.employment_status}
-									<span class="badge badge-xs {artist.employment_status === 'W2' ? 'badge-info' : 'badge-warning'}">{artist.employment_status}</span>
+									<span class="badge badge-xs {artist.employment_status === 'W-2' || artist.employment_status === 'W2' ? 'badge-info' : 'badge-warning'}">{artist.employment_status}</span>
 								{/if}
 								{#if artist.job_title}
 									<span class="badge badge-xs badge-ghost">{getJobTitleLabel(artist.job_title)}</span>

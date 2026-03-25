@@ -435,9 +435,8 @@
 									required
 								>
 									<option value="" disabled>Select employment status</option>
-									<option value="Employee">Employee/W2</option>
-									<option value="1099">LLC/1099</option>
-									<option value="Trial">Trial</option>
+									<option value="W-2">W-2 (Roster)</option>
+									<option value="1099">1099 (LLC)</option>
 								</select>
 								{#if formErrors.employment_status}
 									<span class="text-xs text-error">{formErrors.employment_status}</span>

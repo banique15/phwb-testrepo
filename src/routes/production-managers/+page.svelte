@@ -24,6 +24,7 @@
 	let showEditModal = $state(false)
 	let deleting = $state(false)
 	let createType = $state<'artist' | 'non_artist'>('artist')
+	let quickSourceType = $state<'artist' | 'non_artist'>('non_artist')
 
 	let searchQuery = $state('')
 	let managers = $state<ProductionManager[]>([])
@@ -41,7 +42,8 @@
 		email: '',
 		phone: '',
 		location: '',
-		notes: ''
+		notes: '',
+		source_type: 'non_artist' as 'artist' | 'non_artist'
 	})
 
 	let filteredManagers = $derived.by(() => {
@@ -80,6 +82,10 @@
 		void loadManagers()
 	})
 
+	$effect(() => {
+		quickSourceType = selectedManager?.source_type || 'non_artist'
+	})
+
 	function resetCreateState() {
 		createType = 'artist'
 		createError = null
@@ -100,7 +106,8 @@
 			email: '',
 			phone: '',
 			location: '',
-			notes: ''
+			notes: '',
+			source_type: 'non_artist'
 		}
 	}
 
@@ -178,7 +185,8 @@
 			email: selectedManager.email || '',
 			phone: selectedManager.phone || '',
 			location: selectedManager.location || '',
-			notes: selectedManager.notes || ''
+			notes: selectedManager.notes || '',
+			source_type: selectedManager.source_type || 'non_artist'
 		}
 		showEditModal = true
 	}
@@ -195,6 +203,15 @@
 		editError = null
 		try {
 			const parts = editForm.full_name.trim().split(/\s+/)
+			if (editForm.source_type === 'artist' && !selectedManager.artist_id) {
+				editError = 'Non-artist PM cannot be switched to artist without linking an artist record first.'
+				return
+			}
+
+			if (editForm.source_type === 'non_artist' && selectedManager.artist_id) {
+				await updateArtist(selectedManager.artist_id, { is_production_manager: false })
+			}
+
 			await updateProductionManager(selectedManager.id, {
 				full_name: editForm.full_name.trim(),
 				legal_first_name: parts[0] || editForm.full_name.trim(),
@@ -202,7 +219,9 @@
 				email: editForm.email || undefined,
 				phone: editForm.phone || undefined,
 				location: editForm.location || undefined,
-				notes: editForm.notes || undefined
+				notes: editForm.notes || undefined,
+				source_type: editForm.source_type,
+				artist_id: editForm.source_type === 'non_artist' ? null : selectedManager.artist_id
 			})
 			await loadManagers()
 			showEditModal = false
@@ -239,6 +258,35 @@
 			alert('Failed to delete production manager.')
 		} finally {
 			deleting = false
+		}
+	}
+
+	async function handleQuickTypeUpdate() {
+		if (!selectedManager?.id) return
+		if (quickSourceType === (selectedManager.source_type || 'non_artist')) return
+
+		creating = true
+		editError = null
+		try {
+			if (quickSourceType === 'artist' && !selectedManager.artist_id) {
+				throw new Error('Non-artist PM cannot be switched to artist without linking an artist record first.')
+			}
+
+			if (quickSourceType === 'non_artist' && selectedManager.artist_id) {
+				await updateArtist(selectedManager.artist_id, { is_production_manager: false })
+			}
+
+			await updateProductionManager(selectedManager.id, {
+				source_type: quickSourceType,
+				artist_id: quickSourceType === 'non_artist' ? null : selectedManager.artist_id
+			})
+
+			await loadManagers()
+		} catch (error: any) {
+			editError = error?.message || 'Failed to update production manager type'
+			quickSourceType = selectedManager?.source_type || 'non_artist'
+		} finally {
+			creating = false
 		}
 	}
 
@@ -299,6 +347,24 @@
 										<span class="badge badge-outline">
 											{pm.source_type === 'artist' ? 'Artist' : 'Non-artist'}
 										</span>
+									</div>
+									<div class="flex items-end gap-2">
+										<div class="form-control w-full max-w-xs">
+											<label class="label py-1">
+												<span class="label-text text-xs text-base-content/70">Production manager type</span>
+											</label>
+											<select class="select select-bordered select-sm" bind:value={quickSourceType} disabled={creating}>
+												<option value="artist">Artist</option>
+												<option value="non_artist">Non-artist</option>
+											</select>
+										</div>
+										<button
+											class="btn btn-outline btn-sm"
+											onclick={handleQuickTypeUpdate}
+											disabled={creating || quickSourceType === (pm.source_type || 'non_artist')}
+										>
+											Apply Type
+										</button>
 									</div>
 									<div class="flex gap-2">
 										<button class="btn btn-outline btn-sm" onclick={openEditModal}>
@@ -447,6 +513,15 @@
 						<span class="label-text">Full Name <span class="text-error">*</span></span>
 					</label>
 					<input id="edit-pm-full-name" type="text" class="input input-bordered w-full" bind:value={editForm.full_name} required disabled={creating} />
+				</div>
+				<div class="form-control">
+					<label class="label" for="edit-pm-type">
+						<span class="label-text">Production manager type</span>
+					</label>
+					<select id="edit-pm-type" class="select select-bordered w-full" bind:value={editForm.source_type} disabled={creating}>
+						<option value="artist">Artist</option>
+						<option value="non_artist">Non-artist</option>
+					</select>
 				</div>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="form-control">

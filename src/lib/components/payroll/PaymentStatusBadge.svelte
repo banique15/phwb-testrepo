@@ -29,6 +29,12 @@
 					icon: CreditCard,
 					label: 'Paid'
 				}
+			case PaymentStatus.WITH_ISSUES:
+				return {
+					class: 'badge-warning',
+					icon: Target,
+					label: 'With Issues'
+				}
 		case PaymentStatus.CANCELLED:
 				return {
 					class: 'badge-error',

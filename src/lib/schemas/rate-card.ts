@@ -148,6 +148,10 @@ export interface GeneratedPayrollEntry {
 	creation_method: string
 	source_event_id: number
 	notes: string
+	payee_name?: string | null
+	is_production_manager?: boolean
+	linked_payroll_id?: number | null
+	adjustment_type?: 'increase' | 'decrease' | 'correction' | null
 }
 
 // Generation result type

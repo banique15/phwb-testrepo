@@ -173,11 +173,20 @@
 
 		// Employment status filter
 		if (artistFilters.employmentStatus) {
-			if (artistFilters.employmentStatus === 'Employee') {
-				// Employee includes those with status set to Employee OR not set
-				result = result.filter(artist => artist.employment_status === 'Employee' || !artist.employment_status)
+			if (artistFilters.employmentStatus === 'W-2') {
+				// W-2 includes legacy Employee/W2 values and unset records.
+				result = result.filter(artist =>
+					artist.employment_status === 'W-2' ||
+					artist.employment_status === 'W2' ||
+					artist.employment_status === 'Employee' ||
+					!artist.employment_status
+				)
 			} else {
-				result = result.filter(artist => artist.employment_status === artistFilters.employmentStatus)
+				result = result.filter(artist =>
+					artistFilters.employmentStatus === '1099'
+						? ['1099', 'LLC', 'contractor'].includes(artist.employment_status || '')
+						: artist.employment_status === artistFilters.employmentStatus
+				)
 			}
 		}
 
@@ -840,9 +849,8 @@
 						}}
 					>
 						<option value="">All</option>
-						<option value="Employee">Employee/W2</option>
-						<option value="1099">LLC/1099</option>
-						<option value="Trial">Trial</option>
+						<option value="W-2">W-2 (Roster)</option>
+						<option value="1099">1099 (LLC)</option>
 					</select>
 				</div>
 			</div>

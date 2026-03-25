@@ -92,9 +92,8 @@
 
 	// Employment status options
 	const employmentStatusOptions = [
-		{ value: 'W2', label: 'W2 Employee' },
-		{ value: '1099', label: '1099 Contractor' },
-		{ value: 'Trial', label: 'Trial' }
+		{ value: 'W-2', label: 'W-2 (Roster)' },
+		{ value: '1099', label: '1099 (LLC)' }
 	]
 
 	// Position status options

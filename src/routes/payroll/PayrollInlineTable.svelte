@@ -8,7 +8,6 @@
 	import { rateCardStore, type RateRuleOption } from '$lib/stores/rate-cards'
 	import { DollarSign } from 'lucide-svelte'
 	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
-	import ArtistSelector from '$lib/components/ui/ArtistSelector.svelte'
 	import { onMount } from 'svelte'
 	import { browser } from '$app/environment'
 	import { supabase } from '$lib/supabase'
@@ -76,18 +75,19 @@
 	// Artist display formatting for LLC support
 	function formatArtistOption(artist: any): string {
 		const name = artist.full_name || `${artist.legal_first_name} ${artist.legal_last_name}`
-		if (artist.llc_name && (artist.employment_status === '1099' || artist.employment_status === 'LLC')) {
+		if (artist.llc_name && artist.employment_status === '1099') {
 			return `${artist.llc_name} (${name})`
 		}
 		return name
 	}
 
 	function formatArtistDisplay(entry: Partial<Payroll>): string {
+		if ((entry as any).payee_name) return (entry as any).payee_name
 		const a = (entry as any).artists
 		if (!a) return 'N/A'
 		const name = a.full_name || (a.legal_first_name && a.legal_last_name ? `${a.legal_first_name} ${a.legal_last_name}` : null)
 		if (!name) return 'N/A'
-		if (a.llc_name && entry.employee_contractor_status === 'llc') {
+		if (a.llc_name && entry.employee_contractor_status === '1099') {
 			return `${a.llc_name} (${name})`
 		}
 		return name
@@ -96,16 +96,47 @@
 	function deriveTypeFromArtist(artist: any): string | null {
 		if (!artist?.employment_status) return null
 		const status = artist.employment_status
-		if (status === 'Employee' || status === 'W2') return 'employee'
-		if (status === '1099' && artist.llc_name) return 'llc'
-		if (status === '1099') return 'contractor'
+		if (status === 'W-2' || status === 'W2' || status === 'Employee') return 'W-2'
+		if (status === '1099' || status === 'LLC' || status === 'contractor') return '1099'
 		return null
 	}
 
 	// Store subscriptions
 	let artists = $state<any[]>([])
+	let productionManagers = $state<any[]>([])
 	let facilities = $state<any[]>([])
 	
+	function getProductionManagerDisplayName(pm: any): string {
+		const artist = Array.isArray(pm?.phwb_artists) ? pm.phwb_artists[0] : pm?.phwb_artists
+		if (pm?.full_name) return pm.full_name
+		if (pm?.legal_first_name || pm?.legal_last_name) {
+			return [pm.legal_first_name || '', pm.legal_last_name || ''].filter(Boolean).join(' ')
+		}
+		if (artist?.full_name) return artist.full_name
+		if (artist?.artist_name) return artist.artist_name
+		if (artist?.legal_first_name || artist?.legal_last_name) {
+			return [artist.legal_first_name || '', artist.legal_last_name || ''].filter(Boolean).join(' ')
+		}
+		return 'Unknown PM'
+	}
+
+	async function loadProductionManagers() {
+		try {
+			const { data, error } = await supabase
+				.from('phwb_production_managers')
+				.select(
+					'id, artist_id, full_name, legal_first_name, legal_last_name, source_type, phwb_artists(full_name, artist_name, legal_first_name, legal_last_name)'
+				)
+				.order('full_name', { ascending: true, nullsFirst: false })
+
+			if (error) throw error
+			productionManagers = data || []
+		} catch (error) {
+			console.error('Failed to load production managers for payroll editing:', error)
+			productionManagers = []
+		}
+	}
+
 	// Text size management
 	const TEXT_SIZE_KEY = 'payroll-table-text-size'
 	const textSizes = [
@@ -140,6 +171,7 @@
 		artistsStore.fetchAll()
 		facilitiesStore.fetchAll()
 		rateCardStore.fetchActiveRuleOptions()
+		void loadProductionManagers()
 		
 		// Subscribe to stores
 		const unsubArtists = artistsStore.subscribe(state => {
@@ -182,7 +214,7 @@
 			insperity_hours: 0,
 			status: PaymentStatus.PLANNED,
 			payment_type: PaymentType.PERFORMANCE,
-			employee_contractor_status: EmployeeContractorStatus.EMPLOYEE,
+			employee_contractor_status: EmployeeContractorStatus.W2,
 			notes: '',
 			creation_method: 'manual'
 		})
@@ -244,8 +276,8 @@
 			errors.event_date = 'Date is required'
 		}
 		
-		// Required field: artist_id
-		if (!data.artist_id) {
+		// Required payee: allow non-artist PM rows with payee_name fallback.
+		if (!data.artist_id && !(data as any).payee_name && !data.is_production_manager) {
 			errors.artist_id = 'Artist is required'
 		}
 		
@@ -393,6 +425,8 @@
 	// Handle artist selection with auto-classification of employee/contractor type
 	function handleArtistSelect(id: string | number, artistId: string) {
 		updateField(id, 'artist_id', artistId)
+		// Clear non-artist PM fallback once an artist is selected
+		if (artistId) updateField(id, 'payee_name', null)
 		if (!artistId) return
 
 		const artist = artists.find((a: any) => a.id === artistId)
@@ -404,17 +438,38 @@
 		}
 	}
 
+	function handlePayeeSelect(id: string | number, value: string) {
+		if (!value) {
+			updateField(id, 'artist_id', '')
+			updateField(id, 'payee_name', null)
+			return
+		}
+
+		if (value.startsWith('artist:')) {
+			const artistId = value.replace('artist:', '')
+			handleArtistSelect(id, artistId)
+			updateField(id, 'is_production_manager', true)
+			return
+		}
+
+		if (value.startsWith('non-artist:')) {
+			const pmId = value.replace('non-artist:', '')
+			const pm = productionManagers.find((p: any) => p.id === pmId)
+			updateField(id, 'artist_id', null)
+			updateField(id, 'is_production_manager', true)
+			updateField(id, 'payee_name', pm ? getProductionManagerDisplayName(pm) : null)
+		}
+	}
+
 	// Filter artists based on the currently selected type column,
 	// but always include the currently selected artist (for existing rows)
 	function filteredArtists(typeStatus: string | null | undefined, selectedId?: string | null): any[] {
 		let list = artists
 
-		if (typeStatus === 'employee') {
-			list = artists.filter((a: any) => a.employment_status === 'Employee' || a.employment_status === 'W2' || !a.employment_status)
-		} else if (typeStatus === 'llc') {
-			list = artists.filter((a: any) => a.employment_status === '1099' && a.llc_name)
-		} else if (typeStatus === 'contractor') {
-			list = artists.filter((a: any) => a.employment_status === '1099')
+		if (typeStatus === 'W-2') {
+			list = artists.filter((a: any) => ['W-2', 'W2', 'Employee', undefined, null].includes(a.employment_status))
+		} else if (typeStatus === '1099') {
+			list = artists.filter((a: any) => ['1099', 'LLC', 'contractor'].includes(a.employment_status))
 		}
 
 		if (selectedId) {
@@ -425,6 +480,15 @@
 		}
 
 		return list
+	}
+
+	function getCurrentPayeeValue(editData: Partial<Payroll>): string {
+		const artistId = editData.artist_id
+		if (artistId) return `artist:${artistId}`
+		const payeeName = (editData as any).payee_name
+		if (!payeeName) return ''
+		const pm = productionManagers.find((p: any) => getProductionManagerDisplayName(p) === payeeName && !p.artist_id)
+		return pm ? `non-artist:${pm.id}` : ''
 	}
 
 	// Apply a selected rate rule to a payroll entry
@@ -704,20 +768,43 @@
 								{#if isEditingCell(entry.id!, 'artist_id') || isNew}
 									<div class="flex flex-col gap-0.5">
 										<div class="flex items-center gap-1">
-											<select
-												class="select select-bordered select-xs flex-1 min-w-[14rem]"
-												class:select-error={hasFieldError(entry.id!, 'artist_id')}
-												value={editData.artist_id}
-											onchange={(e) => handleArtistSelect(entry.id!, e.currentTarget.value)}
-												required
-											>
-												<option value="">Select artist...</option>
-											{#each filteredArtists(editData.employee_contractor_status, editData.artist_id) as artist}
-													<option value={artist.id}>
-														{formatArtistOption(artist)}
-													</option>
-												{/each}
-											</select>
+											{#if editData.is_production_manager}
+												<select
+													class="select select-bordered select-xs flex-1 min-w-[14rem]"
+													class:select-error={hasFieldError(entry.id!, 'artist_id')}
+													value={getCurrentPayeeValue(editData)}
+													onchange={(e) => handlePayeeSelect(entry.id!, e.currentTarget.value)}
+													required
+												>
+													<option value="">Select production manager...</option>
+													{#each productionManagers as pm}
+														{#if pm.artist_id}
+															<option value={`artist:${pm.artist_id}`}>
+																{getProductionManagerDisplayName(pm)} (Artist)
+															</option>
+														{:else}
+															<option value={`non-artist:${pm.id}`}>
+																{getProductionManagerDisplayName(pm)} (Non-artist)
+															</option>
+														{/if}
+													{/each}
+												</select>
+											{:else}
+												<select
+													class="select select-bordered select-xs flex-1 min-w-[14rem]"
+													class:select-error={hasFieldError(entry.id!, 'artist_id')}
+													value={editData.artist_id}
+													onchange={(e) => handleArtistSelect(entry.id!, e.currentTarget.value)}
+													required
+												>
+													<option value="">Select artist...</option>
+													{#each filteredArtists(editData.employee_contractor_status, editData.artist_id) as artist}
+														<option value={artist.id}>
+															{formatArtistOption(artist)}
+														</option>
+													{/each}
+												</select>
+											{/if}
 											{#if !isNew}
 												<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
 													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -741,7 +828,10 @@
 										onclick={() => startEditingCell(entry, 'artist_id')}
 										title={formatArtistDisplay(entry)}
 									>
-										{formatArtistDisplay(entry)}
+										<span>{formatArtistDisplay(entry)}</span>
+										{#if entry.is_production_manager}
+											<span class="badge badge-secondary badge-xs ml-2">PM</span>
+										{/if}
 									</div>
 								{/if}
 							</td>
@@ -811,10 +901,8 @@
 										onchange={(e) => updateField(entry.id!, 'employee_contractor_status', e.currentTarget.value || null)}
 									>
 										<option value="">-</option>
-										<option value="employee">W2</option>
-										<option value="contractor">1099</option>
-										<option value="llc">LLC</option>
-										<option value="roster_artist">Roster</option>
+										<option value="W-2">W-2</option>
+										<option value="1099">1099</option>
 									</select>
 									{#if !isNew}
 										<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
@@ -834,14 +922,10 @@
 									class="cursor-pointer hover:bg-base-200 px-2 py-1 rounded transition-all duration-150 border border-transparent hover:border-base-300" 
 									onclick={() => startEditingCell(entry, 'employee_contractor_status')}
 								>
-									{#if entry.employee_contractor_status === 'employee'}
+									{#if entry.employee_contractor_status === 'W-2'}
 										<span class="badge badge-success badge-xs">W2</span>
-									{:else if entry.employee_contractor_status === 'contractor'}
+									{:else if entry.employee_contractor_status === '1099'}
 										<span class="badge badge-warning badge-xs">1099</span>
-									{:else if entry.employee_contractor_status === 'llc'}
-										<span class="badge badge-info badge-xs">LLC</span>
-									{:else if entry.employee_contractor_status === 'roster_artist'}
-										<span class="badge badge-secondary badge-xs">Roster</span>
 									{:else}
 										<span class="text-xs opacity-50">-</span>
 									{/if}

@@ -136,6 +136,10 @@ export const payrollStore = {
 			const sortBy = options.sortBy || 'event_date'
 			const ascending = options.sortOrder === 'asc'
 			query = query.order(sortBy, { ascending })
+			// Deterministic tie-breaker: newest generated row first within same primary sort bucket.
+			if (sortBy !== 'created_at') {
+				query = query.order('created_at', { ascending: false })
+			}
 			
 			// Add pagination
 			const from = (options.page - 1) * options.limit
@@ -427,7 +431,7 @@ export const payrollStore = {
 				reconciled: true,
 				reconciled_at: new Date().toISOString(),
 				external_payment_id: externalPaymentId,
-				status: PaymentStatus.COMPLETED
+				status: PaymentStatus.PAID
 			}
 
 			const { data, error } = await supabase

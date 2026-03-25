@@ -129,9 +129,8 @@
 
 	// Employment status options
 	const employmentStatusOptions = [
-		{ value: 'Employee', label: 'Employee/W2' },
-		{ value: '1099', label: 'LLC/1099' },
-		{ value: 'Trial', label: 'Trial' }
+		{ value: 'W-2', label: 'W-2 (Roster)' },
+		{ value: '1099', label: '1099 (LLC)' }
 	]
 
 	// Shirt size options

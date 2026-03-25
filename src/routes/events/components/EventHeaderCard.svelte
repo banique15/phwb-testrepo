@@ -229,7 +229,6 @@
 							placeholder="Select a production manager (optional)"
 							onchange={async (productionManagerId, productionManager) => {
 								await onUpdateField('production_manager_id', productionManagerId)
-								await onUpdateField('production_manager_artist_id', productionManager?.artist_id ?? null)
 							}}
 						/>
 					</div>

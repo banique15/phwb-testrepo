@@ -9,7 +9,8 @@ import { lookupUtils, enhancedLookup } from './lookup'
 import type { Facility } from '$lib/schemas/facility'
 import type { Location } from '$lib/schemas/location'
 import type { Artist } from '$lib/schemas/artist'
-import { generatePayrollForEvent } from '$lib/services/payroll-generator'
+import { generatePayrollForEvent, reconcilePayrollForCompletedEvent } from '$lib/services/payroll-generator'
+import type { GeneratedPayrollEntry } from '$lib/schemas/rate-card'
 import {
 	queueBookingConfirmationNotificationsForEvent,
 	queueEventCompletedNotifications,
@@ -150,6 +151,9 @@ export const eventsStore = {
 		return eventsStore.enhanced.create(eventData)
 	},
 	update: async (id: string | number, updates: UpdateEvent) => {
+		const reviewedPayrollEntries = (updates as any).__reviewedPayrollEntries as GeneratedPayrollEntry[] | undefined
+		const persistedUpdates = { ...(updates as any) }
+		delete (persistedUpdates as any).__reviewedPayrollEntries
 		let previousEvent: Event | null = null
 		try {
 			previousEvent = await baseStore.getById(id)
@@ -157,8 +161,17 @@ export const eventsStore = {
 			previousEvent = null
 		}
 
-		const updatedEvent = await baseStore.update(id, updates)
+		const updatedEvent = await baseStore.update(id, persistedUpdates)
 		const hasArtistUpdates = Object.prototype.hasOwnProperty.call(updates, 'artists')
+		const hasPayrollDriverUpdates =
+			hasArtistUpdates ||
+			Object.prototype.hasOwnProperty.call(updates, 'start_time') ||
+			Object.prototype.hasOwnProperty.call(updates, 'end_time') ||
+			Object.prototype.hasOwnProperty.call(updates, 'number_of_musicians') ||
+			Object.prototype.hasOwnProperty.call(updates, 'pm_hours') ||
+			Object.prototype.hasOwnProperty.call(updates, 'pm_rate') ||
+			Object.prototype.hasOwnProperty.call(updates, 'production_manager_id') ||
+			Object.prototype.hasOwnProperty.call(updates, 'production_manager_artist_id')
 		if (hasArtistUpdates) {
 			try {
 				await queueInvitationNotificationsForEvent(
@@ -187,16 +200,50 @@ export const eventsStore = {
 					? parseInt(updatedEvent.id, 10)
 					: updatedEvent.id
 				if (normalizedId) {
-					await generatePayrollForEvent(normalizedId, { dryRun: false })
+					const generationResult = await generatePayrollForEvent(normalizedId, {
+						dryRun: false,
+						overriddenEntries: reviewedPayrollEntries
+					})
+					if (!generationResult.success || generationResult.errors.length > 0) {
+						const reason = generationResult.errors.join('; ') || 'Unknown payroll generation failure'
+						throw new Error(reason)
+					}
+					if (
+						reviewedPayrollEntries &&
+						reviewedPayrollEntries.length > 0 &&
+						generationResult.entriesCreated === 0 &&
+						generationResult.skippedEvents > 0
+					) {
+						throw new Error('Payroll was skipped because entries already exist for this event. Use reconciliation flow to adjust existing payroll.')
+					}
 				}
 			} catch (error) {
-				// Event status updates must still succeed even if payroll generation fails.
 				logger.error('Event completed but payroll generation failed:', error)
+				throw error
 			}
 			try {
 				await queueEventCompletedNotifications(updatedEvent, updatedEvent.artists)
 			} catch (error) {
 				logger.error('Failed queuing event completed notifications:', error)
+			}
+		}
+
+		const isCompletedEventEdit = !isCompletedTransition && updatedEvent.status === 'completed' && hasPayrollDriverUpdates
+		if (isCompletedEventEdit) {
+			try {
+				const normalizedId = typeof updatedEvent.id === 'string'
+					? parseInt(updatedEvent.id, 10)
+					: updatedEvent.id
+				if (normalizedId) {
+					const reconcileResult = await reconcilePayrollForCompletedEvent(normalizedId, { dryRun: false })
+					if (!reconcileResult.success || reconcileResult.errors.length > 0) {
+						const reason = reconcileResult.errors.join('; ') || 'Unknown payroll reconciliation failure'
+						throw new Error(reason)
+					}
+				}
+			} catch (error) {
+				logger.error('Completed event payroll reconciliation failed:', error)
+				throw error
 			}
 		}
 		return updatedEvent

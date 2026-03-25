@@ -43,8 +43,9 @@
 	const statusOptions = [
 		{ value: '', label: 'All Statuses' },
 		{ value: 'Planned', label: 'Planned' },
-		{ value: 'Unpaid', label: 'Unpaid' },
+		{ value: 'Approved', label: 'Approved' },
 		{ value: 'Paid', label: 'Paid' },
+		{ value: 'With Issues', label: 'With Issues' },
 		{ value: 'Cancelled', label: 'Cancelled' }
 	]
 
@@ -60,9 +61,8 @@
 	// Employee contractor status options
 	const employeeContractorOptions = [
 		{ value: '', label: 'All Statuses' },
-		{ value: 'employee', label: 'Employee' },
-		{ value: 'contractor', label: 'Contractor' },
-		{ value: 'roster_artist', label: 'Roster Artist' }
+		{ value: 'W-2', label: 'W-2' },
+		{ value: '1099', label: '1099' }
 	]
 
 	// Watch for open prop changes to control modal
@@ -123,7 +123,7 @@
 	function applyQuickFilter(filterType: string) {
 		switch (filterType) {
 			case 'unpaid':
-				localStatus = 'Unpaid'
+				localStatus = 'With Issues'
 				break
 			case 'paid_last_30':
 				localStatus = 'Paid'
@@ -136,7 +136,7 @@
 				localPaymentType = 'performance'
 				break
 			case 'contractors':
-				localEmployeeContractor = 'contractor'
+				localEmployeeContractor = '1099'
 				break
 			case 'upcoming_week':
 				const today = new Date()
@@ -259,7 +259,7 @@
 					class="btn btn-outline btn-sm"
 					onclick={() => applyQuickFilter('unpaid')}
 				>
-					Unpaid
+					With Issues
 				</button>
 				<button 
 					class="btn btn-outline btn-sm"
@@ -277,7 +277,7 @@
 					class="btn btn-outline btn-sm"
 					onclick={() => applyQuickFilter('contractors')}
 				>
-					Contractors Only
+					1099 Only
 				</button>
 				<button 
 					class="btn btn-outline btn-sm"
