@@ -37,12 +37,15 @@ You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
 
-## VoiceAI Integration Environment Variables
+## Notification Engine Environment Variables
 
-PHWB Phase 2 notification dispatch/callback integration uses these environment variables:
+PHWB notification dispatch, webhook, and cron integration uses these environment variables:
 
 ```env
-VOICEAI_BASE_URL=http://localhost:8000
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL="PHWB Notifications <notifications@singforhope.org>"
+RESEND_WEBHOOK_SECRET=whsec_...
+CRON_SECRET=replace_with_secure_random_value
 PHWB_INTEGRATION_BEARER_TOKEN=replace_with_secure_random_value
 PHWB_INTEGRATION_HMAC_SECRET=replace_with_secure_random_value
 PHWB_INTEGRATION_MAX_SKEW_SECONDS=300
@@ -50,7 +53,10 @@ PHWB_INTEGRATION_MAX_SKEW_SECONDS=300
 
 ### What each variable means
 
-- `VOICEAI_BASE_URL`: base URL for the `voiceaiagentv5` API.
+- `RESEND_API_KEY`: Resend API key used by `/api/notifications/dispatch`.
+- `RESEND_FROM_EMAIL`: sender identity for outbound notifications.
+- `RESEND_WEBHOOK_SECRET`: Svix secret used to verify `/api/notifications/webhooks/resend`.
+- `CRON_SECRET`: shared bearer token automatically sent by Vercel Cron requests.
 - `PHWB_INTEGRATION_BEARER_TOKEN`: shared bearer token for machine-to-machine auth.
 - `PHWB_INTEGRATION_HMAC_SECRET`: shared secret for HMAC request signing.
 - `PHWB_INTEGRATION_MAX_SKEW_SECONDS`: max allowed clock skew for signed requests (default 300).
@@ -76,9 +82,6 @@ openssl rand -base64 64
 
 ### Important
 
-Set the same token/secret values in both apps:
-
-- PHWB (`/home/jesse/projects/phwb/.env`)
-- voiceaiagentv5 (`/home/jesse/projects/voiceaiagentv5/.env`)
+Set these values in PHWB environment variables (`.env` locally and deployment provider in prod).
 
 Never commit real secrets to git.

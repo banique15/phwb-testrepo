@@ -27,6 +27,7 @@
 		eventId?: number
 		readonly?: boolean
 		mode?: 'create' | 'edit' // 'create' uses assignments prop, 'edit' uses eventId
+		persistInEditMode?: boolean
 		// Event times for calculating hours
 		eventStartTime?: string | null
 		eventEndTime?: string | null
@@ -38,6 +39,7 @@
 		eventId,
 		readonly = false,
 		mode = eventId ? 'edit' : 'create',
+		persistInEditMode = true,
 		eventStartTime = null,
 		eventEndTime = null
 	}: Props = $props()
@@ -389,7 +391,7 @@
 	}
 
 	async function saveAssignments() {
-		if (mode === 'edit' && eventId) {
+		if (mode === 'edit' && eventId && persistInEditMode) {
 			// Save to database
 			updating = true
 			try {

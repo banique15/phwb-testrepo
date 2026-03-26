@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { BellRing, Loader2, Mail, RefreshCw, RotateCcw, Save, Send, Settings, X } from 'lucide-svelte'
+  import { BellOff, BellRing, Loader2, Mail, RefreshCw, RotateCcw, Save, Settings, X } from 'lucide-svelte'
+  import { isTransactionalNotificationType } from '$lib/notifications/dispatch-classification'
   import { supabase } from '$lib/supabase'
   import { type NotificationTemplate, type NotificationPolicy, type NotificationRun } from '$lib/schemas'
   import { notificationTemplatesStore } from '$lib/stores/notification-templates'
@@ -67,6 +68,14 @@
     'partner_requested_artist_not_found_admin'
   ])
 
+  type NotificationRecipientRow = {
+    id: string
+    notification_type: string
+    recipient_email: string
+    recipient_name?: string | null
+    active: boolean
+  }
+
   let loading = $state(true)
   let savingChanges = $state(false)
   let sendingTestEmail = $state(false)
@@ -76,8 +85,16 @@
   let templates = $state<NotificationTemplate[]>([])
   let policies = $state<NotificationPolicy[]>([])
   let notificationRuns = $state<NotificationRun[]>([])
-  let dispatchingRuns = $state(false)
+  let notificationRecipients = $state<NotificationRecipientRow[]>([])
   let runActionLoadingId = $state<string | null>(null)
+  let addingRecipient = $state(false)
+  let recipientType = $state('booking_confirmed_admin')
+  let recipientEmail = $state('')
+  let recipientName = $state('')
+  let recipientActionLoadingId = $state<string | null>(null)
+  let globalNotificationsEnabled = $state(true)
+  let globalNotificationsOptionId = $state<string | null>(null)
+  let savingGlobalNotifications = $state(false)
 
   let isModalOpen = $state(false)
   let activeTab = $state<ModalTab>('preview')
@@ -104,6 +121,7 @@
   const selectedPolicy = $derived(
     selectedTemplate ? (policies.find((policy) => policy.notification_type === selectedTemplate.notification_type) ?? null) : null
   )
+  const notificationsUiDisabled = $derived(!globalNotificationsEnabled)
   const previewSubject = $derived(interpolateTemplate(editorSubject, sampleTokens))
   const previewBody = $derived(interpolateTemplate(editorBody, sampleTokens))
 
@@ -111,23 +129,51 @@
     await loadData()
   })
 
+  function getRecipientsForType(notificationType: string) {
+    return notificationRecipients.filter(
+      (recipient) => recipient.notification_type === notificationType && recipient.active
+    )
+  }
+
   async function loadData() {
     loading = true
     error = null
     successMessage = null
 
     try {
-      const [templateResult, policyResult] = await Promise.all([
+      const [templateResult, policyResult, recipientResult, globalToggleResult] = await Promise.all([
         notificationTemplatesStore.fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' }),
-        notificationPoliciesStore.fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' })
+        notificationPoliciesStore.fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' }),
+        supabase
+          .from('phwb_notification_recipients')
+          .select('*')
+          .order('notification_type', { ascending: true })
+          .order('recipient_email', { ascending: true }),
+        supabase
+          .from('phwb_config_options')
+          .select('id, value')
+          .eq('entity', 'notification_system')
+          .eq('field', 'enabled')
+          .order('updated_at', { ascending: false })
+          .limit(1)
       ])
 
       templates = templateResult.data
       policies = policyResult.data
+      notificationRecipients = (recipientResult.data as NotificationRecipientRow[]) || []
+      const globalToggleRow = globalToggleResult.data?.[0]
+      globalNotificationsOptionId = globalToggleRow?.id ?? null
+      globalNotificationsEnabled =
+        globalToggleRow?.value == null
+          ? true
+          : ['true', '1', 'yes', 'on', 'enabled'].includes(String(globalToggleRow.value).trim().toLowerCase())
       await loadNotificationRuns()
 
       if (!selectedTemplateId && templates.length > 0) {
         selectedTemplateId = templates[0].id ?? null
+      }
+      if (!recipientType && templates.length > 0) {
+        recipientType = 'booking_confirmed_admin'
       }
 
       if (selectedTemplateId) {
@@ -182,6 +228,7 @@
   }
 
   function openTemplateModal(template: NotificationTemplate) {
+    if (notificationsUiDisabled) return
     selectedTemplateId = template.id ?? null
     activeTab = 'preview'
     testRecipientEmail = ''
@@ -242,6 +289,10 @@
   }
 
   async function saveAllChanges() {
+    if (notificationsUiDisabled) {
+      error = 'Global notifications are disabled. Re-enable them to edit template settings.'
+      return
+    }
     if (!selectedTemplate?.id) return
 
     savingChanges = true
@@ -262,6 +313,10 @@
   }
 
   async function sendTestEmail() {
+    if (notificationsUiDisabled) {
+      error = 'Global notifications are disabled. Re-enable them to send test emails.'
+      return
+    }
     if (!selectedTemplate?.id || !testRecipientEmail.trim()) {
       error = 'Please enter a recipient email address'
       return
@@ -272,7 +327,7 @@
     successMessage = null
 
     try {
-      const { error: insertError } = await supabase.from('phwb_notification_runs').insert([
+      const { data: insertedRun, error: insertError } = await supabase.from('phwb_notification_runs').insert([
         {
           template_id: selectedTemplate.id,
           policy_id: selectedPolicy?.id ?? null,
@@ -291,43 +346,136 @@
             source: 'notification-settings-ui'
           }
         }
-      ])
+      ]).select('id').maybeSingle()
 
       if (insertError) throw insertError
 
-      successMessage = 'Test email queued'
+      if (insertedRun?.id && isTransactionalNotificationType(selectedTemplate.notification_type)) {
+        await fetch(`/api/notifications/runs/${insertedRun.id}/send-now`, { method: 'POST' })
+      }
+
+      successMessage = 'Test email created'
       await loadData()
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to queue test email'
+      error = err instanceof Error ? err.message : 'Failed to create test email'
     } finally {
       sendingTestEmail = false
     }
   }
 
-  async function dispatchPendingRuns() {
-    dispatchingRuns = true
+  async function saveGlobalNotificationsToggle() {
+    savingGlobalNotifications = true
+    error = null
+    successMessage = null
+    const nextValue = globalNotificationsEnabled ? 'true' : 'false'
+
+    try {
+      if (globalNotificationsOptionId) {
+        const { error: updateError } = await supabase
+          .from('phwb_config_options')
+          .update({
+            value: nextValue,
+            active: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', globalNotificationsOptionId)
+        if (updateError) throw updateError
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from('phwb_config_options')
+          .insert([
+            {
+              entity: 'notification_system',
+              field: 'enabled',
+              value: nextValue,
+              active: true,
+              order_num: 0
+            }
+          ])
+          .select('id')
+          .maybeSingle()
+        if (insertError) throw insertError
+        globalNotificationsOptionId = inserted?.id ?? null
+      }
+
+      successMessage = globalNotificationsEnabled
+        ? 'All notifications are now enabled'
+        : 'All notifications are now disabled'
+      if (!globalNotificationsEnabled) {
+        isModalOpen = false
+      }
+      await loadData()
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to update global notification setting'
+    } finally {
+      savingGlobalNotifications = false
+    }
+  }
+
+  async function addRecipient() {
+    if (notificationsUiDisabled) {
+      error = 'Global notifications are disabled. Re-enable them to update admin recipients.'
+      return
+    }
+    const email = recipientEmail.trim().toLowerCase()
+    if (!recipientType || !email) {
+      error = 'Choose a notification type and recipient email'
+      return
+    }
+    addingRecipient = true
     error = null
     successMessage = null
     try {
-      const response = await fetch('/api/notifications/dispatch', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ limit: 25 })
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to dispatch pending runs')
-      }
-      successMessage = `Dispatch processed ${payload.processed || 0} run(s)`
-      await loadNotificationRuns()
+      const { error: insertError } = await supabase.from('phwb_notification_recipients').upsert(
+        {
+          notification_type: recipientType,
+          recipient_email: email,
+          recipient_name: recipientName.trim() || null,
+          active: true,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'notification_type,recipient_email' }
+      )
+      if (insertError) throw insertError
+      recipientEmail = ''
+      recipientName = ''
+      successMessage = 'Admin recipient added'
+      await loadData()
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to dispatch pending runs'
+      error = err instanceof Error ? err.message : 'Failed to add admin recipient'
     } finally {
-      dispatchingRuns = false
+      addingRecipient = false
+    }
+  }
+
+  async function removeRecipient(recipientId: string) {
+    if (notificationsUiDisabled) {
+      error = 'Global notifications are disabled. Re-enable them to update admin recipients.'
+      return
+    }
+    recipientActionLoadingId = recipientId
+    error = null
+    successMessage = null
+    try {
+      const { error: updateError } = await supabase
+        .from('phwb_notification_recipients')
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq('id', recipientId)
+      if (updateError) throw updateError
+      successMessage = 'Admin recipient removed'
+      await loadData()
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to remove admin recipient'
+    } finally {
+      recipientActionLoadingId = null
     }
   }
 
   async function retryRun(runId: string) {
+    if (notificationsUiDisabled) {
+      error = 'Global notifications are disabled. Re-enable them to retry runs.'
+      return
+    }
     runActionLoadingId = runId
     error = null
     successMessage = null
@@ -345,6 +493,10 @@
   }
 
   async function cancelRun(runId: string) {
+    if (notificationsUiDisabled) {
+      error = 'Global notifications are disabled. Re-enable them to cancel runs.'
+      return
+    }
     runActionLoadingId = runId
     error = null
     successMessage = null
@@ -398,14 +550,6 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button class="btn btn-outline btn-sm" onclick={dispatchPendingRuns} disabled={dispatchingRuns}>
-        {#if dispatchingRuns}
-          <Loader2 class="w-4 h-4 mr-2 animate-spin" />
-        {:else}
-          <Send class="w-4 h-4 mr-2" />
-        {/if}
-        Dispatch Pending
-      </button>
       <button class="btn btn-outline btn-sm" onclick={loadData}>
         <RefreshCw class="w-4 h-4 mr-2" />
         Refresh
@@ -420,12 +564,56 @@
     <div class="alert alert-success mb-4"><span>{successMessage}</span></div>
   {/if}
 
+  <div class="card bg-base-100 shadow-xl mb-6">
+    <div class="card-body">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="card-title text-base">
+            <BellOff class="w-5 h-5" />
+            Global Notification Switch
+          </h2>
+          <p class="text-sm text-base-content/70">
+            Turn all notification queueing and sending on or off for demos and staged rollouts.
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="label cursor-pointer gap-3">
+            <span class="label-text font-medium">
+              {globalNotificationsEnabled ? 'On' : 'Off'}
+            </span>
+            <input
+              type="checkbox"
+              class="toggle toggle-primary"
+              bind:checked={globalNotificationsEnabled}
+              disabled={savingGlobalNotifications || loading}
+            />
+          </label>
+          <button
+            class="btn btn-sm btn-primary"
+            onclick={saveGlobalNotificationsToggle}
+            disabled={savingGlobalNotifications || loading}
+          >
+            {#if savingGlobalNotifications}
+              <Loader2 class="w-4 h-4 mr-2 animate-spin" />
+            {/if}
+            Save Global Toggle
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {#if loading}
     <div class="flex justify-center py-14"><Loader2 class="w-8 h-8 animate-spin text-primary" /></div>
   {:else}
-    <div class="card bg-base-100 shadow-xl mb-6">
+    <div class="card bg-base-100 shadow-xl mb-6 {notificationsUiDisabled ? 'opacity-60 pointer-events-none select-none' : ''}">
       <div class="card-body">
         <h2 class="card-title"><BellRing class="w-5 h-5" /> Artist Notifications</h2>
+        {#if notificationsUiDisabled}
+          <div class="alert alert-warning py-2 text-sm">
+            <span>Disabled by global notification switch.</span>
+          </div>
+        {/if}
         <div class="overflow-x-auto">
           <table class="table">
             <thead>
@@ -462,9 +650,72 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 shadow-xl">
+    <div class="card bg-base-100 shadow-xl {notificationsUiDisabled ? 'opacity-60 pointer-events-none select-none' : ''}">
       <div class="card-body">
         <h2 class="card-title"><BellRing class="w-5 h-5" /> Admin Notifications</h2>
+        {#if notificationsUiDisabled}
+          <div class="alert alert-warning py-2 text-sm">
+            <span>Disabled by global notification switch.</span>
+          </div>
+        {/if}
+        <div class="rounded-lg border border-base-300 p-4 mb-4">
+          <h3 class="font-medium mb-3">Admin Recipients</h3>
+          <p class="text-sm text-base-content/70 mb-3">
+            Configure who receives each admin notification type.
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
+            <select class="select select-bordered select-sm md:col-span-2" bind:value={recipientType}>
+              {#each adminTemplates as template}
+                <option value={template.notification_type}>
+                  {notificationTypeLabels[template.notification_type] || template.notification_type}
+                </option>
+              {/each}
+            </select>
+            <input
+              class="input input-bordered input-sm"
+              placeholder="Recipient email"
+              bind:value={recipientEmail}
+              type="email"
+            />
+            <input
+              class="input input-bordered input-sm"
+              placeholder="Recipient name (optional)"
+              bind:value={recipientName}
+            />
+          </div>
+          <div class="flex items-center justify-between mb-3">
+            <button class="btn btn-sm btn-primary" onclick={addRecipient} disabled={addingRecipient}>
+              {#if addingRecipient}
+                <Loader2 class="w-4 h-4 mr-2 animate-spin" />
+              {/if}
+              Add Recipient
+            </button>
+            <span class="text-xs text-base-content/60">Recipients for selected type: {getRecipientsForType(recipientType).length}</span>
+          </div>
+          <div class="space-y-2">
+            {#if getRecipientsForType(recipientType).length === 0}
+              <p class="text-sm text-base-content/60">No recipients configured for this admin notification.</p>
+            {:else}
+              {#each getRecipientsForType(recipientType) as recipient}
+                <div class="flex items-center justify-between rounded border border-base-300 px-3 py-2">
+                  <div>
+                    <p class="text-sm font-medium">{recipient.recipient_email}</p>
+                    {#if recipient.recipient_name}
+                      <p class="text-xs text-base-content/60">{recipient.recipient_name}</p>
+                    {/if}
+                  </div>
+                  <button
+                    class="btn btn-xs btn-outline btn-error"
+                    onclick={() => removeRecipient(recipient.id)}
+                    disabled={recipientActionLoadingId === recipient.id}
+                  >
+                    Remove
+                  </button>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </div>
         <div class="overflow-x-auto">
           <table class="table">
             <thead>
@@ -501,9 +752,14 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 shadow-xl mt-6">
+    <div class="card bg-base-100 shadow-xl mt-6 {notificationsUiDisabled ? 'opacity-60 pointer-events-none select-none' : ''}">
       <div class="card-body">
         <h2 class="card-title">Notification Runs</h2>
+        {#if notificationsUiDisabled}
+          <div class="alert alert-warning py-2 text-sm">
+            <span>Actions are disabled while global notifications are off.</span>
+          </div>
+        {/if}
         <div class="overflow-x-auto">
           <table class="table table-sm">
             <thead>
@@ -563,7 +819,7 @@
 </div>
 </div>
 
-{#if isModalOpen && selectedTemplate}
+{#if isModalOpen && selectedTemplate && !notificationsUiDisabled}
   <div class="modal modal-open">
     <div class="modal-box max-w-6xl p-0">
       <div class="p-4 border-b border-base-300 flex items-center justify-between">

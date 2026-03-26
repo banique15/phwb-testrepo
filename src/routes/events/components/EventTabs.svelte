@@ -81,6 +81,9 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 	let submitError = $state('')
 	let showPayrollImpactModal = $state(false)
 	let payrollImpactResolver: ((confirmed: boolean) => void) | null = null
+	let showInvitePromptModal = $state(false)
+	let invitePromptResolver: ((sendInvites: boolean) => void) | null = null
+	let invitePromptNewArtistsCount = $state(0)
 
 	// Ensemble state
 	let ensembles = $state<(Ensemble & { member_count?: number })[]>([])
@@ -188,6 +191,27 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		payrollImpactResolver = null
 	}
 
+	function extractArtistIdsFromAssignments(assignments: any[]): string[] {
+		return (assignments || [])
+			.map((assignment: any) => assignment?.artist_id)
+			.filter((artistId: unknown): artistId is string => typeof artistId === 'string' && artistId.length > 0)
+	}
+
+	async function confirmInvitePrompt(newArtistsCount: number): Promise<boolean> {
+		invitePromptNewArtistsCount = newArtistsCount
+		showInvitePromptModal = true
+		return await new Promise((resolve) => {
+			invitePromptResolver = resolve
+		})
+	}
+
+	function resolveInvitePrompt(sendInvites: boolean) {
+		showInvitePromptModal = false
+		invitePromptResolver?.(sendInvites)
+		invitePromptResolver = null
+		invitePromptNewArtistsCount = 0
+	}
+
 	async function saveEdit() {
 		if (!event?.id) return
 
@@ -245,6 +269,15 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 			} else if (editingTab === 'performers') {
 				if (formData.artist_assignments !== event.artists?.assignments) {
 					updateData.artists = { assignments: formData.artist_assignments }
+					const previousArtistIds = new Set(
+						extractArtistIdsFromAssignments(event.artists?.assignments || [])
+					)
+					const nextArtistIds = extractArtistIdsFromAssignments(formData.artist_assignments)
+					const newlyAddedArtistIds = nextArtistIds.filter((artistId) => !previousArtistIds.has(artistId))
+					if (newlyAddedArtistIds.length > 0) {
+						const sendInvites = await confirmInvitePrompt(newlyAddedArtistIds.length)
+						;(updateData as any).__sendInvitationNotifications = sendInvites
+					}
 				}
 			} else if (editingTab === 'notes') {
 				if (formData.notes !== event.notes) {
@@ -505,6 +538,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 							onAssignmentsUpdate={handleArtistAssignmentsUpdate}
 							eventId={event.id}
 							mode="edit"
+							persistInEditMode={false}
 							readonly={false}
 							eventStartTime={formData.start_time}
 							eventEndTime={formData.end_time}
@@ -845,6 +879,25 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 			<div class="modal-action">
 				<button class="btn btn-ghost" onclick={() => resolvePayrollImpact(false)}>Cancel</button>
 				<button class="btn btn-primary" onclick={() => resolvePayrollImpact(true)}>Continue</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showInvitePromptModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Send Artist Invitation Email?</h3>
+			<p class="text-sm opacity-80 mt-2">
+				You added {invitePromptNewArtistsCount} artist{invitePromptNewArtistsCount === 1 ? '' : 's'} to this existing event.
+				Do you want to send invitation email{invitePromptNewArtistsCount === 1 ? '' : 's'} now?
+			</p>
+			<p class="text-xs opacity-70 mt-2">
+				Choose “Skip” for edge cases where artists are already confirmed and no invite is needed.
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolveInvitePrompt(false)}>Skip</button>
+				<button class="btn btn-primary" onclick={() => resolveInvitePrompt(true)}>Send Invitation</button>
 			</div>
 		</div>
 	</div>

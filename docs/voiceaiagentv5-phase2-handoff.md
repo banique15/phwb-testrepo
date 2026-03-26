@@ -1,5 +1,7 @@
 # PHWB -> voiceaiagentv5 Phase 2 Handoff
 
+> Legacy reference: PHWB now dispatches directly via Resend + cron. Keep this document only for rollback/history.
+
 ## Purpose
 
 This document is the implementation handoff for the agent/team working on `voiceaiagentv5`, aligned to PHWB Phase 2 notification integration.

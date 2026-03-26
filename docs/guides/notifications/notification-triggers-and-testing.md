@@ -2,16 +2,27 @@
 
 ## Overview
 
-This guide explains which notification types are currently triggered by PHWB code (V2 in progress), and how to test each flow safely.
+This guide explains which notification types are currently triggered by PHWB code and how to test each flow safely.
 
-This is intended for QA, operations, and developers coordinating PHWB with `voiceaiagentv5`.
+This is intended for QA, operations, and developers managing PHWB's in-app Resend notification engine.
+
+## Delivery Model
+
+- **Transactional notifications** send immediately when the business trigger happens.
+- **Reminder notifications** are scheduled and sent by cron via `/api/notifications/dispatch`.
+- **Retries** (for both categories) are queued using `status='scheduled'` + `next_attempt_at` and picked up by cron.
+- **Admin recipients** are configured per admin notification type in **Settings > Notifications**.
 
 ## Prerequisites
 
 - Notification migration applied, including templates/policies:
   - `migrations/017_create_notification_engine.sql`
+  - `migrations/020_resend_notification_engine.sql`
 - Integration environment variables set in PHWB:
-  - `VOICEAI_BASE_URL`
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL`
+  - `RESEND_WEBHOOK_SECRET`
+  - `CRON_SECRET` (recommended, for Vercel cron auth)
   - `PHWB_INTEGRATION_BEARER_TOKEN`
   - `PHWB_INTEGRATION_HMAC_SECRET`
   - `PHWB_INTEGRATION_MAX_SKEW_SECONDS` (optional)
@@ -56,11 +67,10 @@ These exist in template/policy setup, but do not yet have automatic producer hoo
 2. Open `Settings > Notifications` and check the **Notification Runs** table.
 3. Confirm a new run appears with:
    - `notification_type = artist_added_to_system`
-   - `status = pending` (or `scheduled` after dispatch)
-4. Click **Dispatch Pending**.
-5. Verify:
+   - `status = sent` (or `scheduled/failed` when retry/failure path is hit)
+4. Verify:
    - attempt record exists
-   - run status changes to `scheduled/sent/failed` based on integration response.
+   - run status reflects immediate dispatch (`sent` on success).
 
 ## 2) Artist Invited to Event
 
@@ -69,7 +79,7 @@ These exist in template/policy setup, but do not yet have automatic producer hoo
 3. Verify run appears with:
    - `notification_type = artist_added_to_event_invited`
    - recipient is assigned artist email.
-4. Dispatch and validate status transition.
+4. Validate immediate status transition to `sent` (or `scheduled/failed` on error path).
 
 ## 3) Event Completed Notifications
 
@@ -78,7 +88,7 @@ These exist in template/policy setup, but do not yet have automatic producer hoo
 3. Verify two runs per artist are created:
    - `artist_thank_you_after_completed`
    - `artist_feedback_request`
-4. Dispatch and validate status updates.
+4. Validate immediate status updates for each generated run.
 
 ## 4) Payout Processed
 
@@ -87,14 +97,33 @@ These exist in template/policy setup, but do not yet have automatic producer hoo
 3. Verify run appears with:
    - `notification_type = artist_payout_processed`
    - payload includes `compensation_amount` and `payout_date`.
-4. Dispatch and validate status.
+4. Validate immediate status update (`sent` expected on success).
 
-## Callback/Idempotency Verification
+## Reminder/Cron Validation
 
-Status callbacks:
+1. Create a reminder-style run (for a reminder template/policy) with a future `scheduled_for`.
+2. Confirm it remains `pending` until due time.
+3. Wait for cron cycle and verify:
+   - run transitions to `sent` (or retry/failure path),
+   - attempt row is created with `provider='resend'`.
 
-- Endpoint: `/api/notifications/callbacks/status`
-- Duplicate callback with same `idempotency_key` should return duplicate/no-op behavior.
+For invitation follow-ups, configure `artist_invitation_reminder` policy `dunning_rules` with two offsets, for example:
+
+```json
+[
+  { "offset_days": 3 },
+  { "offset_days": 7 }
+]
+```
+
+These values determine first/second follow-up scheduling for invitation reminders.
+
+## Webhook/Idempotency Verification
+
+Resend delivery webhooks:
+
+- Endpoint: `/api/notifications/webhooks/resend`
+- Duplicate webhook events (same `svix-id`) should return duplicate/no-op behavior.
 
 Response callbacks:
 
@@ -113,14 +142,15 @@ Use these to validate operational recovery without editing DB rows directly.
 ## Success Criteria
 
 - Trigger actions create the expected `phwb_notification_runs` records.
-- Dispatch creates `phwb_notification_attempts` records.
+- Immediate transactional sends create `phwb_notification_attempts` records without manual dispatch.
+- Cron dispatch creates attempts for scheduled reminders and retry workloads.
 - Status callbacks update run state correctly.
 - Duplicate callbacks do not create duplicate side effects.
 - Retry/Cancel actions correctly transition run state.
 
 ## Related Documentation
 
-- [VoiceAI v2 Handoff](../../voiceaiagentv5-phase2-handoff.md)
+- [VoiceAI v2 Handoff (Legacy)](../../voiceaiagentv5-phase2-handoff.md)
 - [Process Payroll](../payroll/process-payroll.md)
 - [Edit Event](../events/edit-event.md)
 - [Create Artist](../artists/create-artist.md)

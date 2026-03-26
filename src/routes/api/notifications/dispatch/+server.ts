@@ -1,8 +1,10 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { z } from 'zod'
-import { env } from '$env/dynamic/private'
-import { getOutboundIntegrationAuthHeaders, verifyIntegrationAuth } from '$lib/server/integration-auth'
+import { verifyIntegrationAuth } from '$lib/server/integration-auth'
+import { isReminderNotificationType } from '$lib/notifications/dispatch-classification'
+import { areNotificationsGloballyEnabled } from '$lib/notifications/system-toggle'
+import { sendWithResend } from '$lib/server/notifications/resend-provider'
 
 const dispatchRequestSchema = z
   .object({
@@ -10,26 +12,14 @@ const dispatchRequestSchema = z
   })
   .partial()
 
-export const POST: RequestHandler = async ({ request, locals, url }) => {
-  const rawBody = await request.text()
-  const parsedBody = rawBody ? JSON.parse(rawBody) : {}
-  const body = dispatchRequestSchema.parse(parsedBody)
-
-  const authResult = verifyIntegrationAuth({
-    method: request.method,
-    path: url.pathname,
-    rawBody,
-    headers: request.headers
-  })
-  const hasSession = !!locals.session
-
-  if (!hasSession && !authResult.ok) {
-    return json({ error: authResult.reason || 'Unauthorized' }, { status: 401 })
-  }
-
-  const voiceaiBaseUrl = env.VOICEAI_BASE_URL || env.VOICEAI_AGENT_BASE_URL || ''
-  if (!voiceaiBaseUrl) {
-    return json({ error: 'VOICEAI_BASE_URL is not configured' }, { status: 500 })
+async function runDispatch(locals: App.Locals, limit: number) {
+  const notificationsEnabled = await areNotificationsGloballyEnabled(locals.supabaseAdmin as any)
+  if (!notificationsEnabled) {
+    return json({
+      processed: 0,
+      skipped: true,
+      reason: 'Global notifications are disabled'
+    })
   }
 
   const nowIso = new Date().toISOString()
@@ -38,7 +28,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     .select('*')
     .in('status', ['pending', 'scheduled'])
     .order('created_at', { ascending: true })
-    .limit(body.limit ?? 25)
+    .limit(limit)
 
   if (fetchError) {
     return json({ error: fetchError.message }, { status: 500 })
@@ -47,16 +37,22 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
   const nowMs = new Date(nowIso).getTime()
   const runnable = (candidates || []).filter((row) => {
     if (row.status === 'pending') {
+      // Cron dispatch is only for reminder-like scheduled work.
+      if (!isReminderNotificationType(row.notification_type || '')) return false
       const scheduledFor = row.scheduled_for
       if (!scheduledFor) return true
       return new Date(scheduledFor).getTime() <= nowMs
     }
 
     if (row.status === 'scheduled') {
-      // Only retry scheduled runs that explicitly have a retry timestamp.
-      // Runs already queued to voiceai wait in "scheduled" until callback.
-      if (!row.next_attempt_at) return false
-      return new Date(row.next_attempt_at).getTime() <= nowMs
+      const nextAttemptAtMs = row.next_attempt_at ? new Date(row.next_attempt_at).getTime() : null
+      const scheduledForMs = row.scheduled_for ? new Date(row.scheduled_for).getTime() : null
+      // Retry workload can include any notification type.
+      if (nextAttemptAtMs !== null) return nextAttemptAtMs <= nowMs
+      // Scheduled non-retry workload should stay reminder-only.
+      if (!isReminderNotificationType(row.notification_type || '')) return false
+      if (scheduledForMs !== null) return scheduledForMs <= nowMs
+      return true
     }
 
     return false
@@ -91,63 +87,48 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     claimedCount += 1
 
     const outboundPayload = {
-      contract_version: 'v1',
       run_id: claimedRun.id,
       dedupe_key: claimedRun.dedupe_key,
       notification_type: claimedRun.notification_type,
-      recipient: {
-        email: claimedRun.recipient_email,
-        name: claimedRun.recipient_name
-      },
-      context: {
-        artist_id: claimedRun.artist_id,
-        event_id: claimedRun.event_id
-      },
-      content: {
-        subject: claimedRun.rendered_subject,
-        html: claimedRun.rendered_body
-      },
-      schedule: {
-        scheduled_for: claimedRun.scheduled_for,
-        max_attempts: claimedRun.max_attempts
-      }
+      recipient_email: claimedRun.recipient_email,
+      recipient_name: claimedRun.recipient_name,
+      subject: claimedRun.rendered_subject,
+      html: claimedRun.rendered_body,
+      scheduled_for: claimedRun.scheduled_for
     }
 
-    const outboundRawBody = JSON.stringify(outboundPayload)
-    const enqueuePath = '/api/notifications/enqueue'
-
     try {
-      const response = await fetch(`${voiceaiBaseUrl}${enqueuePath}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...getOutboundIntegrationAuthHeaders(enqueuePath, 'POST', outboundRawBody)
-        },
-        body: outboundRawBody
+      const sendResult = await sendWithResend({
+        to: claimedRun.recipient_email,
+        subject: claimedRun.rendered_subject || '',
+        html: claimedRun.rendered_body || '',
+        tags: {
+          run_id: claimedRun.id,
+          notification_type: claimedRun.notification_type
+        }
       })
-
-      const responsePayload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(responsePayload?.error || `voiceai enqueue failed with status ${response.status}`)
+      if (!sendResult.ok) {
+        throw new Error(sendResult.errorMessage || 'Failed to send with Resend')
       }
 
       await locals.supabaseAdmin.from('phwb_notification_attempts').insert([
         {
           run_id: claimedRun.id,
           attempt_no: nextAttempt,
-          provider: 'voiceai',
-          status: 'queued',
-          provider_message_id: responsePayload?.external_workflow_id || null,
+          provider: 'resend',
+          status: 'sent',
+          provider_message_id: sendResult.messageId || null,
           request_payload: outboundPayload,
-          response_payload: responsePayload
+          response_payload: sendResult.responsePayload || {}
         }
       ])
 
       await locals.supabaseAdmin
         .from('phwb_notification_runs')
         .update({
-          status: 'scheduled',
-          external_workflow_id: responsePayload?.external_workflow_id || claimedRun.external_workflow_id,
+          status: 'sent',
+          sent_at: nowIso,
+          next_attempt_at: null,
           updated_at: new Date().toISOString(),
           last_error: null
         })
@@ -163,7 +144,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
         {
           run_id: claimedRun.id,
           attempt_no: nextAttempt,
-          provider: 'voiceai',
+          provider: 'resend',
           status: 'failed',
           request_payload: outboundPayload,
           response_payload: {},
@@ -189,4 +170,64 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     processed: claimedCount,
     results
   })
+}
+
+function parseLimitFromBody(rawBody: string) {
+  let parsedBody: Record<string, unknown> = {}
+  try {
+    parsedBody = rawBody ? JSON.parse(rawBody) : {}
+  } catch {
+    return { ok: false as const, error: json({ error: 'Invalid JSON payload' }, { status: 400 }) }
+  }
+
+  const parsed = dispatchRequestSchema.safeParse(parsedBody)
+  if (!parsed.success) {
+    return { ok: false as const, error: json({ error: parsed.error.flatten() }, { status: 400 }) }
+  }
+  return { ok: true as const, limit: parsed.data.limit ?? 25 }
+}
+
+function parseLimitFromQuery(url: URL) {
+  const rawLimit = url.searchParams.get('limit')
+  const limitValue = rawLimit ? Number(rawLimit) : undefined
+  const parsed = dispatchRequestSchema.safeParse({ limit: limitValue })
+  if (!parsed.success) {
+    return { ok: false as const, error: json({ error: parsed.error.flatten() }, { status: 400 }) }
+  }
+  return { ok: true as const, limit: parsed.data.limit ?? 25 }
+}
+
+export const POST: RequestHandler = async ({ request, locals, url }) => {
+  const rawBody = await request.text()
+  const authResult = verifyIntegrationAuth({
+    method: request.method,
+    path: url.pathname,
+    rawBody,
+    headers: request.headers
+  })
+  const hasSession = !!locals.session
+  if (!hasSession && !authResult.ok) {
+    return json({ error: authResult.reason || 'Unauthorized' }, { status: 401 })
+  }
+
+  const parsedLimit = parseLimitFromBody(rawBody)
+  if (!parsedLimit.ok) return parsedLimit.error
+  return runDispatch(locals, parsedLimit.limit)
+}
+
+export const GET: RequestHandler = async ({ request, locals, url }) => {
+  const authResult = verifyIntegrationAuth({
+    method: request.method,
+    path: url.pathname,
+    rawBody: '',
+    headers: request.headers
+  })
+  const hasSession = !!locals.session
+  if (!hasSession && !authResult.ok) {
+    return json({ error: authResult.reason || 'Unauthorized' }, { status: 401 })
+  }
+
+  const parsedLimit = parseLimitFromQuery(url)
+  if (!parsedLimit.ok) return parsedLimit.error
+  return runDispatch(locals, parsedLimit.limit)
 }

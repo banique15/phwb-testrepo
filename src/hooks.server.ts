@@ -61,6 +61,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		'/auth/test-login',
 		'/api/notifications/dispatch',
 		'/api/notifications/callbacks',
+		'/api/notifications/webhooks',
 		'/api/notifications/respond'
 	]
 	const isPublicRoute = publicRoutes.some(route =>

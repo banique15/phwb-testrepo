@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { z } from 'zod'
 import { verifyIntegrationAuth } from '$lib/server/integration-auth'
 import { queueBookingConfirmationNotificationsForEvent } from '$lib/services/notification-producer'
+import { dispatchNotificationRunNow } from '$lib/server/notifications/run-dispatcher'
 
 const responseCallbackSchema = z.object({
   contract_version: z.string().default('v1'),
@@ -113,7 +114,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
   try {
     if (payload.response === 'accepted') {
-      await queueBookingConfirmationNotificationsForEvent(
+      const queuedRunIds = await queueBookingConfirmationNotificationsForEvent(
         {
           id: eventRow.id,
           title: run.payload?.event_title as string | undefined,
@@ -123,6 +124,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
         eventRow.artists,
         { assignments: updatedAssignments }
       )
+      await Promise.all(queuedRunIds.map((runId) => dispatchNotificationRunNow(locals.supabaseAdmin, runId)))
     }
   } catch (error) {
     console.error('Failed to queue booking confirmation after response callback:', error)

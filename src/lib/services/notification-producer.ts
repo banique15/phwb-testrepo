@@ -1,10 +1,15 @@
 import { supabase } from '$lib/supabase'
+import { isTransactionalNotificationType } from '$lib/notifications/dispatch-classification'
+import { areNotificationsGloballyEnabled } from '$lib/notifications/system-toggle'
 import { logger } from '$lib/utils/logger'
 
 type NotificationType =
   | 'artist_added_to_system'
   | 'artist_added_to_event_invited'
+  | 'artist_invitation_reminder'
   | 'artist_booking_confirmation'
+  | 'artist_briefing_packet'
+  | 'booking_confirmed_admin'
   | 'artist_thank_you_after_completed'
   | 'artist_feedback_request'
   | 'artist_payout_processed'
@@ -31,6 +36,24 @@ type NotificationSeed = {
   eventId?: number | null
   payload?: Record<string, unknown>
   dedupeKey: string
+  scheduledForOverride?: string | null
+}
+
+let globalNotificationsEnabledCache: { value: boolean; fetchedAt: number } | null = null
+const GLOBAL_NOTIFICATIONS_CACHE_TTL_MS = 30_000
+
+async function areGlobalNotificationsEnabledCached(): Promise<boolean> {
+  const now = Date.now()
+  if (
+    globalNotificationsEnabledCache &&
+    now - globalNotificationsEnabledCache.fetchedAt < GLOBAL_NOTIFICATIONS_CACHE_TTL_MS
+  ) {
+    return globalNotificationsEnabledCache.value
+  }
+
+  const enabled = await areNotificationsGloballyEnabled(supabase as any)
+  globalNotificationsEnabledCache = { value: enabled, fetchedAt: now }
+  return enabled
 }
 
 function interpolate(template: string, values: Record<string, unknown>): string {
@@ -114,18 +137,64 @@ async function getTemplateAndPolicy(notificationType: NotificationType) {
   return { template, policy }
 }
 
+type ReminderRule = { offset_days?: number; offset_minutes?: number }
+
+async function getInvitationReminderDays(): Promise<number[]> {
+  const { policy } = await getTemplateAndPolicy('artist_invitation_reminder')
+  const rawRules = Array.isArray(policy?.dunning_rules) ? (policy?.dunning_rules as ReminderRule[]) : []
+  const days = rawRules
+    .map((rule) => {
+      if (typeof rule.offset_days === 'number' && rule.offset_days > 0) return Math.round(rule.offset_days)
+      if (typeof rule.offset_minutes === 'number' && rule.offset_minutes > 0) {
+        return Math.max(1, Math.round(rule.offset_minutes / 1440))
+      }
+      return null
+    })
+    .filter((value): value is number => value !== null)
+
+  return Array.from(new Set(days)).sort((a, b) => a - b).slice(0, 2)
+}
+
+async function dispatchRunImmediately(runId: string) {
+  if (typeof window === 'undefined') return
+
+  try {
+    const response = await fetch(`/api/notifications/runs/${runId}/send-now`, {
+      method: 'POST'
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      logger.warn('Immediate notification dispatch failed', {
+        runId,
+        status: response.status,
+        error: payload?.error || 'unknown error'
+      })
+    }
+  } catch (error) {
+    logger.warn('Immediate notification dispatch request failed', {
+      runId,
+      error: error instanceof Error ? error.message : 'unknown error'
+    })
+  }
+}
+
 async function insertRun(seed: NotificationSeed) {
+  const notificationsEnabled = await areGlobalNotificationsEnabledCached()
+  if (!notificationsEnabled) {
+    return null
+  }
+
   const { template, policy } = await getTemplateAndPolicy(seed.notificationType)
   if (!template) {
     logger.warn(`Notification template missing or inactive for type ${seed.notificationType}`)
-    return
+    return null
   }
   if (policy && policy.enabled === false) {
-    return
+    return null
   }
 
   const initialDelayMinutes = policy?.initial_delay_minutes ?? 0
-  const scheduledFor = new Date(Date.now() + initialDelayMinutes * 60_000).toISOString()
+  const scheduledFor = seed.scheduledForOverride || new Date(Date.now() + initialDelayMinutes * 60_000).toISOString()
 
   const interpolationPayload = {
     ...(seed.payload || {}),
@@ -151,12 +220,21 @@ async function insertRun(seed: NotificationSeed) {
     payload: seed.payload ?? {}
   }
 
-  const { error } = await supabase.from('phwb_notification_runs').insert([row])
+  const { data, error } = await supabase.from('phwb_notification_runs').insert([row]).select('id').maybeSingle()
   if (error) {
     // dedupe collisions are expected; ignore them as idempotent behavior.
-    if (error.code === '23505') return
+    if (error.code === '23505') return null
     logger.error('Failed to create notification run', error)
+    return null
   }
+
+  const runId = data?.id ?? null
+  if (runId && isTransactionalNotificationType(seed.notificationType)) {
+    // Transactional notifications should send right away.
+    await dispatchRunImmediately(runId)
+  }
+
+  return runId
 }
 
 export async function queueArtistAddedNotification(artist: {
@@ -198,12 +276,14 @@ export async function queueInvitationNotificationsForEvent(
     (assignment) =>
       !!assignment.artist_id &&
       !previousArtistIds.has(assignment.artist_id) &&
-      assignment.status !== 'declined'
+      normalizeAssignmentStatus(assignment.status) !== 'declined' &&
+      normalizeAssignmentStatus(assignment.status) !== 'confirmed'
   )
 
   if (newAssignments.length === 0) return
 
   const locationName = await getLocationName(event.location_id ?? null)
+  const reminderDays = await getInvitationReminderDays()
   const artistIds = newAssignments
     .map((assignment) => assignment.artist_id)
     .filter((artistId): artistId is string => !!artistId)
@@ -243,6 +323,36 @@ export async function queueInvitationNotificationsForEvent(
             : ''
         }
       })
+
+      // Queue reminder follow-ups using the policy dunning rules (days after invite).
+      await Promise.all(
+        reminderDays.map(async (dayOffset, index) => {
+          const scheduledFor = new Date(Date.now() + dayOffset * 24 * 60 * 60_000).toISOString()
+          await insertRun({
+            notificationType: 'artist_invitation_reminder',
+            recipientEmail: artist.email,
+            recipientName: artist.full_name ?? assignment.artist_name ?? null,
+            artistId: artist.id,
+            eventId,
+            dedupeKey: `artist_invitation_reminder:${eventId}:${artist.id}:${index + 1}`,
+            scheduledForOverride: scheduledFor,
+            payload: {
+              artist_name: artist.full_name ?? assignment.artist_name ?? '',
+              artist_email: artist.email,
+              event_title: event.title ?? '',
+              event_date: event.date ?? '',
+              event_start_time: event.start_time ?? '',
+              facility_name: locationName,
+              accept_link: appBaseUrl
+                ? `${appBaseUrl}/api/notifications/respond?action=accept&event_id=${eventId}&artist_id=${artist.id}`
+                : '',
+              decline_link: appBaseUrl
+                ? `${appBaseUrl}/api/notifications/respond?action=decline&event_id=${eventId}&artist_id=${artist.id}`
+                : ''
+            }
+          })
+        })
+      )
     })
   )
 }
@@ -251,7 +361,7 @@ export async function queueBookingConfirmationNotificationsForEvent(
   event: EventLike,
   previousArtistsField: unknown,
   nextArtistsField: unknown
-) {
+): Promise<string[]> {
   const eventId = normalizeEventId(event.id)
   if (!eventId) return
 
@@ -274,7 +384,7 @@ export async function queueBookingConfirmationNotificationsForEvent(
     })
     .map((assignment) => assignment.artist_id as string)
 
-  if (newlyConfirmedArtistIds.length === 0) return
+  if (newlyConfirmedArtistIds.length === 0) return []
 
   const locationName = await getLocationName(event.location_id ?? null)
   const { data: artists } = await supabase
@@ -282,10 +392,20 @@ export async function queueBookingConfirmationNotificationsForEvent(
     .select('id, full_name, email')
     .in('id', newlyConfirmedArtistIds)
 
+  const adminRecipientRows = await supabase
+    .from('phwb_notification_recipients')
+    .select('recipient_email')
+    .eq('notification_type', 'booking_confirmed_admin')
+    .eq('active', true)
+  const adminRecipients = (adminRecipientRows.data || [])
+    .map((row) => (row.recipient_email || '').trim())
+    .filter((value) => value.length > 0)
+
+  const runIds: string[] = []
   await Promise.all(
     (artists || []).map(async (artist) => {
       if (!artist.email) return
-      await insertRun({
+      const bookingRunId = await insertRun({
         notificationType: 'artist_booking_confirmation',
         recipientEmail: artist.email,
         recipientName: artist.full_name ?? null,
@@ -305,8 +425,53 @@ export async function queueBookingConfirmationNotificationsForEvent(
           event_contact_phone: ''
         }
       })
+      if (bookingRunId) runIds.push(bookingRunId)
+
+      const briefingRunId = await insertRun({
+        notificationType: 'artist_briefing_packet',
+        recipientEmail: artist.email,
+        recipientName: artist.full_name ?? null,
+        artistId: artist.id,
+        eventId,
+        dedupeKey: `artist_briefing_packet:${eventId}:${artist.id}`,
+        payload: {
+          artist_name: artist.full_name ?? '',
+          artist_email: artist.email,
+          event_title: event.title ?? '',
+          event_date: event.date ?? '',
+          event_start_time: event.start_time ?? '',
+          facility_name: locationName,
+          event_contact_name: '',
+          event_contact_phone: '',
+          arrival_instructions: ''
+        }
+      })
+      if (briefingRunId) runIds.push(briefingRunId)
+
+      await Promise.all(
+        adminRecipients.map(async (adminEmail) => {
+          const adminRunId = await insertRun({
+            notificationType: 'booking_confirmed_admin',
+            recipientEmail: adminEmail,
+            recipientName: null,
+            artistId: artist.id,
+            eventId,
+            dedupeKey: `booking_confirmed_admin:${eventId}:${artist.id}:${adminEmail}`,
+            payload: {
+              artist_name: artist.full_name ?? '',
+              artist_email: artist.email,
+              event_title: event.title ?? '',
+              event_date: event.date ?? '',
+              event_start_time: event.start_time ?? '',
+              facility_name: locationName
+            }
+          })
+          if (adminRunId) runIds.push(adminRunId)
+        })
+      )
     })
   )
+  return runIds
 }
 
 export async function queueEventCompletedNotifications(event: EventLike, artistsField: unknown) {

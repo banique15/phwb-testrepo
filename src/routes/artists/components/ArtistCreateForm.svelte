@@ -15,11 +15,21 @@
 	// Form fields - only require name initially
 	let legalFirstName = $state('')
 	let legalLastName = $state('')
+	let email = $state('')
 
 	let canSave = $derived(legalFirstName.trim().length > 0 && legalLastName.trim().length > 0)
 
+	function isValidEmail(value: string): boolean {
+		if (!value.trim()) return true
+		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+	}
+
 	async function handleSave() {
 		if (!canSave) return
+		if (!isValidEmail(email)) {
+			error = 'Please enter a valid email address'
+			return
+		}
 
 		loading = true
 		error = ''
@@ -27,11 +37,16 @@
 		try {
 			// Create minimal artist with just the name
 			const fullName = `${legalFirstName.trim()} ${legalLastName.trim()}`
-			const newArtist = await createArtist({
+			const payload: Record<string, unknown> = {
 				legal_first_name: legalFirstName.trim(),
 				legal_last_name: legalLastName.trim(),
 				full_name: fullName
-			})
+			}
+			if (email.trim()) {
+				payload.email = email.trim()
+			}
+
+			const newArtist = await createArtist(payload as Parameters<typeof createArtist>[0])
 
 			onSuccess?.(newArtist)
 		} catch (err: any) {
@@ -112,6 +127,24 @@
 					onkeydown={handleKeydown}
 					disabled={loading}
 				/>
+			</div>
+
+			<div class="form-control">
+				<label class="label" for="artist-email">
+					<span class="label-text font-medium">Email Address</span>
+				</label>
+				<input
+					id="artist-email"
+					type="email"
+					class="input input-bordered"
+					placeholder="artist@example.com"
+					bind:value={email}
+					onkeydown={handleKeydown}
+					disabled={loading}
+				/>
+				<label class="label">
+					<span class="label-text-alt">Optional, but needed to send welcome email immediately</span>
+				</label>
 			</div>
 
 			<div class="pt-4 flex gap-2">

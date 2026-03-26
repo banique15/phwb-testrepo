@@ -10,6 +10,9 @@ export const notificationAttemptSchema = z.object({
   provider: z.string().default('resend'),
   status: z.enum(notificationAttemptStatusValues).default('queued'),
   provider_message_id: z.string().optional().nullable(),
+  provider_event_id: z.string().optional().nullable(),
+  provider_event_type: z.string().optional().nullable(),
+  provider_event_at: z.string().optional().nullable(),
   request_payload: z.record(z.unknown()).default({}),
   response_payload: z.record(z.unknown()).default({}),
   error_message: z.string().optional().nullable()

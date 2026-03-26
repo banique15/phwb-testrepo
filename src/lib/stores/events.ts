@@ -152,8 +152,13 @@ export const eventsStore = {
 	},
 	update: async (id: string | number, updates: UpdateEvent) => {
 		const reviewedPayrollEntries = (updates as any).__reviewedPayrollEntries as GeneratedPayrollEntry[] | undefined
+		const sendInvitationNotifications =
+			(updates as any).__sendInvitationNotifications === undefined
+				? true
+				: !!(updates as any).__sendInvitationNotifications
 		const persistedUpdates = { ...(updates as any) }
 		delete (persistedUpdates as any).__reviewedPayrollEntries
+		delete (persistedUpdates as any).__sendInvitationNotifications
 		let previousEvent: Event | null = null
 		try {
 			previousEvent = await baseStore.getById(id)
@@ -173,14 +178,16 @@ export const eventsStore = {
 			Object.prototype.hasOwnProperty.call(updates, 'production_manager_id') ||
 			Object.prototype.hasOwnProperty.call(updates, 'production_manager_artist_id')
 		if (hasArtistUpdates) {
-			try {
-				await queueInvitationNotificationsForEvent(
-					updatedEvent,
-					previousEvent?.artists,
-					updatedEvent.artists
-				)
-			} catch (error) {
-				logger.error('Failed queuing assignment invitation notifications:', error)
+			if (sendInvitationNotifications) {
+				try {
+					await queueInvitationNotificationsForEvent(
+						updatedEvent,
+						previousEvent?.artists,
+						updatedEvent.artists
+					)
+				} catch (error) {
+					logger.error('Failed queuing assignment invitation notifications:', error)
+				}
 			}
 			try {
 				await queueBookingConfirmationNotificationsForEvent(
@@ -360,7 +367,7 @@ export const eventsStore = {
 						.single()
 					
 					if (retryError) throw retryError
-					return this.handleCreateSuccess(retryData)
+					return await this.handleCreateSuccess(retryData)
 				}
 				
 				if (error) {
@@ -369,7 +376,7 @@ export const eventsStore = {
 				}
 
 				logger.debug('Enhanced store: Event created successfully:', data)
-				return this.handleCreateSuccess(data)
+				return await this.handleCreateSuccess(data)
 			} catch (error) {
 				logger.error('Enhanced store create error:', error)
 				const errorId = errorStore.handleError(error, 'Failed to create event')
@@ -379,13 +386,38 @@ export const eventsStore = {
 		},
 		
 		// Helper method to handle successful creation
-		handleCreateSuccess(data: Event) {
+		async handleCreateSuccess(data: Event) {
 			// Queue invitations for artists included during initial event creation
 			// so create flow mirrors assignment updates on existing events.
 			if (data.artists) {
 				queueInvitationNotificationsForEvent(data, null, data.artists).catch((error) => {
 					logger.error('Failed queuing assignment invitation notifications on event create:', error)
 				})
+			}
+
+			// If an event is created directly as completed (e.g. backdated entry),
+			// run the same completion automations that update-status flow runs.
+			if (typeof data.status === 'string' && data.status.toLowerCase() === 'completed') {
+				const normalizedId = typeof data.id === 'string' ? parseInt(data.id, 10) : data.id
+				if (normalizedId && !Number.isNaN(normalizedId)) {
+					try {
+						const payrollResult = await generatePayrollForEvent(normalizedId, { dryRun: false })
+						if (!payrollResult.success || payrollResult.errors.length > 0) {
+							logger.error('Create-completed payroll generation failed:', {
+								eventId: normalizedId,
+								errors: payrollResult.errors
+							})
+						}
+					} catch (error) {
+						logger.error('Create-completed payroll generation threw an error:', error)
+					}
+				}
+
+				try {
+					await queueEventCompletedNotifications(data, data.artists)
+				} catch (error) {
+					logger.error('Create-completed notification queue failed:', error)
+				}
 			}
 
 			const enhancedEvent = enhanceEvents([data])[0]

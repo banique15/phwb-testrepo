@@ -42,6 +42,7 @@ This directory contains workflow guides for each main entity in the PHWB Admin s
 
 ## 🔔 Notifications
 - [Notification Triggers and Testing](./notifications/notification-triggers-and-testing.md)
+- [Vercel Cron Setup for Notification Dispatch](./notifications/vercel-cron-setup.md)
 
 ## Getting Started
 

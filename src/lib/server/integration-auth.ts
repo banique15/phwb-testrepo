@@ -17,7 +17,7 @@ function safeCompare(a: string, b: string): boolean {
 
 function getAuthConfig() {
   return {
-    bearerToken: env.PHWB_INTEGRATION_BEARER_TOKEN || '',
+    bearerToken: env.PHWB_INTEGRATION_BEARER_TOKEN || env.CRON_SECRET || '',
     hmacSecret: env.PHWB_INTEGRATION_HMAC_SECRET || '',
     maxSkewSeconds: Number(env.PHWB_INTEGRATION_MAX_SKEW_SECONDS || '300')
   }

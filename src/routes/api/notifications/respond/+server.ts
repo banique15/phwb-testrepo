@@ -1,4 +1,5 @@
 import { queueBookingConfirmationNotificationsForEvent } from '$lib/services/notification-producer'
+import { dispatchNotificationRunNow } from '$lib/server/notifications/run-dispatcher'
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 
@@ -93,11 +94,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   try {
     if (action === 'accept') {
-      await queueBookingConfirmationNotificationsForEvent(
+      const queuedRunIds = await queueBookingConfirmationNotificationsForEvent(
         eventRow,
         previousArtists,
         { assignments: updatedAssignments }
       )
+      await Promise.all(queuedRunIds.map((runId) => dispatchNotificationRunNow(locals.supabaseAdmin, runId)))
     }
   } catch (error) {
     console.error('Failed to queue booking confirmation after invitation response:', error)
