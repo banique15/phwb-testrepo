@@ -136,10 +136,20 @@ export const payrollStore = {
 			const sortBy = options.sortBy || 'event_date'
 			const ascending = options.sortOrder === 'asc'
 			query = query.order(sortBy, { ascending })
-			// Deterministic tie-breaker: newest generated row first within same primary sort bucket.
+
+			// Deterministic tie-breakers:
+			// 1) keep newest generation batches first when primary sort ties
+			// 2) group event-automation rows by source event
+			// 3) place PM row at top within each same-event group
+			// 4) stable latest-id fallback
 			if (sortBy !== 'created_at') {
 				query = query.order('created_at', { ascending: false })
 			}
+			query = query
+				.order('source_event_id', { ascending: false, nullsFirst: false })
+				.order('event_id', { ascending: false, nullsFirst: false })
+				.order('is_production_manager', { ascending: false })
+				.order('id', { ascending: false })
 			
 			// Add pagination
 			const from = (options.page - 1) * options.limit
