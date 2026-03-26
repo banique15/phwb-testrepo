@@ -58,6 +58,22 @@ const initialEnhancedState: StoreState<EnhancedEvent> = {
 
 const enhancedState = writable<StoreState<EnhancedEvent>>(initialEnhancedState)
 
+// Update events via server API route to avoid client-side RLS/singular-response issues.
+async function updateEventViaApi(eventId: number, updates: UpdateEvent): Promise<Event> {
+	const response = await fetch(`/api/events/${eventId}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(updates)
+	})
+
+	if (!response.ok) {
+		const payload = await response.json().catch(() => ({ error: 'Unknown error' }))
+		throw new Error(payload.error || `Failed to update event: ${response.statusText}`)
+	}
+
+	return response.json()
+}
+
 // Function to enhance events with related data
 function enhanceEvents(events: Event[]): EnhancedEvent[] {
 	return events.map(event => {
@@ -144,7 +160,13 @@ export const eventsStore = {
 		// Use enhanced create method that doesn't generate UUIDs
 		return eventsStore.enhanced.create(eventData)
 	},
-	update: baseStore.update,
+	update: async (id: string | number, updates: UpdateEvent) => {
+		const normalizedId = typeof id === 'string' ? parseInt(id, 10) : id
+		if (!normalizedId || Number.isNaN(normalizedId)) {
+			throw new Error(`Invalid event ID: ${id}`)
+		}
+		return updateEventViaApi(normalizedId, updates)
+	},
 	delete: baseStore.delete,
 	getById: baseStore.getById,
 	subscribeToChanges: baseStore.subscribeToChanges,
@@ -313,8 +335,8 @@ export const eventsStore = {
 					throw new Error(`Invalid event ID: ${id}`)
 				}
 
-				// Use the base store update method instead of custom logic
-				const updatedEvent = await baseStore.update(normalizedId, updates)
+				// Use server API update to avoid client-side RLS/singular-response issues.
+				const updatedEvent = await updateEventViaApi(normalizedId, updates)
 
 				logger.debug('Base store returned:', updatedEvent)
 				
