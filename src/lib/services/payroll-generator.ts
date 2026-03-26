@@ -196,6 +196,17 @@ async function insertPayrollRowsWithCompat(rows: Record<string, any>[]): Promise
 	return { error: secondAttempt.error }
 }
 
+function applyProductionManagerCreatedAtOffset(rows: Record<string, any>[]): Record<string, any>[] {
+	// Keep PM rows 1 second later so created_at-driven views place PM first.
+	// This avoids relying on same-timestamp DB ordering during bulk inserts.
+	const baseCreatedAt = new Date()
+	const pmCreatedAt = new Date(baseCreatedAt.getTime() + 1000)
+	return rows.map((row) => ({
+		...row,
+		created_at: row.is_production_manager ? pmCreatedAt.toISOString() : baseCreatedAt.toISOString()
+	}))
+}
+
 async function getArtistCompProfiles(artistIds: string[]): Promise<Map<string, ArtistCompProfile>> {
 	const profileMap = new Map<string, ArtistCompProfile>()
 	if (artistIds.length === 0) return profileMap
@@ -772,7 +783,8 @@ export async function generatePayrollForDateRange(
 				created_by: options.userId || 'system'
 			}))
 			
-			const { error: insertError } = await insertPayrollRowsWithCompat(entriesToInsert)
+			const insertRowsWithPmOffset = applyProductionManagerCreatedAtOffset(entriesToInsert)
+			const { error: insertError } = await insertPayrollRowsWithCompat(insertRowsWithPmOffset)
 			
 			if (insertError) {
 				result.errors.push(`Failed to save payroll entries: ${insertError.message}`)
@@ -1089,7 +1101,8 @@ export async function generatePayrollForEvent(
 				created_by: options.userId || 'system'
 			}))
 
-			const { error: insertError } = await insertPayrollRowsWithCompat(entriesToInsert)
+			const insertRowsWithPmOffset = applyProductionManagerCreatedAtOffset(entriesToInsert)
+			const { error: insertError } = await insertPayrollRowsWithCompat(insertRowsWithPmOffset)
 
 			if (insertError) {
 				result.errors.push(`Failed to save payroll entries: ${insertError.message}`)
@@ -1458,7 +1471,8 @@ export async function reconcilePayrollForCompletedEvent(
 		const newInserts = creates.map((entry) => toInsertPayload(entry, options.userId))
 		const adjustmentInserts = adjustmentEntries.map((entry) => toInsertPayload(entry, options.userId))
 		if (newInserts.length > 0 || adjustmentInserts.length > 0) {
-			const { error } = await insertPayrollRowsWithCompat([...newInserts, ...adjustmentInserts])
+			const insertsWithPmOffset = applyProductionManagerCreatedAtOffset([...newInserts, ...adjustmentInserts])
+			const { error } = await insertPayrollRowsWithCompat(insertsWithPmOffset)
 			if (error) {
 				result.errors.push(`Failed inserting reconciled rows: ${error.message}`)
 			} else {
