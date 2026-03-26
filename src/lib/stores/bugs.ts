@@ -94,11 +94,25 @@ export const bugsStore = {
 				.eq('bug_id', bugId)
 				.order('created_at', { ascending: false })
 
-			// Fetch labels
+			// Fetch label assignment IDs first (avoid relation-expansion dependency).
 			const { data: labelAssignments } = await supabase
 				.from('phwb_bug_label_assignments')
-				.select('label_id, phwb_bug_labels(*)')
+				.select('label_id')
 				.eq('bug_id', bugId)
+
+			const labelIds = (labelAssignments || [])
+				.map((la: any) => la?.label_id)
+				.filter((id: unknown): id is number => typeof id === 'number')
+
+			let labels: any[] = []
+			if (labelIds.length > 0) {
+				const { data: labelsData, error: labelsError } = await supabase
+					.from('phwb_bug_labels')
+					.select('*')
+					.in('id', labelIds)
+				if (labelsError) throw labelsError
+				labels = labelsData || []
+			}
 
 			// Fetch relations
 			const { data: relations } = await supabase
@@ -124,7 +138,7 @@ export const bugsStore = {
 				bug,
 				comments: comments || [],
 				attachments: attachments || [],
-				labels: (labelAssignments || []).map((la: any) => la.phwb_bug_labels).filter(Boolean),
+				labels,
 				relations: relations || [],
 				activity: activity || [],
 				timeTracking: timeTracking || []

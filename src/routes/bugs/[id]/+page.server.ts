@@ -101,15 +101,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			allLabelsData
 		] = await Promise.all([
 			fetchOptional(
-				() => supabase.from('phwb_bug_comments').select('*').eq('bug_id', bugId).order('created_at', { ascending: true }),
+				async () => await supabase.from('phwb_bug_comments').select('*').eq('bug_id', bugId).order('created_at', { ascending: true }),
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('phwb_bug_attachments').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
+				async () => await supabase.from('phwb_bug_attachments').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('phwb_bug_label_assignments').select('label_id, phwb_bug_labels(*)').eq('bug_id', bugId),
+				async () => await supabase.from('phwb_bug_label_assignments').select('label_id').eq('bug_id', bugId),
 				[]
 			),
 			fetchOptional(
@@ -126,23 +126,23 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('phwb_bug_activity').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
+				async () => await supabase.from('phwb_bug_activity').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('phwb_bug_time_tracking').select('*').eq('bug_id', bugId).order('date', { ascending: false }),
+				async () => await supabase.from('phwb_bug_time_tracking').select('*').eq('bug_id', bugId).order('date', { ascending: false }),
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('phwb_bug_testing_sessions').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
+				async () => await supabase.from('phwb_bug_testing_sessions').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('profiles').select('id, full_name, avatar_url').order('full_name', { ascending: true }),
+				async () => await supabase.from('profiles').select('id, full_name, avatar_url').order('full_name', { ascending: true }),
 				[]
 			),
 			fetchOptional(
-				() => supabase.from('phwb_bug_labels').select('*').order('name', { ascending: true }),
+				async () => await supabase.from('phwb_bug_labels').select('*').order('name', { ascending: true }),
 				[]
 			)
 		])
@@ -200,8 +200,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			profiles: s?.tester_id ? { full_name: allProfilesMap.get(s.tester_id)?.full_name || null } : null
 		}))
 
+		const labelsById = new Map<number, any>(
+			(allLabels || [])
+				.filter((l: any) => l && typeof l.id === 'number')
+				.map((l: any) => [l.id, l])
+		)
 		const labels = (labelAssignments || [])
-			.map((la: any) => (la && typeof la === 'object' && 'phwb_bug_labels' in la ? la.phwb_bug_labels : null))
+			.map((la: any) => labelsById.get(la?.label_id))
 			.filter(Boolean)
 
 		// Replication screenshots (depends on bug.replication_data)

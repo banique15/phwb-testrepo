@@ -59,11 +59,24 @@ export const bugLabelsStore = {
 		try {
 			const { data, error } = await supabase
 				.from('phwb_bug_label_assignments')
-				.select('label_id, phwb_bug_labels(*)')
+				.select('label_id')
 				.eq('bug_id', bugId)
 
 			if (error) throw error
-			return (data || []).map((item: any) => item.phwb_bug_labels).filter(Boolean)
+
+			const labelIds = (data || [])
+				.map((item: any) => item?.label_id)
+				.filter((id: unknown): id is number => typeof id === 'number')
+
+			if (labelIds.length === 0) return []
+
+			const { data: labels, error: labelsError } = await supabase
+				.from('phwb_bug_labels')
+				.select('*')
+				.in('id', labelIds)
+
+			if (labelsError) throw labelsError
+			return labels || []
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to fetch labels for bug')
 			throw error
