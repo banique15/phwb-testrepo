@@ -242,6 +242,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		}
 	} catch (err) {
 		console.error('Bug detail load error:', err)
+		// Preserve explicit 4xx/5xx HttpErrors thrown above (e.g. 404 bug not found).
+		if (err && typeof err === 'object' && 'status' in err) {
+			throw err
+		}
 		throw error(500, 'Failed to load bug details: ' + (err instanceof Error ? err.message : 'Unknown error'))
 	}
 }
