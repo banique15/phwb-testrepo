@@ -11,7 +11,8 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"docs:status": "bun run docs/scripts/doc-status.ts",
-		"docs:help": "echo 'Documentation commands:' && echo '  bun docs:status  - Generate documentation status report' && echo '  bun docs:new     - Create new document from template' && echo '  See docs/README.md for more information'"
+		"docs:help": "echo 'Documentation commands:' && echo '  bun docs:status  - Generate documentation status report' && echo '  bun docs:new     - Create new document from template' && echo '  See docs/README.md for more information'",
+		"verify:bug17": "bun run scripts/verify-bug-17.ts"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.54.1",
