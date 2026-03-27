@@ -25,29 +25,25 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	}
 
 	try {
-		// Fetch bug without automatic joins
-		// Use maybeSingle() to avoid throwing on 0 rows, then handle it ourselves
+		// Fetch bug first (required)
 		const { data: bug, error: bugError } = await supabase
 			.from('phwb_bugs')
 			.select('*')
 			.eq('id', bugId)
 			.maybeSingle()
 
-		// Handle errors (other than "not found")
 		if (bugError) {
-			// Check if it's a "no rows" error (bug doesn't exist or RLS blocking)
 			if (bugError.code === 'PGRST116' || bugError.message?.includes('0 rows')) {
 				throw error(404, 'Bug not found')
 			}
-			throw bugError
+			const msg = (bugError as { message?: string }).message ?? String(bugError)
+			throw error(500, 'Failed to load bug: ' + msg)
 		}
-		
-		// If bug is null/undefined, it doesn't exist
 		if (!bug) {
 			throw error(404, 'Bug not found')
 		}
 
-		// Fetch profiles for reported_by, assigned_to, resolved_by, and closed_by
+		// Profiles for bug (reported_by, assigned_to, etc.)
 		const userIds = new Set<string>()
 		if (bug.reported_by) userIds.add(bug.reported_by)
 		if (bug.assigned_to) userIds.add(bug.assigned_to)
@@ -60,20 +56,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				.from('profiles')
 				.select('id, full_name, avatar_url')
 				.in('id', Array.from(userIds))
-
-			if (profilesError) {
-				console.warn('Failed to fetch profiles:', profilesError)
-			} else if (profiles) {
+			if (!profilesError && profiles) {
 				profiles.forEach((profile: any) => {
-					profilesMap.set(profile.id, {
-						full_name: profile.full_name,
-						avatar_url: profile.avatar_url
-					})
+					profilesMap.set(profile.id, { full_name: profile.full_name, avatar_url: profile.avatar_url })
 				})
 			}
 		}
 
-		// Attach profile data to bug
 		const bugWithProfiles = {
 			...bug,
 			profiles_reported: bug.reported_by ? profilesMap.get(bug.reported_by) || null : null,
@@ -82,172 +71,186 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			profiles_closed: bug.closed_by ? { full_name: profilesMap.get(bug.closed_by)?.full_name || null } : null
 		}
 
-		// Fetch comments without automatic joins
-		const { data: commentsData } = await supabase
-			.from('phwb_bug_comments')
-			.select('*')
-			.eq('bug_id', bugId)
-			.order('created_at', { ascending: true })
-
-		// Fetch attachments without automatic joins
-		const { data: attachmentsData } = await supabase
-			.from('phwb_bug_attachments')
-			.select('*')
-			.eq('bug_id', bugId)
-			.order('created_at', { ascending: false })
-
-		// Fetch labels
-		const { data: labelAssignments } = await supabase
-			.from('phwb_bug_label_assignments')
-			.select('label_id, phwb_bug_labels(*)')
-			.eq('bug_id', bugId)
-
-		// Fetch relations
-		const { data: relations } = await supabase
-			.from('phwb_bug_relations')
-			.select('*, related_bug:related_bug_id(id, title, status, priority)')
-			.eq('bug_id', bugId)
-
-		// Fetch activity without automatic joins
-		const { data: activityData } = await supabase
-			.from('phwb_bug_activity')
-			.select('*')
-			.eq('bug_id', bugId)
-			.order('created_at', { ascending: false })
-
-		// Fetch time tracking without automatic joins
-		const { data: timeTrackingData } = await supabase
-			.from('phwb_bug_time_tracking')
-			.select('*')
-			.eq('bug_id', bugId)
-			.order('date', { ascending: false })
-
-		// Collect all user IDs from comments, attachments, activity, and time tracking
-		const allUserIds = new Set<string>(Array.from(userIds))
-		if (commentsData) {
-			commentsData.forEach((comment: any) => {
-				if (comment.user_id) allUserIds.add(comment.user_id)
-			})
-		}
-		if (attachmentsData) {
-			attachmentsData.forEach((attachment: any) => {
-				if (attachment.uploaded_by) allUserIds.add(attachment.uploaded_by)
-			})
-		}
-		if (activityData) {
-			activityData.forEach((act: any) => {
-				if (act.user_id) allUserIds.add(act.user_id)
-			})
-		}
-		if (timeTrackingData) {
-			timeTrackingData.forEach((tt: any) => {
-				if (tt.user_id) allUserIds.add(tt.user_id)
-			})
-		}
-
-		// Fetch all profiles at once
-		let allProfilesMap = new Map<string, { full_name: string | null; avatar_url: string | null }>()
-		if (allUserIds.size > 0) {
-			const { data: allProfiles, error: allProfilesError } = await supabase
-				.from('profiles')
-				.select('id, full_name, avatar_url')
-				.in('id', Array.from(allUserIds))
-
-			if (allProfilesError) {
-				console.warn('Failed to fetch all profiles:', allProfilesError)
-			} else if (allProfiles) {
-				allProfiles.forEach((profile: any) => {
-					allProfilesMap.set(profile.id, {
-						full_name: profile.full_name,
-						avatar_url: profile.avatar_url
-					})
-				})
+		// Run all bug-scoped fetches in parallel (resilient: missing tables or errors → empty arrays)
+		const fetchOptional = async <T>(
+			fn: () => Promise<{ data: T | null; error?: unknown }>,
+			fallback: T
+		): Promise<T> => {
+			try {
+				const result = await fn()
+				if (result.error) {
+					console.warn('Bug detail optional fetch error:', result.error)
+					return fallback
+				}
+				return (result.data ?? fallback) as T
+			} catch (e) {
+				console.warn('Bug detail optional fetch failed:', e)
+				return fallback
 			}
 		}
 
-		// Attach profiles to comments
-		const comments = (commentsData || []).map((comment: any) => ({
-			...comment,
-			profiles: comment.user_id ? allProfilesMap.get(comment.user_id) || null : null
-		}))
+		const [
+			commentsData,
+			attachmentsData,
+			labelAssignmentsResult,
+			relationsData,
+			activityData,
+			timeTrackingData,
+			testingSessionsData,
+			usersData,
+			allLabelsData
+		] = await Promise.all([
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_comments').select('*').eq('bug_id', bugId).order('created_at', { ascending: true }),
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_attachments').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_label_assignments').select('label_id').eq('bug_id', bugId),
+				[]
+			),
+			fetchOptional(
+				async () => {
+					const r = await supabase
+						.from('phwb_bug_relations')
+						.select('*, related_bug:phwb_bugs!related_bug_id(id, title, status, priority)')
+						.eq('bug_id', bugId)
+					if (r.error && (r.error as { code?: string }).code === 'PGRST200') {
+						return { data: [] as any, error: null }
+					}
+					return r as { data: any; error: unknown }
+				},
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_activity').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_time_tracking').select('*').eq('bug_id', bugId).order('date', { ascending: false }),
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_testing_sessions').select('*').eq('bug_id', bugId).order('created_at', { ascending: false }),
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('profiles').select('id, full_name, avatar_url').order('full_name', { ascending: true }),
+				[]
+			),
+			fetchOptional(
+				async () => await supabase.from('phwb_bug_labels').select('*').order('name', { ascending: true }),
+				[]
+			)
+		])
 
-		// Attach profiles to attachments
-		const attachments = (attachmentsData || []).map((attachment: any) => ({
-			...attachment,
-			profiles: attachment.uploaded_by ? { full_name: allProfilesMap.get(attachment.uploaded_by)?.full_name || null } : null
-		}))
+		const commentsDataArr = Array.isArray(commentsData) ? commentsData : []
+		const attachmentsDataArr = Array.isArray(attachmentsData) ? attachmentsData : []
+		const labelAssignments = Array.isArray(labelAssignmentsResult) ? labelAssignmentsResult : []
+		const relations = Array.isArray(relationsData) ? relationsData : []
+		const activityDataArr = Array.isArray(activityData) ? activityData : []
+		const timeTrackingDataArr = Array.isArray(timeTrackingData) ? timeTrackingData : []
+		const testingSessionsDataArr = Array.isArray(testingSessionsData) ? testingSessionsData : []
+		const users = Array.isArray(usersData) ? usersData : []
+		const allLabels = Array.isArray(allLabelsData) ? allLabelsData : []
 
-		// Attach profiles to activity
-		const activity = (activityData || []).map((act: any) => ({
+		// Build all user IDs for profile resolution
+		const allUserIds = new Set<string>(Array.from(userIds))
+		commentsDataArr.forEach((c: any) => { if (c?.user_id) allUserIds.add(c.user_id) })
+		attachmentsDataArr.forEach((a: any) => { if (a?.uploaded_by) allUserIds.add(a.uploaded_by) })
+		activityDataArr.forEach((act: any) => { if (act?.user_id) allUserIds.add(act.user_id) })
+		timeTrackingDataArr.forEach((tt: any) => { if (tt?.user_id) allUserIds.add(tt.user_id) })
+
+		let allProfilesMap = new Map<string, { full_name: string | null; avatar_url: string | null }>()
+		if (allUserIds.size > 0) {
+			try {
+				const { data: allProfiles } = await supabase
+					.from('profiles')
+					.select('id, full_name, avatar_url')
+					.in('id', Array.from(allUserIds))
+				if (allProfiles) {
+					allProfiles.forEach((p: any) => allProfilesMap.set(p.id, { full_name: p.full_name, avatar_url: p.avatar_url }))
+				}
+			} catch (_) {
+				// non-fatal
+			}
+		}
+
+		const comments = commentsDataArr.map((c: any) => ({
+			...c,
+			profiles: c?.user_id ? allProfilesMap.get(c.user_id) || null : null
+		}))
+		const attachments = attachmentsDataArr.map((a: any) => ({
+			...a,
+			profiles: a?.uploaded_by ? { full_name: allProfilesMap.get(a.uploaded_by)?.full_name || null } : null
+		}))
+		const activity = activityDataArr.map((act: any) => ({
 			...act,
-			profiles: act.user_id ? allProfilesMap.get(act.user_id) || null : null
+			profiles: act?.user_id ? allProfilesMap.get(act.user_id) || null : null
 		}))
-
-		// Attach profiles to time tracking
-		const timeTracking = (timeTrackingData || []).map((tt: any) => ({
+		const timeTracking = timeTrackingDataArr.map((tt: any) => ({
 			...tt,
-			profiles: tt.user_id ? { full_name: allProfilesMap.get(tt.user_id)?.full_name || null } : null
+			profiles: tt?.user_id ? { full_name: allProfilesMap.get(tt.user_id)?.full_name || null } : null
+		}))
+		const testingSessions = testingSessionsDataArr.map((s: any) => ({
+			...s,
+			profiles: s?.tester_id ? { full_name: allProfilesMap.get(s.tester_id)?.full_name || null } : null
 		}))
 
-		// Get all users for assignee dropdown
-		const { data: users } = await supabase
-			.from('profiles')
-			.select('id, full_name, avatar_url')
-			.order('full_name', { ascending: true })
+		const labelsById = new Map<number, any>(
+			(allLabels || [])
+				.filter((l: any) => l && typeof l.id === 'number')
+				.map((l: any) => [l.id, l])
+		)
+		const labels = (labelAssignments || [])
+			.map((la: any) => labelsById.get(la?.label_id))
+			.filter(Boolean)
 
-		// Get all labels for label management
-		const { data: allLabels } = await supabase
-			.from('phwb_bug_labels')
-			.select('*')
-			.order('name', { ascending: true })
-
-		// Fetch testing sessions
-		const { data: testingSessionsData } = await supabase
-			.from('phwb_bug_testing_sessions')
-			.select('*')
-			.eq('bug_id', bugId)
-			.order('created_at', { ascending: false })
-
-		const testingSessions = (testingSessionsData || []).map((session: any) => ({
-			...session,
-			profiles: session.tester_id ? { full_name: allProfilesMap.get(session.tester_id)?.full_name || null } : null
-		}))
-
-		// Fetch replication data and associated screenshots
+		// Replication screenshots (depends on bug.replication_data)
 		let replicationScreenshots: any[] = []
 		if (bug.replication_data && typeof bug.replication_data === 'object') {
-			const replicationData = bug.replication_data as { screenshot_ids?: number[] }
-			if (replicationData.screenshot_ids && replicationData.screenshot_ids.length > 0) {
-				const { data: repAttachments } = await supabase
-					.from('phwb_bug_attachments')
-					.select('*')
-					.in('id', replicationData.screenshot_ids)
-					.order('created_at', { ascending: true })
-
-				if (repAttachments) {
-					replicationScreenshots = repAttachments.map((att: any) => ({
-						...att,
-						profiles: att.uploaded_by ? { full_name: allProfilesMap.get(att.uploaded_by)?.full_name || null } : null
-					}))
+			const rd = bug.replication_data as { screenshot_ids?: number[] }
+			if (rd.screenshot_ids?.length) {
+				try {
+					const { data: repAttachments } = await supabase
+						.from('phwb_bug_attachments')
+						.select('*')
+						.in('id', rd.screenshot_ids)
+						.order('created_at', { ascending: true })
+					if (repAttachments) {
+						replicationScreenshots = repAttachments.map((att: any) => ({
+							...att,
+							profiles: att.uploaded_by ? { full_name: allProfilesMap.get(att.uploaded_by)?.full_name || null } : null
+						}))
+					}
+				} catch (_) {
+					// non-fatal
 				}
 			}
 		}
 
 		return {
 			bug: bugWithProfiles,
-			comments: comments || [],
-			attachments: attachments || [],
-			labels: (labelAssignments || []).map((la: any) => la.phwb_bug_labels).filter(Boolean),
-			relations: relations || [],
-			activity: activity || [],
-			timeTracking: timeTracking || [],
-			users: users || [],
-			allLabels: allLabels || [],
-			replicationScreenshots: replicationScreenshots || [],
-			testingSessions: testingSessions || []
+			comments,
+			attachments,
+			labels,
+			relations,
+			activity,
+			timeTracking,
+			users,
+			allLabels,
+			replicationScreenshots,
+			testingSessions
 		}
 	} catch (err) {
 		console.error('Bug detail load error:', err)
+		// Preserve explicit 4xx/5xx HttpErrors thrown above (e.g. 404 bug not found).
+		if (err && typeof err === 'object' && 'status' in err) {
+			throw err
+		}
 		throw error(500, 'Failed to load bug details: ' + (err instanceof Error ? err.message : 'Unknown error'))
 	}
 }

@@ -64,6 +64,22 @@ const initialEnhancedState: StoreState<EnhancedEvent> = {
 
 const enhancedState = writable<StoreState<EnhancedEvent>>(initialEnhancedState)
 
+// Update events via server API route to avoid client-side RLS/singular-response issues.
+async function updateEventViaApi(eventId: number, updates: UpdateEvent): Promise<Event> {
+	const response = await fetch(`/api/events/${eventId}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(updates)
+	})
+
+	if (!response.ok) {
+		const payload = await response.json().catch(() => ({ error: 'Unknown error' }))
+		throw new Error(payload.error || `Failed to update event: ${response.statusText}`)
+	}
+
+	return response.json()
+}
+
 // Function to enhance events with related data
 function enhanceEvents(events: Event[]): EnhancedEvent[] {
 	return events.map(event => {
@@ -151,6 +167,10 @@ export const eventsStore = {
 		return eventsStore.enhanced.create(eventData)
 	},
 	update: async (id: string | number, updates: UpdateEvent) => {
+		const normalizedId = typeof id === 'string' ? parseInt(id, 10) : id
+		if (!normalizedId || Number.isNaN(normalizedId)) {
+			throw new Error(`Invalid event ID: ${id}`)
+		}
 		const reviewedPayrollEntries = (updates as any).__reviewedPayrollEntries as GeneratedPayrollEntry[] | undefined
 		const sendInvitationNotifications =
 			(updates as any).__sendInvitationNotifications === undefined
@@ -161,12 +181,12 @@ export const eventsStore = {
 		delete (persistedUpdates as any).__sendInvitationNotifications
 		let previousEvent: Event | null = null
 		try {
-			previousEvent = await baseStore.getById(id)
+			previousEvent = await baseStore.getById(normalizedId)
 		} catch {
 			previousEvent = null
 		}
 
-		const updatedEvent = await baseStore.update(id, persistedUpdates)
+		const updatedEvent = await updateEventViaApi(normalizedId, persistedUpdates)
 		const hasArtistUpdates = Object.prototype.hasOwnProperty.call(updates, 'artists')
 		const hasPayrollDriverUpdates =
 			hasArtistUpdates ||
@@ -351,13 +371,22 @@ export const eventsStore = {
 					if (rpcError) {
 						logger.error('RPC sync failed:', rpcError)
 						// Fallback: manual sequence sync
-						await supabase.from('phwb_events').select('id').order('id', { ascending: false }).limit(1).single()
-							.then(({ data }) => {
-								if (data) {
-									return supabase.rpc('setval', { sequence_name: 'phwb_events_id_seq', new_value: data.id + 1 })
-								}
-							})
-							.catch(logger.error)
+						try {
+							const { data } = await supabase
+								.from('phwb_events')
+								.select('id')
+								.order('id', { ascending: false })
+								.limit(1)
+								.single()
+							if (data) {
+								await supabase.rpc('setval', {
+									sequence_name: 'phwb_events_id_seq',
+									new_value: data.id + 1
+								})
+							}
+						} catch (e) {
+							logger.error('Fallback sequence sync failed:', e)
+						}
 					}
 					
 					const { data: retryData, error: retryError } = await supabase

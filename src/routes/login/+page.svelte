@@ -2,6 +2,11 @@
 	import { authStore } from '$lib/auth'
 	import { page } from '$app/stores'
 
+	interface Props {
+		data: { devUsers: Array<{ id: string; email: string; full_name: string }> }
+	}
+	let { data }: Props = $props()
+
 	let loading = $state(false)
 	let error = $state($page.url.searchParams.get('error') || '')
 
@@ -53,26 +58,21 @@
 				Access restricted to authorized Sing for Hope staff
 			</p>
 
-			{#if import.meta.env.DEV}
-				<div class="divider text-xs">OR</div>
-				<a
-					href="/auth/test-login?email=it@singforhope.org"
-					class="btn btn-outline btn-sm w-full"
-				>
-					🔓 Dev: Test Login (IT Dev)
-				</a>
-				<a
-					href="/auth/test-login?email=marty@singforhope.org"
-					class="btn btn-outline btn-sm w-full mt-2"
-				>
-					🔓 Dev: Test Login (Marty)
-				</a>
-				<a
-					href="/auth/test-login?email=javier@singforhope.org"
-					class="btn btn-outline btn-sm w-full mt-2"
-				>
-					🔓 Dev: Test Login (Javier)
-				</a>
+			{#if import.meta.env.DEV && data.devUsers?.length > 0}
+				<div class="divider text-xs">OR sign in as (dev)</div>
+				<div class="w-full flex flex-col gap-2 max-h-64 overflow-y-auto">
+					{#each data.devUsers as user (user.id)}
+						<a
+							href="/auth/test-login?email={encodeURIComponent(user.email)}"
+							class="btn btn-outline btn-sm w-full justify-start text-left"
+						>
+							<span class="truncate">
+								{user.full_name}
+								<span class="text-base-content/60 font-normal ml-1">({user.email})</span>
+							</span>
+						</a>
+					{/each}
+				</div>
 			{/if}
 		</div>
 	</div>

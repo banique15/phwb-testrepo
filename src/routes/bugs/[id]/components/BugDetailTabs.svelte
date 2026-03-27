@@ -50,7 +50,8 @@
 	}: Props = $props()
 
 	let descriptionValue = $state(bug.description || '')
-	
+	let tabContentEl = $state<HTMLDivElement | null>(null)
+
 	// Track the last known bug.description to detect actual server/parent changes
 	let lastKnownBugDescription = $state(bug.description || '')
 
@@ -63,18 +64,26 @@
 			descriptionValue = newDescription
 		}
 	})
+
+	// Scroll tab content to top when switching tabs so new content is visible
+	$effect(() => {
+		activeTab
+		if (tabContentEl) tabContentEl.scrollTop = 0
+	})
 </script>
 
 <div class="flex-1 flex flex-col min-h-0">
-	<!-- Tab Navigation -->
-	<div class="tabs tabs-boxed mb-4 flex-shrink-0 bg-base-100 shadow-sm">
+	<!-- Tab Navigation: scrollable row so all tabs are reachable on small screens -->
+	<div class="tabs tabs-boxed mb-4 flex-shrink-0 bg-base-100 shadow-sm overflow-x-auto flex-nowrap">
 		<button
+			type="button"
 			class="tab {activeTab === 'description' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('description')}
 		>
 			Description
 		</button>
 		<button
+			type="button"
 			class="tab {activeTab === 'comments' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('comments')}
 		>
@@ -84,6 +93,7 @@
 			{/if}
 		</button>
 		<button
+			type="button"
 			class="tab {activeTab === 'attachments' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('attachments')}
 		>
@@ -93,6 +103,7 @@
 			{/if}
 		</button>
 		<button
+			type="button"
 			class="tab {activeTab === 'activity' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('activity')}
 		>
@@ -102,6 +113,7 @@
 			{/if}
 		</button>
 		<button
+			type="button"
 			class="tab {activeTab === 'time' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('time')}
 		>
@@ -111,6 +123,7 @@
 			{/if}
 		</button>
 		<button
+			type="button"
 			class="tab {activeTab === 'replication' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('replication')}
 		>
@@ -120,6 +133,7 @@
 			{/if}
 		</button>
 		<button
+			type="button"
 			class="tab {activeTab === 'testing' ? 'tab-active' : ''}"
 			onclick={() => onTabChange('testing')}
 		>
@@ -131,7 +145,7 @@
 	</div>
 
 	<!-- Tab Content -->
-	<div class="flex-1 overflow-y-auto min-h-0">
+	<div class="flex-1 overflow-y-auto min-h-0" bind:this={tabContentEl}>
 		{#if activeTab === 'description'}
 			<div class="card bg-base-100 shadow-sm">
 				<div class="card-body p-6">
