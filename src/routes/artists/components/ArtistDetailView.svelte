@@ -61,7 +61,7 @@
 			// Normalize phone number before saving
 			const dataToSave = { ...editData }
 			if (dataToSave.phone) {
-				dataToSave.phone = normalizePhoneForDB(dataToSave.phone)
+				dataToSave.phone = normalizePhoneForDB(dataToSave.phone) ?? undefined
 			}
 
 			const updatedArtist = await updateArtist(artist.id, dataToSave)
@@ -161,6 +161,9 @@
 					{/if}
 					{#if artist.sightreads}
 						<span class="badge badge-info badge-sm">Sight Reads</span>
+					{/if}
+					{#if artist.is_production_manager}
+						<span class="badge badge-secondary badge-sm">Production Manager</span>
 					{/if}
 				</div>
 			</div>
@@ -377,9 +380,8 @@
 							bind:value={editData.employment_status}
 						>
 							<option value="">Select status</option>
-							<option value="Employee">Employee/W2</option>
-							<option value="1099">LLC/1099</option>
-							<option value="Trial">Trial</option>
+							<option value="W-2">W-2 (Roster)</option>
+							<option value="1099">1099 (LLC)</option>
 						</select>
 					{:else}
 						<p class="text-sm">{artist.employment_status || '-'}</p>

@@ -2,6 +2,7 @@ import { derived, get } from 'svelte/store'
 import { venuesStore } from './venues'
 import { programsStore } from './programs'
 import { artistsStore } from './artists'
+import { productionManagersStore } from './productionManagers'
 import { facilitiesStore } from './facilities'
 import { locationsStore } from './locations'
 import type { Venue } from '$lib/schemas/venue'
@@ -14,6 +15,7 @@ import type { Location } from '$lib/schemas/location'
 const venuesState = derived(venuesStore, $store => $store.items)
 const programsState = derived(programsStore, $store => $store.items)
 const artistsState = derived(artistsStore, $store => $store.items)
+const productionManagersState = derived(productionManagersStore, $store => $store.items)
 const facilitiesState = derived(facilitiesStore, $store => $store.items)
 const locationsState = derived(locationsStore, $store => $store.items)
 
@@ -74,6 +76,20 @@ export const locationLookup = derived(locationsState, ($locations) => {
 	return lookup
 })
 
+export const productionManagerLookup = derived(productionManagersState, ($pms) => {
+	const lookup = new Map<string, string>()
+	$pms.forEach(pm => {
+		if (pm.id) {
+			const name =
+				pm.full_name ||
+				`${pm.legal_first_name || ''} ${pm.legal_last_name || ''}`.trim() ||
+				'Unknown Production Manager'
+			lookup.set(pm.id, name)
+		}
+	})
+	return lookup
+})
+
 // Utility functions to resolve IDs to names
 export const lookupUtils = {
 	getVenueName: (id: number | undefined, fallback = 'Unknown Venue') => {
@@ -106,6 +122,12 @@ export const lookupUtils = {
 		return lookup.get(id) || fallback
 	},
 
+	getProductionManagerName: (id: string | undefined, fallback = 'Unknown Production Manager') => {
+		if (!id) return fallback
+		const lookup = get(productionManagerLookup)
+		return lookup.get(id) || fallback
+	},
+
 	// Initialize all lookups by fetching data
 	async initialize() {
 		try {
@@ -113,6 +135,7 @@ export const lookupUtils = {
 				venuesStore.fetchAll(),
 				programsStore.fetchAll(),
 				artistsStore.fetchAll(),
+				productionManagersStore.fetchAll(),
 				facilitiesStore.fetchAll(),
 				locationsStore.fetchAll()
 			])

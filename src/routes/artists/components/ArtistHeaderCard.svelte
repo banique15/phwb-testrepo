@@ -221,12 +221,15 @@
 							displayClass="text-2xl font-bold"
 						/>
 					</div>
-					<div class="flex items-center gap-1 flex-shrink-0 pt-1">
+					<div class="flex items-center gap-1 flex-shrink-0 pt-1 flex-wrap">
 						{#if artist.can_be_soloist}
 							<span class="badge badge-accent badge-sm">Soloist</span>
 						{/if}
 						{#if artist.sightreads}
 							<span class="badge badge-info badge-sm">Sight Reads</span>
+						{/if}
+						{#if artist.is_production_manager}
+							<span class="badge badge-secondary badge-sm">Production Manager</span>
 						{/if}
 					</div>
 				</div>

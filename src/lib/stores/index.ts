@@ -7,6 +7,9 @@ export { reportsStore } from './reports'
 export { payrollStore } from './payroll'
 export { configStore } from './config'
 export { profilesStore } from './profiles'
+export { notificationTemplatesStore } from './notification-templates'
+export { notificationPoliciesStore } from './notification-policies'
+export { notificationRunsStore } from './notification-runs'
 export { errorStore } from './error'
 
 // Export all types from schemas

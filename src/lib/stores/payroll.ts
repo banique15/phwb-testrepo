@@ -5,6 +5,7 @@ import { payrollSchema, type Payroll, type CreatePayroll, type UpdatePayroll, Pa
 import { type CreatePayrollAudit, AuditAction } from '$lib/schemas/payroll-audit'
 import { type PaymentBatch, type CreatePaymentBatch } from '$lib/schemas/payment-batch'
 import type { PaginationOptions, StoreState } from '$lib/types'
+import { queuePayoutProcessedNotifications } from '$lib/services/notification-producer'
 
 const initialState: StoreState<Payroll> = {
 	items: [],
@@ -31,8 +32,9 @@ export const payrollStore = {
 				.from('phwb_payroll')
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`, { count: 'exact' })
 			
@@ -134,6 +136,20 @@ export const payrollStore = {
 			const sortBy = options.sortBy || 'event_date'
 			const ascending = options.sortOrder === 'asc'
 			query = query.order(sortBy, { ascending })
+
+			// Deterministic tie-breakers:
+			// 1) keep newest generation batches first when primary sort ties
+			// 2) group event-automation rows by source event
+			// 3) place PM row at top within each same-event group
+			// 4) stable latest-id fallback
+			if (sortBy !== 'created_at') {
+				query = query.order('created_at', { ascending: false })
+			}
+			query = query
+				.order('source_event_id', { ascending: false, nullsFirst: false })
+				.order('event_id', { ascending: false, nullsFirst: false })
+				.order('is_production_manager', { ascending: false })
+				.order('id', { ascending: false })
 			
 			// Add pagination
 			const from = (options.page - 1) * options.limit
@@ -173,8 +189,9 @@ export const payrollStore = {
 				.from('phwb_payroll')
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.order('event_date', { ascending: false })
@@ -200,8 +217,9 @@ export const payrollStore = {
 				.insert([validatedData])
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -239,8 +257,9 @@ export const payrollStore = {
 				.eq('id', id)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -305,8 +324,9 @@ export const payrollStore = {
 				.eq('id', id)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -372,8 +392,9 @@ export const payrollStore = {
 				.in('id', payrollIds)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 
@@ -389,6 +410,12 @@ export const payrollStore = {
 				})
 			)
 			await Promise.all(auditPromises)
+
+			try {
+				await queuePayoutProcessedNotifications(data || [], new Date().toISOString())
+			} catch (notificationError) {
+				console.error('Failed to queue payout processed notifications:', notificationError)
+			}
 
 			payrollState.update(state => ({
 				...state,
@@ -414,7 +441,7 @@ export const payrollStore = {
 				reconciled: true,
 				reconciled_at: new Date().toISOString(),
 				external_payment_id: externalPaymentId,
-				status: PaymentStatus.COMPLETED
+				status: PaymentStatus.PAID
 			}
 
 			const { data, error } = await supabase
@@ -423,8 +450,9 @@ export const payrollStore = {
 				.eq('id', id)
 				.select(`
 					*,
-					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
@@ -456,8 +484,9 @@ export const payrollStore = {
 			.from('phwb_payroll')
 			.select(`
 				*,
-				artists:artist_id(id, full_name, legal_first_name, legal_last_name),
+				artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 				venues:venue_id(id, name),
+				facilities:facility_id(id, name),
 				programs:program_id(id, title, program_type)
 			`)
 			.in('id', ids)
@@ -509,7 +538,8 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, first_name, last_name),
-				venues:venue_id(id, name)
+				venues:venue_id(id, name),
+				facilities:facility_id(id, name)
 			`)
 			.eq('batch_id', batchId)
 
@@ -528,7 +558,8 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, first_name, last_name, email),
-				venues:venue_id(id, name)
+				venues:venue_id(id, name),
+				facilities:facility_id(id, name)
 			`)
 
 		if (filters.status?.length) {

@@ -5,6 +5,7 @@
 	import DataTable from '$lib/components/ui/DataTable.svelte'
 	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte'
 	import PaymentStatusBadge from '$lib/components/payroll/PaymentStatusBadge.svelte'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	interface Props {
 		entries: Payroll[]
@@ -54,7 +55,7 @@
 			key: 'artist_name',
 			label: 'Artist',
 			sortable: true,
-			render: (entry: Payroll) => entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'
+			render: (entry: Payroll) => entry.payee_name || entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'
 		},
 		{
 			key: 'payment_type',
@@ -96,7 +97,7 @@
 			label: 'Total Pay',
 			sortable: true,
 			width: '120px',
-			render: (entry: Payroll) => formatCurrency(calculateTotalPay(entry))
+			render: (entry: Payroll) => formatCurrency(getDisplayTotalPay(entry))
 		},
 		{
 			key: 'status',
@@ -174,20 +175,19 @@
 
 	function formatEmployeeStatus(status: string | undefined): string {
 		if (!status) return '-'
-		return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+		return status
 	}
 
-	function calculateTotalPay(entry: Payroll): number {
-		if (entry.total_pay) return entry.total_pay
-		const base = (entry.hours || 0) * (entry.rate || 0)
-		return base + (entry.additional_pay || 0)
+	function getDisplayTotalPay(entry: Payroll): number {
+		return entry.total_pay ?? computeEntryTotalPay(entry)
 	}
 
 	function getStatusBadgeClass(status: string): string {
 		switch (status) {
 			case 'Paid': return 'badge-success'
-			case 'Unpaid': return 'badge-warning'
 			case 'Planned': return 'badge-info'
+			case 'Approved': return 'badge-info'
+			case 'With Issues': return 'badge-warning'
 			case 'Cancelled': return 'badge-error'
 			default: return 'badge-ghost'
 		}
@@ -320,7 +320,10 @@
 							<!-- Artist -->
 							<td class="whitespace-nowrap">
 								<div class="font-medium">
-									{entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'}
+									{entry.payee_name || entry.artists?.full_name || (entry.artists?.legal_first_name + ' ' + entry.artists?.legal_last_name) || 'N/A'}
+									{#if entry.is_production_manager}
+										<span class="badge badge-secondary badge-xs ml-2">PM</span>
+									{/if}
 								</div>
 							</td>
 							
@@ -349,7 +352,7 @@
 							
 							<!-- Total Pay -->
 							<td class="text-right font-semibold whitespace-nowrap">
-								{formatCurrency(calculateTotalPay(entry))}
+								{formatCurrency(getDisplayTotalPay(entry))}
 							</td>
 							
 							<!-- Payment Status -->

@@ -17,6 +17,10 @@
 	import EventTabs from './components/EventTabs.svelte'
 	import EventCreateForm from './components/EventCreateForm.svelte'
 	import EventsBulkActions from './components/EventsBulkActions.svelte'
+	import { generatePayrollForEvent, previewCompletedEventPayrollChanges } from '$lib/services/payroll-generator'
+	import type { GeneratedPayrollEntry } from '$lib/schemas/rate-card'
+	import type { PayrollReconcilePreviewRow } from '$lib/services/payroll-generator'
+	import { toast } from '$lib/stores/toast'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
 	import { Calendar } from 'lucide-svelte'
@@ -55,6 +59,14 @@
 	let showCreateModal = $state(false)
 	let showCreateForm = $state(false)
 	let showDeleteModal = $state(false)
+	let showPayrollReviewModal = $state(false)
+	let showPayrollImpactModal = $state(false)
+	let showPayrollChangePreviewModal = $state(false)
+	let payrollPreviewLoading = $state(false)
+	let payrollPreviewEntries = $state<GeneratedPayrollEntry[]>([])
+	let payrollImpactResolver: ((confirmed: boolean) => void) | null = null
+	let payrollChangePreviewRows = $state<PayrollReconcilePreviewRow[]>([])
+	let payrollChangePreviewResolver: ((confirmed: boolean) => void) | null = null
 	let createFormInitialDate = $state<string | undefined>(undefined)
 	
 	let eventArtistsCount = $state(0)
@@ -154,6 +166,33 @@
 		}
 	})
 
+	// Keep URL-driven selection/edit mode in sync after initial load.
+	// This is required when navigating to /events?id=...&edit=true from inside this page.
+	$effect(() => {
+		if (!browser || !events || events.length === 0) return
+
+		const urlId = $page.url.searchParams.get('id')
+		const shouldEdit = $page.url.searchParams.get('edit') === 'true'
+		if (!urlId) return
+
+		const eventId = Number(urlId)
+		if (Number.isNaN(eventId)) return
+
+		const urlEvent = events.find((e: EnhancedEvent) => e.id === eventId)
+		if (!urlEvent) return
+
+		if (!selectedEvent || selectedEvent.id !== urlEvent.id) {
+			selectedEvent = updatedEvents.get(urlEvent.id!) || urlEvent
+			localStorage.setItem(STORAGE_KEY, urlEvent.id!.toString())
+		}
+
+		if (shouldEdit) {
+			// Ensure the edit context is visible on the events page.
+			viewMode = 'list'
+			externalActiveTab = 'settings'
+		}
+	})
+
 	async function selectEvent(event: EnhancedEvent) {
 		showCreateForm = false
 		// Use updated event from cache if available, otherwise use the passed event
@@ -201,6 +240,48 @@
 		try {
 			// Prepare update data - handle null/empty values
 			const finalValue = value === "" || value === null ? null : value
+			const normalizedStatusValue =
+				field === 'status' && typeof finalValue === 'string'
+					? finalValue.trim().toLowerCase()
+					: null
+
+			// Intercept completion in events list/detail panel and show payroll review modal first.
+			if (field === 'status' && normalizedStatusValue === 'completed') {
+				payrollPreviewLoading = true
+				const preview = await generatePayrollForEvent(selectedEvent.id, { dryRun: true })
+				payrollPreviewEntries = preview.entries.map((entry) => ({ ...entry }))
+				showPayrollReviewModal = true
+				return
+			}
+
+			const payrollDriverFields = new Set([
+				'artists',
+				'start_time',
+				'end_time',
+				'number_of_musicians',
+				'pm_hours',
+				'pm_rate',
+				'production_manager_id',
+				'production_manager_artist_id'
+			])
+			if (selectedEvent.status === 'completed' && payrollDriverFields.has(field)) {
+				const confirmed = await confirmPayrollImpact()
+				if (!confirmed) return
+
+				const previewResult = await previewCompletedEventPayrollChanges(selectedEvent.id, {
+					eventOverride: { [field]: finalValue }
+				})
+				if (!previewResult.success) {
+					toast.error(previewResult.errors.join('; ') || 'Failed to preview payroll changes')
+					return
+				}
+				payrollChangePreviewRows = previewResult.rows
+				if (previewResult.rows.length > 0) {
+					const apply = await confirmPayrollChangePreview()
+					if (!apply) return
+				}
+			}
+
 			const updateData: any = { [field]: finalValue }
 
 			// Validate the field only if value is not null (for optional fields)
@@ -233,6 +314,66 @@
 				)
 			}
 			throw error
+		} finally {
+			payrollPreviewLoading = false
+		}
+	}
+
+	async function confirmPayrollImpact(): Promise<boolean> {
+		showPayrollImpactModal = true
+		return await new Promise((resolve) => {
+			payrollImpactResolver = resolve
+		})
+	}
+
+	function resolvePayrollImpact(confirmed: boolean) {
+		showPayrollImpactModal = false
+		payrollImpactResolver?.(confirmed)
+		payrollImpactResolver = null
+	}
+
+	async function confirmPayrollChangePreview(): Promise<boolean> {
+		showPayrollChangePreviewModal = true
+		return await new Promise((resolve) => {
+			payrollChangePreviewResolver = resolve
+		})
+	}
+
+	function resolvePayrollChangePreview(confirmed: boolean) {
+		showPayrollChangePreviewModal = false
+		payrollChangePreviewResolver?.(confirmed)
+		payrollChangePreviewResolver = null
+	}
+
+	function updatePreviewEntry(index: number, field: 'hours' | 'rate' | 'additional_pay', value: number) {
+		const next = [...payrollPreviewEntries]
+		const current = { ...next[index] }
+		current[field] = value
+		current.total_pay = Number((current.hours * current.rate + current.additional_pay).toFixed(2))
+		next[index] = current
+		payrollPreviewEntries = next
+	}
+
+	async function confirmPayrollReviewAndComplete() {
+		if (!selectedEvent?.id) return
+		payrollPreviewLoading = true
+		try {
+			const updatedEvent = await eventsStore.update(selectedEvent.id, {
+				status: 'completed',
+				__reviewedPayrollEntries: payrollPreviewEntries
+			} as any)
+
+			const enhanced = eventsStore.enhanceEvents([updatedEvent])[0]
+			selectedEvent = enhanced
+			updatedEvents.set(enhanced.id!, enhanced)
+			updatedEvents = new Map(updatedEvents)
+			showPayrollReviewModal = false
+			logger.info('Completed event with payroll review', { eventId: enhanced.id })
+		} catch (error: any) {
+			logger.error('Failed to complete event with reviewed payroll:', error)
+			toast.error(error?.message || 'Failed to complete event with payroll review')
+		} finally {
+			payrollPreviewLoading = false
 		}
 	}
 
@@ -586,26 +727,20 @@
 		return result
 	})
 
-	// Calendar event shape for UiCalendar (week + month, time-slot create)
-	let calendarEvents = $derived.by(() =>
-		filteredEvents.map((e: EnhancedEvent) => ({
-			id: e.id!,
-			title: e.title || '',
-			date: e.date || '',
-			start_time: e.start_time ?? null,
-			end_time: e.end_time ?? null,
-			status: e.status || '',
-			program_id: (e as any).program ?? null,
-			program_name: e.program_name ?? null
-		}))
-	)
-
-	function handleCalendarEventCreated(createdEvent: EnhancedEvent) {
-		newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
-	}
-
 	// Derive selected events from filtered events (must be after filteredEvents is defined)
 	let selectedEvents = $derived(filteredEvents.filter(e => selectedEventIds.has(e.id!)))
+
+	// Convert to CalendarEvent[] for the dashboard calendar component
+	let calendarEvents = $derived(filteredEvents.map((e: EnhancedEvent) => ({
+		id: e.id!,
+		title: e.title || 'Untitled',
+		date: e.date || '',
+		start_time: e.start_time || null,
+		end_time: e.end_time || null,
+		status: e.status || 'planned',
+		program_id: e.program ?? null,
+		program_name: e.program_name || null
+	})))
 
 	// Recalculate statistics based on filtered events
 	let filteredStatistics = $derived.by(() => {
@@ -768,6 +903,10 @@
 		}
 	}
 
+	function handleCalendarEventCreated(createdEvent: EnhancedEvent) {
+		newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
+	}
+
 	function handleCreateFormCancel() {
 		showCreateForm = false
 	}
@@ -836,40 +975,24 @@
 <ErrorBoundary>
 	<div class="h-full flex flex-col overflow-hidden">
 		{#if viewMode === 'calendar'}
-			<!-- Calendar View - Full Layout -->
+			<!-- Calendar View - Same layout as Dashboard: scrollable content + Calendar -->
 			<div class="flex-1 min-h-0 flex flex-col">
-				<!-- Calendar View Header -->
 				<div class="flex-none px-4 py-2 bg-base-100 border-b border-base-200">
 					<div class="flex items-center justify-between">
-						<div>
-							<h1 class="text-xl font-bold leading-tight">Events - Calendar</h1>
-							<p class="text-sm opacity-70">Week and month view — click a time slot or day to create</p>
-						</div>
-						<div class="flex gap-2">
-							<button
-								class="btn btn-outline btn-sm"
-								onclick={toggleViewMode}
-								title="Switch to List View"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-								</svg>
-								List View
-							</button>
-							<button
-								class="btn btn-primary btn-sm"
-								onclick={() => showCreateModal = true}
-								title="Create event (or click a time slot in the calendar)"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-								</svg>
-								Create Event
-							</button>
-						</div>
+						<h1 class="text-xl font-bold leading-tight">Events - Calendar</h1>
+						<button
+							class="btn btn-outline btn-sm"
+							onclick={toggleViewMode}
+							title="Switch to List View"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+							</svg>
+							List View
+						</button>
 					</div>
 				</div>
-				<div class="flex-1 min-h-0 overflow-auto p-4">
+				<div class="flex-1 overflow-y-auto p-4 lg:p-6">
 					<UiCalendar
 						events={calendarEvents}
 						onEventCreated={handleCalendarEventCreated}
@@ -1051,6 +1174,140 @@
 			onSuccess={handleModalSuccess}
 		/>
 	{/await}
+{/if}
+
+{#if showPayrollImpactModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Review Payroll Impact</h3>
+			<p class="text-sm opacity-80 mt-2">
+				This completed-event edit affects payroll. Continue and review/reconcile payroll updates?
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolvePayrollImpact(false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={() => resolvePayrollImpact(true)}>Continue</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showPayrollChangePreviewModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-4xl">
+			<h3 class="font-bold text-lg">Payroll Changes Preview</h3>
+			<p class="text-sm opacity-80 mt-2">Review current vs new payroll before applying this completed-event edit.</p>
+			<div class="overflow-x-auto mt-4 max-h-[50vh]">
+				<table class="table table-zebra table-sm">
+					<thead>
+						<tr>
+							<th>Payee</th>
+							<th>Action</th>
+							<th>Current</th>
+							<th>New</th>
+							<th>Difference</th>
+							<th>Note</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each payrollChangePreviewRows as row}
+							<tr>
+								<td>
+									{row.payee_name}
+									{#if row.is_production_manager}
+										<span class="badge badge-secondary badge-xs ml-2">PM</span>
+									{/if}
+								</td>
+								<td><span class="badge badge-outline badge-xs">{row.action}</span></td>
+								<td>${row.current_total.toFixed(2)}</td>
+								<td>${row.new_total.toFixed(2)}</td>
+								<td class={row.delta >= 0 ? 'text-success' : 'text-error'}>
+									{row.delta >= 0 ? '+' : ''}${row.delta.toFixed(2)}
+								</td>
+								<td class="text-xs opacity-80">{row.note || '-'}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolvePayrollChangePreview(false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={() => resolvePayrollChangePreview(true)}>Apply Changes</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showPayrollReviewModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-5xl">
+			<h3 class="font-bold text-lg">Review Payroll Before Completion</h3>
+			<p class="text-sm opacity-70 mt-1">Adjust entries as needed before payroll is generated for this completed event.</p>
+			<div class="overflow-x-auto mt-4 max-h-[50vh]">
+				<table class="table table-zebra table-sm">
+					<thead>
+						<tr>
+							<th>Payee</th>
+							<th>Date</th>
+							<th>Hours</th>
+							<th>Rate</th>
+							<th>Additional</th>
+							<th>Total</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each payrollPreviewEntries as entry, index}
+							<tr>
+								<td>
+									{entry.payee_name || entry.artist_name}
+									{#if entry.is_production_manager}
+										<span class="badge badge-secondary badge-xs ml-2">PM</span>
+									{/if}
+								</td>
+								<td>{entry.event_date}</td>
+								<td>
+									<input
+										type="number"
+										class="input input-bordered input-xs w-24"
+										min="0"
+										step="0.25"
+										value={entry.hours}
+										oninput={(e) => updatePreviewEntry(index, 'hours', Number(e.currentTarget.value || 0))}
+									/>
+								</td>
+								<td>
+									<input
+										type="number"
+										class="input input-bordered input-xs w-24"
+										min="0"
+										step="0.01"
+										value={entry.rate}
+										oninput={(e) => updatePreviewEntry(index, 'rate', Number(e.currentTarget.value || 0))}
+									/>
+								</td>
+								<td>
+									<input
+										type="number"
+										class="input input-bordered input-xs w-24"
+										step="0.01"
+										value={entry.additional_pay}
+										oninput={(e) => updatePreviewEntry(index, 'additional_pay', Number(e.currentTarget.value || 0))}
+									/>
+								</td>
+								<td>${entry.total_pay.toFixed(2)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => showPayrollReviewModal = false} disabled={payrollPreviewLoading}>Cancel</button>
+				<button class="btn btn-primary" onclick={confirmPayrollReviewAndComplete} disabled={payrollPreviewLoading}>
+					{#if payrollPreviewLoading}<span class="loading loading-spinner loading-sm"></span>{/if}
+					Complete Event & Generate Payroll
+				</button>
+			</div>
+		</div>
+	</div>
 {/if}
 
 <!-- Bulk Actions Toolbar -->

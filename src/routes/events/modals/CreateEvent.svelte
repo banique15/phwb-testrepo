@@ -1,20 +1,17 @@
 <script lang="ts">
 	import { Lightbulb, HelpCircle } from 'lucide-svelte'
-	import { eventsStore } from '$lib/stores/events'
+import { eventsStore } from '$lib/stores/events'
 	import { onMount } from 'svelte'
 	import type { Artist } from '$lib/schemas/artist'
-	import type { LocationWithFacility } from '$lib/schemas/location'
-	import { supabase } from '$lib/supabase'
+import type { LocationWithFacility } from '$lib/schemas/location'
+import { supabase } from '$lib/supabase'
+import { enhancedLookup } from '$lib/stores/lookup'
 	import type { EnhancedEvent } from '$lib/stores/events'
 	import 'driver.js/dist/driver.css'
 	import { startCreateEventTour } from '$lib/tours/createEventTour'
-	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
+	import ProductionManagerSelector from '$lib/components/ui/ProductionManagerSelector.svelte'
 	import UnifiedArtistAssignment, { type ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
-	import CreateLocationContact from '../../facilities/components/modals/contacts/CreateLocationContact.svelte'
-	import { Plus } from 'lucide-svelte'
-	import { toast } from '$lib/stores/toast'
-	import type { LocationContact } from '$lib/schemas/locationContact'
 
 	interface Props {
 		open?: boolean
@@ -36,9 +33,9 @@
 	let locationId = $state<number | null>(null)
 	let selectedLocation = $state<LocationWithFacility | null>(null)
 	let artistAssignments = $state<ArtistAssignment[]>([])
-	let productionManagerContactId = $state<number | null>(null)
+	let productionManagerArtistId = $state<string | null>(null)
+	let productionManagerId = $state<string | null>(null)
 	let numberOfAttendees = $state<number | undefined>(undefined)
-	let showCreateContactModal = $state(false)
 
 	// UI state
 	let submitting = $state(false)
@@ -145,7 +142,8 @@
 				...(locationId && { location_id: locationId }),
 				notes: '',
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
-				...(productionManagerContactId && { production_manager_contact_id: productionManagerContactId }),
+				...(productionManagerId && { production_manager_id: productionManagerId }),
+				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -185,8 +183,12 @@
 		error = null
 
 		try {
-			// Get facility name for title generation
-			const facilityName = selectedLocation?.facility?.name || ''
+			// Get facility name for title generation, falling back to lookup store
+			let facilityName = selectedLocation?.facility?.name || ''
+			if (!facilityName && locationId) {
+				const locationInfo = enhancedLookup.getLocationWithFacility(locationId)
+				facilityName = locationInfo?.facility?.name || ''
+			}
 			const locationDisplay = facilityName || 'Unknown Facility'
 			let finalTitle = title.trim()
 
@@ -217,7 +219,8 @@
 				location_id: locationId,
 				notes: '',
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
-				...(productionManagerContactId && { production_manager_contact_id: productionManagerContactId }),
+				...(productionManagerId && { production_manager_id: productionManagerId }),
+				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -249,7 +252,8 @@
 		locationId = null
 		selectedLocation = null
 		artistAssignments = []
-		productionManagerContactId = null
+		productionManagerArtistId = null
+		productionManagerId = null
 		numberOfAttendees = undefined
 		error = null
 	}
@@ -444,44 +448,20 @@
 					</select>
 				</div>
 
-				<!-- Production Manager Contact -->
+				<!-- Production Manager (artist with is_production_manager) -->
 				<div class="form-control">
-					<div class="flex items-center justify-between mb-1">
-						<label class="label">
-							<span class="label-text">Production Manager Contact</span>
-						</label>
-						<button
-							type="button"
-							class="btn btn-xs btn-outline btn-primary"
-							class:btn-disabled={!locationId}
-							onclick={() => {
-								if (!locationId) {
-									toast.error('Please select a location first before adding a production manager contact')
-									return
-								}
-								showCreateContactModal = true
-							}}
-							title={locationId ? "Create new production manager contact" : "Please select a location first"}
-							disabled={!locationId || submitting}
-						>
-							<Plus class="w-3 h-3 mr-1" />
-							Create New
-						</button>
-					</div>
-					<LocationContactSelector
-						value={productionManagerContactId}
-						locationId={locationId}
-						onchange={(contactId) => productionManagerContactId = contactId}
-						placeholder="Select a production manager contact (optional)"
+					<label class="label">
+						<span class="label-text">Production Manager</span>
+					</label>
+					<ProductionManagerSelector
+						value={productionManagerId}
+						placeholder="Select a production manager (optional)"
 						disabled={submitting}
+						onchange={(selectedProductionManagerId, productionManager) => {
+							productionManagerId = selectedProductionManagerId
+							productionManagerArtistId = productionManager?.artist_id ?? null
+						}}
 					/>
-					{#if !locationId}
-						<label class="label">
-							<span class="label-text-alt text-warning">
-								Please select a location first to add a production manager contact
-							</span>
-						</label>
-					{/if}
 				</div>
 			</div>
 
@@ -543,15 +523,3 @@
 	</form>
 </dialog>
 
-<!-- Create Location Contact Modal -->
-<CreateLocationContact
-	open={showCreateContactModal}
-	locationId={locationId ? Number(locationId) : undefined}
-	on:close={() => showCreateContactModal = false}
-	on:success={(e: CustomEvent<{ contact: LocationContact }>) => {
-		const newContact = e.detail.contact
-		productionManagerContactId = newContact.id
-		showCreateContactModal = false
-		toast.success('Production manager contact created and selected')
-	}}
-/>

@@ -51,10 +51,11 @@
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
 					venues:venue_id(id, name),
+					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.eq('status', PaymentStatus.APPROVED)
-				.order('event_date', { ascending: true })
+				.order('created_at', { ascending: false })
 
 			if (fetchError) throw fetchError
 
@@ -116,12 +117,13 @@
 			// Calculate totals
 			const totalAmount = entries.reduce((sum, e) => sum + (e.total_pay || 0), 0)
 			const uniqueArtists = new Set(entries.map(e => e.artist_id).filter(Boolean))
+			const sortedEntries = sortEntriesByGeneration(entries)
 
 			return {
 				weekStart,
 				weekEnd,
 				label: formatWeekLabel(weekStart, weekEnd),
-				entries,
+				entries: sortedEntries,
 				totalAmount,
 				artistCount: uniqueArtists.size,
 				isAging: ageInWeeks > 0,
@@ -134,6 +136,33 @@
 		batches.sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime())
 
 		weeklyBatches = batches
+	}
+
+	function sortEntriesByGeneration(entries: Payroll[]): Payroll[] {
+		const groupedByEvent = new Map<string, Payroll[]>()
+
+		for (const entry of entries) {
+			const eventKey = String(entry.source_event_id ?? entry.event_id ?? `entry-${entry.id ?? `${entry.artist_id || 'unknown'}-${entry.created_at || entry.event_date}`}`)
+			if (!groupedByEvent.has(eventKey)) {
+				groupedByEvent.set(eventKey, [])
+			}
+			groupedByEvent.get(eventKey)!.push(entry)
+		}
+
+		const eventGroups = Array.from(groupedByEvent.values()).sort((a, b) => {
+			const latestA = Math.max(...a.map((entry) => new Date(entry.created_at || entry.event_date).getTime()))
+			const latestB = Math.max(...b.map((entry) => new Date(entry.created_at || entry.event_date).getTime()))
+			return latestB - latestA
+		})
+
+		return eventGroups.flatMap((group) =>
+			group.sort((a, b) => {
+				const createdA = new Date(a.created_at || a.event_date).getTime()
+				const createdB = new Date(b.created_at || b.event_date).getTime()
+				if (createdA !== createdB) return createdB - createdA
+				return getArtistName(a).localeCompare(getArtistName(b))
+			})
+		)
 	}
 
 	function formatWeekLabel(start: Date, end: Date): string {
@@ -485,6 +514,7 @@
 											<th>Artist</th>
 											<th>Date</th>
 											<th>Program</th>
+										<th>Facility</th>
 											<th class="text-right">Duration</th>
 											<th class="text-right">Rate</th>
 											<th class="text-right">Amount</th>
@@ -509,6 +539,9 @@
 												</td>
 												<td class="text-sm opacity-70">
 													{(entry.programs as any)?.title || '-'}
+												</td>
+												<td class="text-sm opacity-70">
+													{(entry.facilities as any)?.name || '-'}
 												</td>
 												<td class="text-right text-sm">{entry.hours || '-'}</td>
 												<td class="text-right text-sm">{entry.rate ? formatCurrency(entry.rate) : '-'}</td>

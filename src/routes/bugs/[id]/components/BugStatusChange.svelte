@@ -15,8 +15,8 @@
 		{ value: 'in_progress', label: 'In Progress', description: 'Work underway, not yet visible' },
 		{ value: 'testing', label: 'Testing', description: 'Visible in app, being tested internally' },
 		{ value: 'review', label: 'Review', description: 'Ready for end-user review' },
-		{ value: 'resolved', label: 'Resolved', description: 'Complete but not documented' },
-		{ value: 'closed', label: 'Closed', description: 'Fully finished and documented' }
+		{ value: 'qa_passed', label: 'QA passed', description: 'QA has passed; awaiting final release' },
+		{ value: 'resolved', label: 'Resolved', description: 'Complete and released' }
 	]
 
 	function getStatusBadgeClass(status: Bug['status']): string {
@@ -26,8 +26,8 @@
 			in_progress: 'badge-primary',
 			testing: 'badge-secondary',
 			review: 'badge-accent',
-			resolved: 'badge-success',
-			closed: 'badge-neutral'
+			qa_passed: 'badge-success',
+			resolved: 'badge-success'
 		}
 		return classes[status] || 'badge-neutral'
 	}

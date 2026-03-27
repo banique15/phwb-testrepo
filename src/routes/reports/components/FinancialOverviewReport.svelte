@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte'
 	import { DollarSign, TrendingUp, TrendingDown } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	// Report state
 	let loading = $state(false)
@@ -188,7 +189,7 @@
 			// Add linked payroll costs
 			const linkedPayroll = eventPayrollMap.get(event.id) || []
 			linkedPayroll.forEach(p => {
-				const cost = p.total_pay || (p.hours || 0) * (p.rate || 0) + (p.additional_pay || 0)
+				const cost = p.total_pay ?? computeEntryTotalPay(p)
 				group.payrollCost += cost
 				group.hoursWorked += p.hours || 0
 				if (p.artist_id) group.artistCount.add(p.artist_id)
@@ -199,7 +200,7 @@
 		// Calculate unlinked payroll
 		payroll.forEach(p => {
 			if (!processedPayrollIds.has(p.id)) {
-				const cost = p.total_pay || (p.hours || 0) * (p.rate || 0) + (p.additional_pay || 0)
+				const cost = p.total_pay ?? computeEntryTotalPay(p)
 				unlinkedPayrollCost += cost
 				unlinkedPayrollHours += p.hours || 0
 			}

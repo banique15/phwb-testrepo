@@ -19,9 +19,10 @@
 	import { Bell } from "lucide-svelte";
 	import { formatDistanceToNow } from "date-fns";
 
-	const navItems = [
+const navItems = [
 		{ name: "Dashboard", href: "/", disabled: false },
 		{ name: "Artists", href: "/artists", disabled: false },
+		{ name: "Production Managers", href: "/production-managers", disabled: false },
 		{ name: "Ensembles", href: "/ensembles", disabled: false },
 		{ name: "Partners", href: "/partners", disabled: false },
 		{ name: "Programs", href: "/programs", disabled: false },
@@ -29,6 +30,10 @@
 		{ name: "Events", href: "/events", disabled: false },
 		{ name: "Reports", href: "/reports", disabled: false },
 		{ name: "Payroll", href: "/payroll", disabled: false },
+	];
+
+	const settingsItems = [
+		{ name: "Notifications", href: "/settings/notifications", disabled: false }
 	];
 
 	let isMobile = $state(false);
@@ -350,6 +355,33 @@
 						{/if}
 					</li>
 				{/each}
+
+				<li class="pt-2 mt-2 border-t border-base-300/60">
+					<span class="px-4 py-2 text-xs uppercase tracking-wide text-base-content/60">
+						Settings
+					</span>
+					<ul class="mt-1 space-y-1">
+						{#each settingsItems as item}
+							<li class="w-full">
+								<a
+									href={item.href}
+									data-sveltekit-preload-data="hover"
+									data-sveltekit-preload-code="eager"
+									class="flex items-center gap-3 py-2 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+									class:bg-primary={isActive(item.href)}
+									class:text-primary-content={isActive(item.href)}
+									class:shadow-sm={isActive(item.href)}
+									class:hover:bg-base-300={!isActive(item.href)}
+									class:text-base-content={!isActive(item.href)}
+									onclick={handleNavClick}
+									aria-current={isActive(item.href) ? "page" : undefined}
+								>
+									<span>{item.name}</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				</li>
 			</ul>
 		</nav>
 

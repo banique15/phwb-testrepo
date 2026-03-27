@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Payroll } from '$lib/schemas/payroll'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { ClipboardList, CheckCircle, Search, BarChart, CalendarPlus, CreditCard, Wallet } from 'lucide-svelte'
+import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Download, Upload } from 'lucide-svelte'
 	import PayrollInlineTable from '../PayrollInlineTable.svelte'
 	import PayrollFiltersButton from '../PayrollFiltersButton.svelte'
 	import PayrollMetricsFilterButton from '../PayrollMetricsFilterButton.svelte'
@@ -17,6 +17,9 @@
 	import { payrollStore } from '$lib/stores/payroll'
 	import { supabase } from '$lib/supabase'
 	import { PaymentStatus } from '$lib/schemas/payroll'
+	import ExportPayrollEntriesModal from '$lib/components/payroll/ExportPayrollEntriesModal.svelte'
+	import { goto } from '$app/navigation'
+	import { downloadCSV } from '$lib/utils'
 
 	interface Props {
 		payrollEntries: Payroll[]
@@ -206,10 +209,107 @@
 		(typeof window !== 'undefined' ? localStorage.getItem('phwb-payroll-active-tab') : null) || 'entries'
 	)
 
+	// Entries export modal state
+	let showExportEntriesModal = $state(false)
+
 	function setActiveTab(tabId: string) {
 		activeTab = tabId
 		if (typeof window !== 'undefined') {
 			localStorage.setItem('phwb-payroll-active-tab', tabId)
+		}
+	}
+
+	// Build a CSV that matches the payroll import template headers
+	function exportEntriesAsTemplateCSV(entries: Payroll[]) {
+		if (!entries || entries.length === 0) return
+
+		const headers = [
+			'event_date',
+			'artist_name',
+			'venue_name',
+			'hours',
+			'rate',
+			'additional_pay',
+			'additional_pay_reason',
+			'status',
+			'insperity_hours',
+			'paid_date',
+			'event_id'
+		]
+
+		const rows = entries.map(entry => {
+			const artist = entry.artists as any
+			const venue = entry.venues as any
+			const artistName =
+				artist?.full_name ||
+				`${artist?.legal_first_name || ''} ${artist?.legal_last_name || ''}`.trim() ||
+				''
+
+			return [
+				entry.event_date || '',
+				artistName,
+				venue?.name || '',
+				(entry.hours ?? '').toString(),
+				(entry.rate ?? '').toString(),
+				(entry.additional_pay ?? '').toString(),
+				entry.additional_pay_reason || '',
+				entry.status || 'Planned',
+				(entry.insperity_hours ?? '').toString(),
+				entry.paid_date || '',
+				entry.event_id ? String(entry.event_id) : ''
+			]
+		})
+
+		const escape = (value: string) => {
+			if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+				return `"${value.replace(/"/g, '""')}"`
+			}
+			return value
+		}
+
+		const csvContent = [
+			headers.join(','),
+			...rows.map(row => row.map(escape).join(','))
+		].join('\n')
+
+		const filename = `payroll_entries_${new Date().toISOString().split('T')[0]}.csv`
+		downloadCSV(csvContent, filename)
+	}
+
+	// Handle confirm from ExportPayrollEntriesModal
+	async function handleEntriesExportConfirm(event: CustomEvent<{ scope: 'all' | 'selected' }>) {
+		const scope = event.detail.scope
+
+		try {
+			let entriesToExport: Payroll[] = []
+
+			if (scope === 'selected') {
+				entriesToExport = getSelectedPayments()
+			} else {
+				// Export all entries matching current filters (across pages)
+				const result = await (payrollStore as any).fetchAll({
+					search: searchQuery || undefined,
+					sortBy,
+					sortOrder,
+					filters: {
+						status: statusFilter || undefined,
+						payment_type: paymentTypeFilter || undefined,
+						employee_contractor_status: employeeContractorFilter || undefined,
+						date_start: dateRangeStart || undefined,
+						date_end: dateRangeEnd || undefined
+					}
+				})
+				entriesToExport = result.data as Payroll[]
+			}
+
+			if (!entriesToExport || entriesToExport.length === 0) {
+				showExportEntriesModal = false
+				return
+			}
+
+			exportEntriesAsTemplateCSV(entriesToExport)
+		} finally {
+			showExportEntriesModal = false
 		}
 	}
 </script>
@@ -236,14 +336,25 @@
 			<div class="space-y-4">
 				<!-- Actions Bar -->
 				<div class="flex justify-between items-center">
-					<!-- Generate Payroll Button -->
-					<button 
-						class="btn btn-primary btn-sm"
-						onclick={onOpenGeneration}
-					>
-						<CalendarPlus class="w-4 h-4 mr-2" />
-						Generate Weekly Payroll
-					</button>
+					<div class="flex items-center gap-2">
+						<button
+							class="btn btn-outline btn-sm"
+							onclick={() => goto('/payroll/import')}
+							title="Import payroll data from CSV"
+						>
+							<Upload class="w-4 h-4 mr-1" />
+							Import CSV
+						</button>
+
+						<button
+							class="btn btn-outline btn-sm"
+							onclick={() => showExportEntriesModal = true}
+							title="Export payroll entries as CSV"
+						>
+							<Download class="w-4 h-4 mr-1" />
+							Export CSV
+						</button>
+					</div>
 					
 					<!-- Metrics Filter -->
 					<PayrollMetricsFilterButton
@@ -380,6 +491,14 @@
 	bind:isOpen={showAuditModal}
 	paymentId={auditPaymentId}
 	on:close={onCloseAudit}
+/>
+
+<ExportPayrollEntriesModal
+	open={showExportEntriesModal}
+	totalCount={pagination?.total ?? 0}
+	selectedCount={selectedEntries.size}
+	on:confirm={handleEntriesExportConfirm}
+	on:close={() => (showExportEntriesModal = false)}
 />
 
 <PayrollGenerationModal

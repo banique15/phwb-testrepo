@@ -66,8 +66,8 @@
 			in_progress: 'badge-primary',
 			testing: 'badge-secondary',
 			review: 'badge-accent',
-			resolved: 'badge-success',
-			closed: 'badge-neutral'
+			qa_passed: 'badge-success',
+			resolved: 'badge-success'
 		}
 		return classes[status] || 'badge-neutral'
 	}
@@ -79,8 +79,8 @@
 			in_progress: 'In Progress',
 			testing: 'Testing',
 			review: 'Review',
-			resolved: 'Resolved',
-			closed: 'Closed'
+			qa_passed: 'QA passed',
+			resolved: 'Resolved'
 		}
 		return labels[status] || status
 	}

@@ -40,6 +40,10 @@ This directory contains workflow guides for each main entity in the PHWB Admin s
 - [Track Compensation](./payroll/track-compensation.md)
 - [Import Payroll Data](./payroll/import-payroll-data.md)
 
+## 🔔 Notifications
+- [Notification Triggers and Testing](./notifications/notification-triggers-and-testing.md)
+- [Vercel Cron Setup for Notification Dispatch](./notifications/vercel-cron-setup.md)
+
 ## Getting Started
 
 Each guide follows a consistent structure:

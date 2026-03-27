@@ -9,7 +9,13 @@ import { lookupUtils, enhancedLookup } from './lookup'
 import type { Facility } from '$lib/schemas/facility'
 import type { Location } from '$lib/schemas/location'
 import type { Artist } from '$lib/schemas/artist'
-import { generatePayrollForEvent } from '$lib/services/payroll-generator'
+import { generatePayrollForEvent, reconcilePayrollForCompletedEvent } from '$lib/services/payroll-generator'
+import type { GeneratedPayrollEntry } from '$lib/schemas/rate-card'
+import {
+	queueBookingConfirmationNotificationsForEvent,
+	queueEventCompletedNotifications,
+	queueInvitationNotificationsForEvent
+} from '$lib/services/notification-producer'
 
 // Enhanced event type with resolved names
 export interface EnhancedEvent extends Event {
@@ -144,7 +150,111 @@ export const eventsStore = {
 		// Use enhanced create method that doesn't generate UUIDs
 		return eventsStore.enhanced.create(eventData)
 	},
-	update: baseStore.update,
+	update: async (id: string | number, updates: UpdateEvent) => {
+		const reviewedPayrollEntries = (updates as any).__reviewedPayrollEntries as GeneratedPayrollEntry[] | undefined
+		const sendInvitationNotifications =
+			(updates as any).__sendInvitationNotifications === undefined
+				? true
+				: !!(updates as any).__sendInvitationNotifications
+		const persistedUpdates = { ...(updates as any) }
+		delete (persistedUpdates as any).__reviewedPayrollEntries
+		delete (persistedUpdates as any).__sendInvitationNotifications
+		let previousEvent: Event | null = null
+		try {
+			previousEvent = await baseStore.getById(id)
+		} catch {
+			previousEvent = null
+		}
+
+		const updatedEvent = await baseStore.update(id, persistedUpdates)
+		const hasArtistUpdates = Object.prototype.hasOwnProperty.call(updates, 'artists')
+		const hasPayrollDriverUpdates =
+			hasArtistUpdates ||
+			Object.prototype.hasOwnProperty.call(updates, 'start_time') ||
+			Object.prototype.hasOwnProperty.call(updates, 'end_time') ||
+			Object.prototype.hasOwnProperty.call(updates, 'number_of_musicians') ||
+			Object.prototype.hasOwnProperty.call(updates, 'pm_hours') ||
+			Object.prototype.hasOwnProperty.call(updates, 'pm_rate') ||
+			Object.prototype.hasOwnProperty.call(updates, 'production_manager_id') ||
+			Object.prototype.hasOwnProperty.call(updates, 'production_manager_artist_id')
+		if (hasArtistUpdates) {
+			if (sendInvitationNotifications) {
+				try {
+					await queueInvitationNotificationsForEvent(
+						updatedEvent,
+						previousEvent?.artists,
+						updatedEvent.artists
+					)
+				} catch (error) {
+					logger.error('Failed queuing assignment invitation notifications:', error)
+				}
+			}
+			try {
+				await queueBookingConfirmationNotificationsForEvent(
+					updatedEvent,
+					previousEvent?.artists,
+					updatedEvent.artists
+				)
+			} catch (error) {
+				logger.error('Failed queuing booking confirmation notifications:', error)
+			}
+		}
+
+		const isCompletedTransition = updates.status === 'completed' && updatedEvent.status === 'completed'
+		if (isCompletedTransition) {
+			try {
+				const normalizedId = typeof updatedEvent.id === 'string'
+					? parseInt(updatedEvent.id, 10)
+					: updatedEvent.id
+				if (normalizedId) {
+					const generationResult = await generatePayrollForEvent(normalizedId, {
+						dryRun: false,
+						overriddenEntries: reviewedPayrollEntries
+					})
+					if (!generationResult.success || generationResult.errors.length > 0) {
+						const reason = generationResult.errors.join('; ') || 'Unknown payroll generation failure'
+						throw new Error(reason)
+					}
+					if (
+						reviewedPayrollEntries &&
+						reviewedPayrollEntries.length > 0 &&
+						generationResult.entriesCreated === 0 &&
+						generationResult.skippedEvents > 0
+					) {
+						throw new Error('Payroll was skipped because entries already exist for this event. Use reconciliation flow to adjust existing payroll.')
+					}
+				}
+			} catch (error) {
+				logger.error('Event completed but payroll generation failed:', error)
+				throw error
+			}
+			try {
+				await queueEventCompletedNotifications(updatedEvent, updatedEvent.artists)
+			} catch (error) {
+				logger.error('Failed queuing event completed notifications:', error)
+			}
+		}
+
+		const isCompletedEventEdit = !isCompletedTransition && updatedEvent.status === 'completed' && hasPayrollDriverUpdates
+		if (isCompletedEventEdit) {
+			try {
+				const normalizedId = typeof updatedEvent.id === 'string'
+					? parseInt(updatedEvent.id, 10)
+					: updatedEvent.id
+				if (normalizedId) {
+					const reconcileResult = await reconcilePayrollForCompletedEvent(normalizedId, { dryRun: false })
+					if (!reconcileResult.success || reconcileResult.errors.length > 0) {
+						const reason = reconcileResult.errors.join('; ') || 'Unknown payroll reconciliation failure'
+						throw new Error(reason)
+					}
+				}
+			} catch (error) {
+				logger.error('Completed event payroll reconciliation failed:', error)
+				throw error
+			}
+		}
+		return updatedEvent
+	},
 	delete: baseStore.delete,
 	getById: baseStore.getById,
 	subscribeToChanges: baseStore.subscribeToChanges,
@@ -257,7 +367,7 @@ export const eventsStore = {
 						.single()
 					
 					if (retryError) throw retryError
-					return this.handleCreateSuccess(retryData)
+					return await this.handleCreateSuccess(retryData)
 				}
 				
 				if (error) {
@@ -266,7 +376,7 @@ export const eventsStore = {
 				}
 
 				logger.debug('Enhanced store: Event created successfully:', data)
-				return this.handleCreateSuccess(data)
+				return await this.handleCreateSuccess(data)
 			} catch (error) {
 				logger.error('Enhanced store create error:', error)
 				const errorId = errorStore.handleError(error, 'Failed to create event')
@@ -276,7 +386,40 @@ export const eventsStore = {
 		},
 		
 		// Helper method to handle successful creation
-		handleCreateSuccess(data: Event) {
+		async handleCreateSuccess(data: Event) {
+			// Queue invitations for artists included during initial event creation
+			// so create flow mirrors assignment updates on existing events.
+			if (data.artists) {
+				queueInvitationNotificationsForEvent(data, null, data.artists).catch((error) => {
+					logger.error('Failed queuing assignment invitation notifications on event create:', error)
+				})
+			}
+
+			// If an event is created directly as completed (e.g. backdated entry),
+			// run the same completion automations that update-status flow runs.
+			if (typeof data.status === 'string' && data.status.toLowerCase() === 'completed') {
+				const normalizedId = typeof data.id === 'string' ? parseInt(data.id, 10) : data.id
+				if (normalizedId && !Number.isNaN(normalizedId)) {
+					try {
+						const payrollResult = await generatePayrollForEvent(normalizedId, { dryRun: false })
+						if (!payrollResult.success || payrollResult.errors.length > 0) {
+							logger.error('Create-completed payroll generation failed:', {
+								eventId: normalizedId,
+								errors: payrollResult.errors
+							})
+						}
+					} catch (error) {
+						logger.error('Create-completed payroll generation threw an error:', error)
+					}
+				}
+
+				try {
+					await queueEventCompletedNotifications(data, data.artists)
+				} catch (error) {
+					logger.error('Create-completed notification queue failed:', error)
+				}
+			}
+
 			const enhancedEvent = enhanceEvents([data])[0]
 			
 			enhancedState.update(state => ({
@@ -304,8 +447,8 @@ export const eventsStore = {
 					throw new Error(`Invalid event ID: ${id}`)
 				}
 
-				// Use the base store update method instead of custom logic
-				const updatedEvent = await baseStore.update(normalizedId, updates)
+				// Use consolidated update method so status completion also triggers payroll automation
+				const updatedEvent = await eventsStore.update(normalizedId, updates)
 
 				logger.debug('Base store returned:', updatedEvent)
 				
@@ -392,6 +535,23 @@ export const eventsStore = {
 				if (error) throw error
 
 				const enhancedEvents = enhanceEvents(data || [])
+
+				if (updates.status === 'completed') {
+					await Promise.all(
+						(data || []).map(async (event) => {
+							try {
+								await generatePayrollForEvent(event.id, { dryRun: false })
+							} catch (error) {
+								logger.error('Bulk complete payroll generation failed:', error)
+							}
+							try {
+								await queueEventCompletedNotifications(event, event.artists)
+							} catch (error) {
+								logger.error('Bulk complete notification queue failed:', error)
+							}
+						})
+					)
+				}
 
 				enhancedState.update(state => ({
 					...state,

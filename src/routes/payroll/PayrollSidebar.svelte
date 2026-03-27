@@ -7,6 +7,7 @@
 	import EventSelector from '$lib/components/ui/EventSelector.svelte'
 	import { toast } from '$lib/stores/toast'
 	import { z } from 'zod'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	interface Props {
 		open?: boolean
@@ -29,11 +30,13 @@
 		event_id: undefined as number | undefined,
 		hours: 0,
 		rate: 0,
+		rate_type: undefined as 'hourly' | 'flat' | 'tiered' | undefined,
+		additional_rate: undefined as number | undefined,
 		additional_pay: 0,
 		additional_pay_reason: '',
-		status: 'Planned' as 'Planned' | 'Approved' | 'Paid' | 'Completed' | 'Cancelled',
+		status: 'Planned' as 'Planned' | 'Approved' | 'Paid' | 'With Issues' | 'Cancelled',
 		payment_type: undefined as 'performance' | 'training' | 'special_event' | 'other' | undefined,
-		employee_contractor_status: undefined as 'employee' | 'contractor' | 'roster_artist' | undefined,
+		employee_contractor_status: undefined as 'W-2' | '1099' | undefined,
 		invoice_number: '',
 		notes: '',
 		rate_description: '',
@@ -44,18 +47,8 @@
 	let errors = $state<Record<string, string>>({})
 	let isSubmitting = $state(false)
 
-	// Calculate total pay (using the same logic as the table)
-	let totalPay = $derived.by(() => {
-		// If we have a pre-calculated total_pay from the entry, use it
-		if (entry?.total_pay) {
-			return entry.total_pay
-		}
-		// Otherwise calculate it from form data
-		const hours = Number(formData.hours) || 0
-		const rate = Number(formData.rate) || 0
-		const additionalPay = Number(formData.additional_pay) || 0
-		return (hours * rate) + additionalPay
-	})
+	// Calculate total pay (rate-card-aware; additional_pay added once per entry)
+	let totalPay = $derived(computeEntryTotalPay(formData))
 
 	// Initialize form with entry data if editing
 	$effect(() => {
@@ -67,7 +60,9 @@
 				event_id: entry.event_id || undefined,
 				hours: Number(entry.hours) || 0,
 				rate: Number(entry.rate || entry.base_rate) || 0,
-				additional_pay: Number(String(entry.additional_pay || entry.additional_rate || 0).replace(/[$,]/g, '')) || 0,
+				rate_type: entry.rate_type || undefined,
+				additional_rate: entry.additional_rate ?? undefined,
+				additional_pay: Number(String(entry.additional_pay ?? 0).replace(/[$,]/g, '')) || 0,
 				additional_pay_reason: entry.additional_pay_reason || '',
 				status: entry.status || 'Planned',
 				payment_type: entry.payment_type || undefined,
@@ -87,6 +82,8 @@
 				event_id: undefined,
 				hours: 0,
 				rate: 0,
+				rate_type: undefined,
+				additional_rate: undefined,
 				additional_pay: 0,
 				additional_pay_reason: '',
 				status: 'Planned',
@@ -105,8 +102,9 @@
 	// Status options
 	const statusOptions = [
 		{ value: 'Planned', label: 'Planned' },
-		{ value: 'Unpaid', label: 'Unpaid' },
+		{ value: 'Approved', label: 'Approved' },
 		{ value: 'Paid', label: 'Paid' },
+		{ value: 'With Issues', label: 'With Issues' },
 		{ value: 'Cancelled', label: 'Cancelled' }
 	]
 
@@ -122,9 +120,8 @@
 	// Employee contractor status options
 	const employeeContractorOptions = [
 		{ value: '', label: 'Select status...' },
-		{ value: EmployeeContractorStatus.EMPLOYEE, label: 'Employee' },
-		{ value: EmployeeContractorStatus.CONTRACTOR, label: 'Contractor' },
-		{ value: EmployeeContractorStatus.ROSTER_ARTIST, label: 'Roster Artist' }
+		{ value: EmployeeContractorStatus.W2, label: 'W-2' },
+		{ value: EmployeeContractorStatus.T1099, label: '1099' }
 	]
 
 	// Validate form
@@ -194,7 +191,7 @@
 	// Handle field changes
 	function updateField(field: keyof typeof formData, value: unknown) {
 		if (field === 'employee_contractor_status') {
-			if (value === 'employee' || value === 'contractor' || value === 'roster_artist' || value === undefined) {
+			if (value === 'W-2' || value === '1099' || value === undefined) {
 				formData[field] = value as typeof formData[typeof field]
 			}
 		} else if (field === 'status') {
@@ -202,7 +199,7 @@
 				'Planned',
 				'Approved',
 				'Paid',
-				'Completed',
+				'With Issues',
 				'Cancelled'
 			].includes(value as string)) {
 				formData[field] = value as typeof formData[typeof field]

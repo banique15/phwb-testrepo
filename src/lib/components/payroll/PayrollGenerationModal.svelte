@@ -10,6 +10,7 @@
 	import type { PayrollGenerationResult, GeneratedPayrollEntry, RateCard } from '$lib/schemas/rate-card'
 	import { supabase } from '$lib/supabase'
 	import { toast } from '$lib/stores/toast'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	interface Props {
 		isOpen: boolean
@@ -37,6 +38,16 @@
 	
 	// Manual rate overrides per entry (entry index -> rate override)
 	let rateOverrides = $state<Map<number, { rate?: number; additionalPay?: number }>>(new Map())
+
+	function recalculateEntryTotal(entry: GeneratedPayrollEntry): number {
+		return computeEntryTotalPay({
+			hours: entry.hours,
+			rate: entry.rate,
+			rate_type: entry.rate_type || undefined,
+			additional_rate: entry.additional_rate || undefined,
+			additional_pay: entry.additional_pay
+		})
+	}
 
 	// Computed week range
 	let weekRange = $derived(() => {
@@ -85,14 +96,10 @@
 		if (previewResult?.entries[index]) {
 			if (field === 'rate') {
 				previewResult.entries[index].rate = value
-				previewResult.entries[index].total_pay = 
-					previewResult.entries[index].hours * value + 
-					(rateOverrides.get(index)?.additionalPay ?? previewResult.entries[index].additional_pay)
 			} else {
 				previewResult.entries[index].additional_pay = value
-				previewResult.entries[index].total_pay = 
-					previewResult.entries[index].hours * previewResult.entries[index].rate + value
 			}
+			previewResult.entries[index].total_pay = recalculateEntryTotal(previewResult.entries[index])
 			// Recalculate total amount
 			previewResult.totalAmount = previewResult.entries.reduce((sum, e) => sum + e.total_pay, 0)
 			previewResult = { ...previewResult }
@@ -153,11 +160,14 @@
 			const entriesWithOverrides = previewResult.entries.map((entry, index) => {
 				const override = rateOverrides.get(index)
 				if (override) {
-					return {
+					const updatedEntry: GeneratedPayrollEntry = {
 						...entry,
 						rate: override.rate ?? entry.rate,
-						additional_pay: override.additionalPay ?? entry.additional_pay,
-						total_pay: entry.hours * (override.rate ?? entry.rate) + (override.additionalPay ?? entry.additional_pay),
+						additional_pay: override.additionalPay ?? entry.additional_pay
+					}
+					return {
+						...updatedEntry,
+						total_pay: recalculateEntryTotal(updatedEntry),
 						notes: entry.notes + (override.rate ? ` (Rate manually overridden to $${override.rate})` : '')
 					}
 				}

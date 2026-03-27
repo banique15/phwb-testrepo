@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { ChevronRight, ChevronLeft, Users, Search, Edit2, X } from 'lucide-svelte'
+	import { ChevronRight, ChevronLeft, Users, Search, Edit2, X, UserPlus } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
 	import type { Artist } from '$lib/schemas/artist'
 	import type { Ensemble } from '$lib/schemas/ensemble'
+	import CreateArtist from '../../routes/artists/components/modals/CreateArtist.svelte'
+	import { generatePayrollForEvent } from '$lib/services/payroll-generator'
 
 	export interface ArtistAssignment {
 		artist_id: string
@@ -25,6 +27,7 @@
 		eventId?: number
 		readonly?: boolean
 		mode?: 'create' | 'edit' // 'create' uses assignments prop, 'edit' uses eventId
+		persistInEditMode?: boolean
 		// Event times for calculating hours
 		eventStartTime?: string | null
 		eventEndTime?: string | null
@@ -36,6 +39,7 @@
 		eventId,
 		readonly = false,
 		mode = eventId ? 'edit' : 'create',
+		persistInEditMode = true,
 		eventStartTime = null,
 		eventEndTime = null
 	}: Props = $props()
@@ -55,6 +59,9 @@
 	let showAssignmentModal = $state(false)
 	let modalAssignment = $state<ArtistAssignment | null>(null)
 	let viewMode = $state<'artists' | 'ensembles'>('artists') // Toggle between artists and ensembles
+	let showCreateArtistModal = $state(false)
+	let displayTotalCost = $state(0)
+	let totalCostLabel = $state<'Assignment' | 'Estimated Payroll' | 'Payroll'>('Assignment')
 
 	// Role options
 	const roleOptions = [
@@ -88,6 +95,7 @@
 		if (mode === 'edit' && eventId) {
 			await loadAssignments()
 		}
+		await refreshDisplayTotal()
 		// loadAllData already sets isLoading = false in its finally block
 	})
 
@@ -107,6 +115,15 @@
 			localAssignments = [...initialAssignments]
 			isLoading = false
 		}
+	})
+
+	$effect(() => {
+		// Keep the displayed total in sync with assignment/time changes.
+		localAssignments
+		eventStartTime
+		eventEndTime
+		eventId
+		void refreshDisplayTotal()
 	})
 
 	async function loadAllData() {
@@ -374,7 +391,7 @@
 	}
 
 	async function saveAssignments() {
-		if (mode === 'edit' && eventId) {
+		if (mode === 'edit' && eventId && persistInEditMode) {
 			// Save to database
 			updating = true
 			try {
@@ -533,6 +550,43 @@
 		}, 0)
 	}
 
+	async function refreshDisplayTotal() {
+		// Fallback: assignment-level sum (works for create mode and manual overrides)
+		const assignmentTotal = getTotalCost()
+		displayTotalCost = assignmentTotal
+		totalCostLabel = 'Assignment'
+
+		if (!eventId) return
+
+		try {
+			// Prefer persisted payroll rows when available (actual generated values).
+			const { data: payrollRows, error: payrollError } = await supabase
+				.from('phwb_payroll')
+				.select('total_pay')
+				.or(`event_id.eq.${eventId},source_event_id.eq.${eventId}`)
+
+			if (!payrollError && payrollRows && payrollRows.length > 0) {
+				displayTotalCost = payrollRows.reduce(
+					(sum, row) => sum + (Number(row.total_pay) || 0),
+					0
+				)
+				totalCostLabel = 'Payroll'
+				return
+			}
+
+			// If payroll isn't generated yet, show a forward-looking estimate
+			// using the same payroll engine with dry-run mode.
+			const dryRun = await generatePayrollForEvent(eventId, { dryRun: true })
+			if (dryRun.success && dryRun.totalAmount > 0) {
+				displayTotalCost = dryRun.totalAmount
+				totalCostLabel = 'Estimated Payroll'
+				return
+			}
+		} catch (err) {
+			console.error('Failed to refresh performers total cost:', err)
+		}
+	}
+
 	// Calculate event duration in hours from start/end times
 	function calculateEventDuration(): number | null {
 		if (!eventStartTime || !eventEndTime) return null
@@ -569,6 +623,16 @@
 	const canSyncHours = $derived(eventStartTime && eventEndTime && localAssignments.length > 0)
 	const eventDuration = $derived(calculateEventDuration())
 
+	async function handleNewArtistCreated(data: { artist: any }) {
+		showCreateArtistModal = false
+		await loadAllArtists()
+
+		const newArtist = data?.artist
+		if (newArtist?.id) {
+			await assignArtist(newArtist.id)
+		}
+	}
+
 	function formatInstruments(instruments: any): string {
 		if (!instruments) return ''
 		if (Array.isArray(instruments)) {
@@ -587,7 +651,7 @@
 			Performers ({localAssignments.length})
 			{#if localAssignments.length > 0}
 				<span class="text-sm font-normal text-base-content/60 ml-2">
-					Total: <span class="font-mono">${getTotalCost().toFixed(2)}</span>
+					{totalCostLabel}: <span class="font-mono">${displayTotalCost.toFixed(2)}</span>
 				</span>
 			{/if}
 		</h3>
@@ -632,14 +696,25 @@
 							Ensembles
 						</button>
 					</div>
-					<input
-						type="text"
-						bind:value={artistSearch}
-						placeholder={viewMode === 'ensembles' ? 'Search ensembles...' : 'Search artists...'}
-						class="input input-bordered input-sm w-full"
+				<input
+					type="text"
+					bind:value={artistSearch}
+					placeholder={viewMode === 'ensembles' ? 'Search ensembles...' : 'Search artists...'}
+					class="input input-bordered input-sm w-full"
+					disabled={updating || isLoading}
+				/>
+				{#if viewMode === 'artists' && !readonly}
+					<button
+						type="button"
+						class="btn btn-sm btn-outline btn-primary w-full gap-1"
+						onclick={() => showCreateArtistModal = true}
 						disabled={updating || isLoading}
-					/>
-				</div>
+					>
+						<UserPlus class="w-3.5 h-3.5" />
+						New Artist
+					</button>
+				{/if}
+			</div>
 				<div class="overflow-y-auto flex-1 min-h-0">
 					{#if isLoading}
 						<div class="flex justify-center items-center py-8">
@@ -647,13 +722,23 @@
 						</div>
 					{:else if availableItems.length === 0}
 						<div class="p-4 text-center text-sm text-base-content/60">
-							{#if artistSearch}
-								No {viewMode === 'ensembles' ? 'ensembles' : 'artists'} found matching "{artistSearch}"
-							{:else if viewMode === 'ensembles'}
-								No ensembles available
-							{:else}
-								All artists are assigned
+					{#if artistSearch}
+							No {viewMode === 'ensembles' ? 'ensembles' : 'artists'} found matching "{artistSearch}"
+							{#if viewMode === 'artists' && !readonly}
+								<button
+									type="button"
+									class="btn btn-sm btn-primary mt-2 gap-1"
+									onclick={() => showCreateArtistModal = true}
+								>
+									<UserPlus class="w-3.5 h-3.5" />
+									Create "{artistSearch}"
+								</button>
 							{/if}
+						{:else if viewMode === 'ensembles'}
+							No ensembles available
+						{:else}
+							All artists are assigned
+						{/if}
 						</div>
 					{:else}
 						{#each availableItems as item}
@@ -1100,8 +1185,8 @@
 					{/if}
 				</div>
 				<div class="text-sm">
-					<span class="font-medium">Total Cost: </span>
-					<span class="font-mono text-primary">${getTotalCost().toFixed(2)}</span>
+					<span class="font-medium">{totalCostLabel}: </span>
+					<span class="font-mono text-primary">${displayTotalCost.toFixed(2)}</span>
 				</div>
 			</div>
 		{/if}
@@ -1231,3 +1316,10 @@
 		</form>
 	</div>
 {/if}
+
+<!-- Create Artist Modal -->
+<CreateArtist
+	open={showCreateArtistModal}
+	onClose={() => showCreateArtistModal = false}
+	onSuccess={handleNewArtistCreated}
+/>

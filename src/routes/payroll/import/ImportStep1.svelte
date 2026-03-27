@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { parseCSVFile, type CSVRow } from '$lib/utils/csvImporter'
 	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte'
+	import { generateCSVTemplate, downloadCSV } from '$lib/utils'
 
 	interface Props {
 		onFileUploaded: (file: File, data: CSVRow[]) => void
@@ -15,6 +16,12 @@
 	let previewData: CSVRow[] = $state([])
 	let selectedFile: File | null = $state(null)
 	let fileStats = $state({ rows: 0, columns: 0, size: 0 })
+
+	function handleDownloadSample() {
+		const template = generateCSVTemplate()
+		const filename = `payroll_template_${new Date().toISOString().split('T')[0]}.csv`
+		downloadCSV(template, filename)
+	}
 
 	async function handleFileSelect(file: File) {
 		if (!file) return
@@ -121,7 +128,16 @@
 	<!-- File Upload Area -->
 	<div class="card bg-base-100 shadow-sm">
 		<div class="card-body">
-			<h3 class="card-title text-lg mb-4">Upload CSV File</h3>
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="card-title text-lg">Upload CSV File</h3>
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					onclick={handleDownloadSample}
+				>
+					Download sample CSV
+				</button>
+			</div>
 			
 			{#if !selectedFile}
 				<!-- Upload Zone -->
@@ -230,8 +246,8 @@
 							{#each previewData as row, index}
 								<tr>
 									{#each tableHeaders as header}
-										<td class="text-sm max-w-32 truncate" title={row[header]}>
-											{row[header] || '—'}
+										<td class="text-sm max-w-32 truncate" title={(row as any)[header]}>
+											{(row as any)[header] || '—'}
 										</td>
 									{/each}
 								</tr>

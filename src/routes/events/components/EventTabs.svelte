@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { EnhancedEvent } from '$lib/stores/events'
 	import type { ComponentType, SvelteComponent } from 'svelte'
-	import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, DollarSign, Edit, X, BarChart, Users, CheckCircle } from 'lucide-svelte'
+import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, DollarSign, Edit, X, BarChart, Users, CheckCircle, Music } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
 	import ScheduleDisplay from './ScheduleDisplay.svelte'
 	import RequirementsDisplay from './RequirementsDisplay.svelte'
@@ -12,7 +12,6 @@
 	import RequirementsEditor from './RequirementsEditor.svelte'
 	import UnifiedArtistAssignment from '$lib/components/UnifiedArtistAssignment.svelte'
 	import ProgramSelector from '$lib/components/ui/ProgramSelector.svelte'
-	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
 	import CreateEnsemble from '../../ensembles/components/modals/CreateEnsemble.svelte'
 	import type { Ensemble } from '$lib/schemas/ensemble'
 	import { supabase } from '$lib/supabase'
@@ -46,12 +45,11 @@
 		schedule: event?.schedule || null,
 		requirements: event?.requirements || null,
 		artist_assignments: event?.artists?.assignments || [],
-		selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
+		selected_artists: event?.artists?.assignments?.map((a: any) => a.artist_id) || [],
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
-		production_manager_contact_id: event?.production_manager_contact_id || null,
-		pm_hours: event?.pm_hours || undefined,
-		pm_rate: event?.pm_rate || undefined
+		production_manager_artist_id: event?.production_manager_artist_id || null,
+		production_manager_id: event?.production_manager_id || null
 	})
 
 	// Update form data when event changes
@@ -69,12 +67,11 @@
 				schedule: event.schedule || null,
 				requirements: event.requirements || null,
 				artist_assignments: event.artists?.assignments || [],
-				selected_artists: event.artists?.assignments?.map(a => a.artist_id) || [],
+				selected_artists: event.artists?.assignments?.map((a: any) => a.artist_id) || [],
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
-				production_manager_contact_id: event.production_manager_contact_id || null,
-				pm_hours: event.pm_hours || undefined,
-				pm_rate: event.pm_rate || undefined
+				production_manager_artist_id: event.production_manager_artist_id || null,
+				production_manager_id: event.production_manager_id || null
 			}
 		}
 	})
@@ -82,6 +79,11 @@
 	let loading = $state(false)
 	let errors = $state<Record<string, string>>({})
 	let submitError = $state('')
+	let showPayrollImpactModal = $state(false)
+	let payrollImpactResolver: ((confirmed: boolean) => void) | null = null
+	let showInvitePromptModal = $state(false)
+	let invitePromptResolver: ((sendInvites: boolean) => void) | null = null
+	let invitePromptNewArtistsCount = $state(0)
 
 	// Ensemble state
 	let ensembles = $state<(Ensemble & { member_count?: number })[]>([])
@@ -152,15 +154,62 @@
 				schedule: event.schedule || null,
 				requirements: event.requirements || null,
 				artist_assignments: event.artists?.assignments || [],
-				selected_artists: event.artists?.assignments?.map(a => a.artist_id) || [],
+				selected_artists: event.artists?.assignments?.map((a: any) => a.artist_id) || [],
 				number_of_attendees: event.number_of_attendees || undefined,
-				production_manager_contact_id: event.production_manager_contact_id || null,
-				pm_hours: event.pm_hours || undefined,
-				pm_rate: event.pm_rate || undefined
+				number_of_musicians: event.number_of_musicians || undefined,
+				production_manager_artist_id: event.production_manager_artist_id || null,
+				production_manager_id: event.production_manager_id || null
 			}
 		}
 		errors = {}
 		submitError = ''
+	}
+
+	function hasPayrollImpactingChanges(updateData: UpdateEvent): boolean {
+		return (
+			Object.prototype.hasOwnProperty.call(updateData, 'artists') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'start_time') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'end_time') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'number_of_musicians') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'pm_hours') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'pm_rate') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'production_manager_id') ||
+			Object.prototype.hasOwnProperty.call(updateData, 'production_manager_artist_id')
+		)
+	}
+
+	async function confirmPayrollImpact(): Promise<boolean> {
+		showPayrollImpactModal = true
+		return await new Promise((resolve) => {
+			payrollImpactResolver = resolve
+		})
+	}
+
+	function resolvePayrollImpact(confirmed: boolean) {
+		showPayrollImpactModal = false
+		payrollImpactResolver?.(confirmed)
+		payrollImpactResolver = null
+	}
+
+	function extractArtistIdsFromAssignments(assignments: any[]): string[] {
+		return (assignments || [])
+			.map((assignment: any) => assignment?.artist_id)
+			.filter((artistId: unknown): artistId is string => typeof artistId === 'string' && artistId.length > 0)
+	}
+
+	async function confirmInvitePrompt(newArtistsCount: number): Promise<boolean> {
+		invitePromptNewArtistsCount = newArtistsCount
+		showInvitePromptModal = true
+		return await new Promise((resolve) => {
+			invitePromptResolver = resolve
+		})
+	}
+
+	function resolveInvitePrompt(sendInvites: boolean) {
+		showInvitePromptModal = false
+		invitePromptResolver?.(sendInvites)
+		invitePromptResolver = null
+		invitePromptNewArtistsCount = 0
 	}
 
 	async function saveEdit() {
@@ -186,7 +235,7 @@
 						location_id: formData.location_id,
 						program: formData.program,
 						number_of_attendees: formData.number_of_attendees,
-						production_manager_contact_id: formData.production_manager_contact_id,
+						production_manager_artist_id: formData.production_manager_artist_id,
 						notes: formData.notes
 					})
 				} catch (error: any) {
@@ -207,7 +256,7 @@
 				if (formData.location_id !== event.location_id) updateData.location_id = formData.location_id
 				if (formData.program !== event.program) updateData.program = formData.program
 				if (formData.number_of_attendees !== event.number_of_attendees) updateData.number_of_attendees = formData.number_of_attendees
-				if (formData.production_manager_contact_id !== event.production_manager_contact_id) updateData.production_manager_contact_id = formData.production_manager_contact_id
+				if (formData.production_manager_artist_id !== event.production_manager_artist_id) updateData.production_manager_artist_id = formData.production_manager_artist_id
 				if (formData.notes !== event.notes) updateData.notes = formData.notes
 			} else if (editingTab === 'schedule') {
 				if (formData.schedule !== event.schedule) {
@@ -220,6 +269,15 @@
 			} else if (editingTab === 'performers') {
 				if (formData.artist_assignments !== event.artists?.assignments) {
 					updateData.artists = { assignments: formData.artist_assignments }
+					const previousArtistIds = new Set(
+						extractArtistIdsFromAssignments(event.artists?.assignments || [])
+					)
+					const nextArtistIds = extractArtistIdsFromAssignments(formData.artist_assignments)
+					const newlyAddedArtistIds = nextArtistIds.filter((artistId) => !previousArtistIds.has(artistId))
+					if (newlyAddedArtistIds.length > 0) {
+						const sendInvites = await confirmInvitePrompt(newlyAddedArtistIds.length)
+						;(updateData as any).__sendInvitationNotifications = sendInvites
+					}
 				}
 			} else if (editingTab === 'notes') {
 				if (formData.notes !== event.notes) {
@@ -231,16 +289,17 @@
 				if (formData.number_of_musicians !== event.number_of_musicians) {
 					updateData.number_of_musicians = formData.number_of_musicians
 				}
-				if (formData.pm_hours !== event.pm_hours) {
-					updateData.pm_hours = formData.pm_hours
-				}
-				if (formData.pm_rate !== event.pm_rate) {
-					updateData.pm_rate = formData.pm_rate
-				}
 			}
 
 			// Only update if there are changes
 			if (Object.keys(updateData).length > 0) {
+				if (event.status === 'completed' && hasPayrollImpactingChanges(updateData)) {
+					const confirmed = await confirmPayrollImpact()
+					if (!confirmed) {
+						loading = false
+						return
+					}
+				}
 				await eventsStore.enhanced.update(event.id, updateData)
 				
 				// Refresh event data
@@ -337,11 +396,11 @@
 					}
 				})
 
-				const existingArtistIds = new Set(formData.artist_assignments.map(a => a.artist_id))
-				const uniqueNewAssignments = newAssignments.filter(a => !existingArtistIds.has(a.artist_id))
+				const existingArtistIds = new Set(formData.artist_assignments.map((a: any) => a.artist_id))
+				const uniqueNewAssignments = newAssignments.filter((a: any) => !existingArtistIds.has(a.artist_id))
 				
 				formData.artist_assignments = [...formData.artist_assignments, ...uniqueNewAssignments]
-				formData.selected_artists = formData.artist_assignments.map(a => a.artist_id)
+				formData.selected_artists = formData.artist_assignments.map((a: any) => a.artist_id)
 			}
 		} catch (err) {
 			console.error('Error assigning ensemble:', err)
@@ -420,6 +479,20 @@
 
 		{#if activeTab === 'performers'}
 			<div class="space-y-4">
+				<div class="flex items-center justify-between border-b pb-2">
+					<h3 class="text-lg font-semibold">Performers</h3>
+					{#if !editingTab}
+						<button
+							type="button"
+							class="btn btn-sm btn-outline"
+							onclick={() => startEdit('performers')}
+						>
+							<Edit class="w-4 h-4 mr-1" />
+							Edit
+						</button>
+					{/if}
+				</div>
+
 				{#if editingTab === 'performers'}
 					<div class="space-y-4">
 						<!-- Ensemble Selector -->
@@ -465,6 +538,7 @@
 							onAssignmentsUpdate={handleArtistAssignmentsUpdate}
 							eventId={event.id}
 							mode="edit"
+							persistInEditMode={false}
 							readonly={false}
 							eventStartTime={formData.start_time}
 							eventEndTime={formData.end_time}
@@ -645,47 +719,6 @@
 							/>
 						</div>
 						
-						<!-- Production Manager Payroll Section -->
-						<div class="border-t border-base-300 pt-4 mt-4">
-							<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-								<div class="form-control">
-									<label class="label">
-										<span class="label-text">PM Hours</span>
-									</label>
-									<input
-										type="number"
-										bind:value={formData.pm_hours}
-										class="input input-bordered"
-										placeholder="0"
-										min="0"
-										step="0.5"
-									/>
-								</div>
-								<div class="form-control">
-									<label class="label">
-										<span class="label-text">PM Rate ($/hr)</span>
-									</label>
-									<input
-										type="number"
-										bind:value={formData.pm_rate}
-										class="input input-bordered"
-										placeholder="0.00"
-										min="0"
-										step="0.01"
-									/>
-								</div>
-								<div class="form-control">
-									<label class="label">
-										<span class="label-text">PM Total</span>
-									</label>
-									<div class="input input-bordered bg-base-200 flex items-center">
-										<span class="font-mono">${((formData.pm_hours || 0) * (formData.pm_rate || 0)).toFixed(2)}</span>
-									</div>
-								</div>
-							</div>
-						</div>
-						
 						<div class="form-control">
 							<label class="label">
 								<span class="label-text">Notes</span>
@@ -742,43 +775,6 @@
 								onSave={(value) => onUpdateField('number_of_musicians', value ? parseInt(value) : null)}
 								formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
 							/>
-						</div>
-						
-						<!-- Production Manager Payroll Section (View Mode) -->
-						<div class="border-t border-base-300 pt-4 mt-4">
-							<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-								<div>
-									<InlineEditableField
-										value={event.pm_hours}
-										field="pm_hours"
-										type="number"
-										placeholder="0"
-										label="PM Hours"
-										onSave={(value) => onUpdateField('pm_hours', value ? parseFloat(value) : null)}
-										formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not set'}
-									/>
-								</div>
-								<div>
-									<InlineEditableField
-										value={event.pm_rate}
-										field="pm_rate"
-										type="number"
-										placeholder="0.00"
-										label="PM Rate ($/hr)"
-										onSave={(value) => onUpdateField('pm_rate', value ? parseFloat(value) : null)}
-										formatDisplay={(val) => val !== null && val !== undefined ? `$${Number(val).toFixed(2)}` : 'Not set'}
-									/>
-								</div>
-								<div>
-									<label class="label">
-										<span class="label-text font-medium">PM Total</span>
-									</label>
-									<div class="p-2 bg-base-200 rounded">
-										<span class="font-mono">${((event.pm_hours || 0) * (event.pm_rate || 0)).toFixed(2)}</span>
-									</div>
-								</div>
-							</div>
 						</div>
 						
 						<div>
@@ -872,3 +868,37 @@
 	on:close={() => isCreateEnsembleModalOpen = false}
 	on:success={handleEnsembleCreated}
 />
+
+{#if showPayrollImpactModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Review Payroll Impact</h3>
+			<p class="text-sm opacity-80 mt-2">
+				This completed-event edit affects payroll. Continue and review/reconcile payroll updates?
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolvePayrollImpact(false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={() => resolvePayrollImpact(true)}>Continue</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showInvitePromptModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Send Artist Invitation Email?</h3>
+			<p class="text-sm opacity-80 mt-2">
+				You added {invitePromptNewArtistsCount} artist{invitePromptNewArtistsCount === 1 ? '' : 's'} to this existing event.
+				Do you want to send invitation email{invitePromptNewArtistsCount === 1 ? '' : 's'} now?
+			</p>
+			<p class="text-xs opacity-70 mt-2">
+				Choose “Skip” for edge cases where artists are already confirmed and no invite is needed.
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolveInvitePrompt(false)}>Skip</button>
+				<button class="btn btn-primary" onclick={() => resolveInvitePrompt(true)}>Send Invitation</button>
+			</div>
+		</div>
+	</div>
+{/if}

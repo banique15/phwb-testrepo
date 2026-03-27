@@ -9,17 +9,16 @@
 	import StatusManager from './StatusManager.svelte'
 	import FacilityLocationSelector from '$lib/components/ui/FacilityLocationSelector.svelte'
 	import ProgramSelector from '$lib/components/ui/ProgramSelector.svelte'
-	import LocationContactSelector from '$lib/components/ui/LocationContactSelector.svelte'
+	import ProductionManagerSelector from '$lib/components/ui/ProductionManagerSelector.svelte'
 	import TimePicker from '$lib/components/ui/TimePicker.svelte'
 	import CreateEnsemble from '../../ensembles/components/modals/CreateEnsemble.svelte'
-	import CreateLocationContact from '../../facilities/components/modals/contacts/CreateLocationContact.svelte'
 	import type { Ensemble } from '$lib/schemas/ensemble'
 	import type { LocationWithFacility } from '$lib/schemas/location'
-	import type { LocationContact } from '$lib/schemas/locationContact'
 	import { supabase } from '$lib/supabase'
 	import { onMount } from 'svelte'
-	import { Plus } from 'lucide-svelte'
-	import { toast } from '$lib/stores/toast'
+	import { generatePayrollForEvent } from '$lib/services/payroll-generator'
+	import type { GeneratedPayrollEntry } from '$lib/schemas/rate-card'
+	import type { ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
 	
 	interface Props {
 		event?: Event | null
@@ -42,13 +41,12 @@
 		program: event?.program || undefined,
 		schedule: event?.schedule || null,
 		requirements: event?.requirements || null,
-		artist_assignments: event?.artists?.assignments || [],
-		selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
+		artist_assignments: (event?.artists?.assignments || []) as ArtistAssignment[],
+		selected_artists: ((event?.artists?.assignments || []) as ArtistAssignment[]).map((a: ArtistAssignment) => a.artist_id),
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
-		production_manager_contact_id: event?.production_manager_contact_id || null,
-		pm_hours: event?.pm_hours || undefined,
-		pm_rate: event?.pm_rate || undefined
+		production_manager_artist_id: event?.production_manager_artist_id || null,
+		production_manager_id: event?.production_manager_id || null
 	})
 	
 	let loading = $state(false)
@@ -64,7 +62,9 @@
 	let newlyCreatedFacilityId = $state<number | null>(null)
 	let selectedLocation = $state<LocationWithFacility | null>(null)
 	let locationSelectorRef: any = $state(null)
-	let showCreateContactModal = $state(false)
+	let showPayrollReviewModal = $state(false)
+	let payrollPreviewLoading = $state(false)
+	let payrollPreviewEntries = $state<GeneratedPayrollEntry[]>([])
 	
 	const statusOptions = [
 		{ value: 'planned', label: 'Planned' },
@@ -122,7 +122,7 @@
 		// Try to find if the current artists match an ensemble
 		if (!formData.artist_assignments || formData.artist_assignments.length === 0) return
 
-		const currentArtistIds = new Set(formData.artist_assignments.map(a => a.artist_id))
+		const currentArtistIds = new Set(formData.artist_assignments.map((a: ArtistAssignment) => a.artist_id))
 
 		for (const ensemble of ensembles) {
 			const { data: members } = await supabase
@@ -188,11 +188,11 @@
 				})
 
 				// Merge with existing assignments, avoiding duplicates
-				const existingArtistIds = new Set(formData.artist_assignments.map(a => a.artist_id))
-				const uniqueNewAssignments = newAssignments.filter(a => !existingArtistIds.has(a.artist_id))
+				const existingArtistIds = new Set(formData.artist_assignments.map((a: ArtistAssignment) => a.artist_id))
+				const uniqueNewAssignments = newAssignments.filter((a: ArtistAssignment) => !existingArtistIds.has(a.artist_id))
 				
 				formData.artist_assignments = [...formData.artist_assignments, ...uniqueNewAssignments]
-				formData.selected_artists = formData.artist_assignments.map(a => a.artist_id)
+				formData.selected_artists = formData.artist_assignments.map((a: ArtistAssignment) => a.artist_id)
 				
 				// Trigger update handlers
 				handleArtistAssignmentsUpdate(formData.artist_assignments)
@@ -261,7 +261,7 @@
 		
 		try {
 			// Transform artist_assignments to artists.assignments format for database
-			const dataToSave = { ...formData }
+			const dataToSave: any = { ...formData }
 			
 			// Ensure status and notes are strings
 			if (typeof dataToSave.status !== 'string') {
@@ -332,13 +332,12 @@
 			program: event?.program || undefined,
 			schedule: event?.schedule || null,
 			requirements: event?.requirements || null,
-			artist_assignments: event?.artists?.assignments || [],
-			selected_artists: event?.artists?.assignments?.map(a => a.artist_id) || [],
+			artist_assignments: (event?.artists?.assignments || []) as ArtistAssignment[],
+			selected_artists: ((event?.artists?.assignments || []) as ArtistAssignment[]).map((a: ArtistAssignment) => a.artist_id),
 			number_of_attendees: event?.number_of_attendees || undefined,
 			number_of_musicians: event?.number_of_musicians || undefined,
-			production_manager_contact_id: event?.production_manager_contact_id || null,
-			pm_hours: event?.pm_hours || undefined,
-			pm_rate: event?.pm_rate || undefined
+			production_manager_artist_id: event?.production_manager_artist_id || null,
+			production_manager_id: event?.production_manager_id || null
 		}
 		errors = {}
 		submitError = ''
@@ -397,7 +396,7 @@
 
 	function handleArtistAssignmentsUpdate(assignments: any[]) {
 		formData.artist_assignments = assignments
-		formData.selected_artists = assignments.map(a => a.artist_id)
+		formData.selected_artists = assignments.map((a: ArtistAssignment) => a.artist_id)
 		
 		// Auto-regenerate title if it looks auto-generated
 		if (isAutoGeneratedTitle(formData.title)) {
@@ -405,15 +404,49 @@
 		}
 	}
 	
-	async function handleStatusChange(newStatus: string) {
-		formData.status = newStatus
+	async function handleStatusChange(newStatus: string, options?: { reviewPayroll?: boolean }) {
+		formData.status = newStatus as Event['status']
 		// Auto-save status changes if editing
 		if (isEdit && event?.id) {
 			try {
-				await eventsStore.update(event.id, { status: newStatus })
+				if (newStatus === 'completed' && options?.reviewPayroll) {
+					payrollPreviewLoading = true
+					const preview = await generatePayrollForEvent(event.id, { dryRun: true })
+					payrollPreviewEntries = preview.entries.map((entry) => ({ ...entry }))
+					showPayrollReviewModal = true
+					return
+				}
+				await eventsStore.update(event.id, { status: newStatus as Event['status'] })
 			} catch (error) {
 				console.error('Failed to update status:', error)
+			} finally {
+				payrollPreviewLoading = false
 			}
+		}
+	}
+
+	function updatePreviewEntry(index: number, field: 'hours' | 'rate' | 'additional_pay', value: number) {
+		const next = [...payrollPreviewEntries]
+		const current = { ...next[index] }
+		current[field] = value
+		current.total_pay = Number((current.hours * current.rate + current.additional_pay).toFixed(2))
+		next[index] = current
+		payrollPreviewEntries = next
+	}
+
+	async function confirmPayrollReviewAndComplete() {
+		if (!event?.id) return
+		payrollPreviewLoading = true
+		try {
+			await eventsStore.update(event.id, {
+				status: 'completed',
+				__reviewedPayrollEntries: payrollPreviewEntries
+			} as any)
+			showPayrollReviewModal = false
+		} catch (error) {
+			console.error('Failed to complete event with reviewed payroll:', error)
+		} finally {
+			payrollPreviewLoading = false
 		}
 	}
 
@@ -436,9 +469,8 @@
 				requirements: formData.requirements,
 				number_of_attendees: formData.number_of_attendees,
 				number_of_musicians: formData.number_of_musicians,
-				production_manager_contact_id: formData.production_manager_contact_id,
-				pm_hours: formData.pm_hours,
-				pm_rate: formData.pm_rate
+				production_manager_artist_id: formData.production_manager_artist_id,
+				production_manager_id: formData.production_manager_id
 			}))
 			
 			// Handle artist assignments - ensure it's always an array
@@ -649,59 +681,6 @@
 					</div>
 				</div>
 
-				<!-- Production Manager Hours Section -->
-				<div class="border-t border-base-300 pt-4 mt-4">
-					<h4 class="font-medium text-sm mb-3">Production Manager Payroll</h4>
-					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-						<div class="form-control">
-							<label class="label" for="pm_hours">
-								<span class="label-text">PM Hours</span>
-							</label>
-							<input
-								id="pm_hours"
-								type="number"
-								bind:value={formData.pm_hours}
-								class="input input-bordered {errors.pm_hours ? 'input-error' : ''}"
-								placeholder="0"
-								min="0"
-								step="0.5"
-							/>
-							{#if errors.pm_hours}
-								<label class="label">
-									<span class="label-text-alt text-error">{errors.pm_hours}</span>
-								</label>
-							{/if}
-						</div>
-						<div class="form-control">
-							<label class="label" for="pm_rate">
-								<span class="label-text">PM Rate ($/hr)</span>
-							</label>
-							<input
-								id="pm_rate"
-								type="number"
-								bind:value={formData.pm_rate}
-								class="input input-bordered {errors.pm_rate ? 'input-error' : ''}"
-								placeholder="0.00"
-								min="0"
-								step="0.01"
-							/>
-							{#if errors.pm_rate}
-								<label class="label">
-									<span class="label-text-alt text-error">{errors.pm_rate}</span>
-								</label>
-							{/if}
-						</div>
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">PM Total</span>
-							</label>
-							<div class="input input-bordered bg-base-200 flex items-center">
-								<span class="font-mono">${((formData.pm_hours || 0) * (formData.pm_rate || 0)).toFixed(2)}</span>
-							</div>
-						</div>
-					</div>
-				</div>
-				
 				<!-- Status and References Row -->
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 					<!-- Status -->
@@ -753,43 +732,20 @@
 					</div>
 				</div>
 
-				<!-- Production Manager Contact -->
+				<!-- Production Manager (artist with is_production_manager) -->
 				<div class="form-control">
-					<div class="flex items-center justify-between mb-1">
-						<label class="label">
-							<span class="label-text">Production Manager Contact</span>
-						</label>
-						<button
-							type="button"
-							class="btn btn-xs btn-outline btn-primary"
-							class:btn-disabled={!formData.location_id}
-							onclick={() => {
-								if (!formData.location_id) {
-									toast.error('Please select a location first before adding a production manager contact')
-									return
-								}
-								showCreateContactModal = true
-							}}
-							title={formData.location_id ? "Create new production manager contact" : "Please select a location first"}
-							disabled={!formData.location_id || loading}
-						>
-							<Plus class="w-3 h-3 mr-1" />
-							Create New
-						</button>
-					</div>
-					<LocationContactSelector
-						value={formData.production_manager_contact_id}
-						locationId={formData.location_id || null}
-						onchange={(contactId) => formData.production_manager_contact_id = contactId}
-						placeholder="Select a production manager contact (optional)"
+					<label class="label">
+						<span class="label-text">Production Manager</span>
+					</label>
+					<ProductionManagerSelector
+						value={formData.production_manager_id}
+						placeholder="Select a production manager (optional)"
+						disabled={loading}
+						onchange={(productionManagerId, productionManager) => {
+							formData.production_manager_id = productionManagerId
+							formData.production_manager_artist_id = productionManager?.artist_id ?? null
+						}}
 					/>
-					{#if !formData.location_id}
-						<label class="label">
-							<span class="label-text-alt text-warning">
-								Please select a location first to add a production manager contact
-							</span>
-						</label>
-					{/if}
 				</div>
 				
 				<!-- Notes -->
@@ -952,17 +908,76 @@
 		on:success={handleEnsembleCreated}
 	/>
 
-	<!-- Create Location Contact Modal -->
-	<CreateLocationContact
-		open={showCreateContactModal}
-		locationId={formData.location_id ? Number(formData.location_id) : undefined}
-		on:close={() => showCreateContactModal = false}
-		on:success={(e: CustomEvent<{ contact: LocationContact }>) => {
-			const newContact = e.detail.contact
-			formData.production_manager_contact_id = newContact.id
-			showCreateContactModal = false
-			toast.success('Production manager contact created and selected')
-		}}
-	/>
+	{#if showPayrollReviewModal}
+		<div class="modal modal-open">
+			<div class="modal-box max-w-5xl">
+				<h3 class="font-bold text-lg">Review Payroll Before Completion</h3>
+				<p class="text-sm opacity-70 mt-1">Adjust entries as needed before payroll is generated for this completed event.</p>
+				<div class="overflow-x-auto mt-4 max-h-[50vh]">
+					<table class="table table-sm">
+						<thead>
+							<tr>
+								<th>Payee</th>
+								<th>Hours</th>
+								<th>Rate</th>
+								<th>Additional</th>
+								<th>Total</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each payrollPreviewEntries as entry, index}
+								<tr>
+									<td>
+										{entry.payee_name || entry.artist_name}
+										{#if entry.is_production_manager}
+											<span class="badge badge-secondary badge-xs ml-2">PM</span>
+										{/if}
+									</td>
+									<td>
+										<input
+											type="number"
+											class="input input-bordered input-xs w-24"
+											value={entry.hours}
+											min="0"
+											step="0.25"
+											oninput={(e) => updatePreviewEntry(index, 'hours', Number(e.currentTarget.value))}
+										/>
+									</td>
+									<td>
+										<input
+											type="number"
+											class="input input-bordered input-xs w-24"
+											value={entry.rate}
+											min="0"
+											step="0.01"
+											oninput={(e) => updatePreviewEntry(index, 'rate', Number(e.currentTarget.value))}
+										/>
+									</td>
+									<td>
+										<input
+											type="number"
+											class="input input-bordered input-xs w-24"
+											value={entry.additional_pay}
+											min="0"
+											step="0.01"
+											oninput={(e) => updatePreviewEntry(index, 'additional_pay', Number(e.currentTarget.value))}
+										/>
+									</td>
+									<td>${entry.total_pay.toFixed(2)}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+				<div class="modal-action">
+					<button class="btn btn-ghost" onclick={() => showPayrollReviewModal = false} disabled={payrollPreviewLoading}>Cancel</button>
+					<button class="btn btn-primary" onclick={confirmPayrollReviewAndComplete} disabled={payrollPreviewLoading}>
+						{#if payrollPreviewLoading}<span class="loading loading-spinner loading-sm"></span>{/if}
+						Complete Event & Generate Payroll
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 </div>

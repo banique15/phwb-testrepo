@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { invalidateAll } from '$app/navigation'
+	import { invalidateAll, goto } from '$app/navigation'
 	import { page } from '$app/stores'
-	import { User } from 'lucide-svelte'
+	import { User, Download, Upload } from 'lucide-svelte'
 	import { artistsStore, updateArtist } from '$lib/stores/artists'
 	import type { Artist } from '$lib/schemas/artist'
 	import type { PageData } from './$types'
@@ -10,8 +10,11 @@
 	import { z } from 'zod'
 	import { supabase } from '$lib/supabase'
 	import { normalizePhoneForDB } from '$lib/utils/phone'
+	import { exportArtistsAsCSV } from '$lib/services/artist-export'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
+	import ExportArtistsModal from '$lib/components/artists/ExportArtistsModal.svelte'
+	import { portal } from '$lib/actions/portal'
 	import ArtistHeaderCard from './components/ArtistHeaderCard.svelte'
 	import ArtistTabs from './components/ArtistTabs.svelte'
 	import ArtistCreateForm from './components/ArtistCreateForm.svelte'
@@ -30,6 +33,22 @@
 	// Modal and form state
 	let showCreateForm = $state(false)
 	let isDeleteArtistModalOpen = $state(false)
+	let showExportArtistsModal = $state(false)
+
+	// Selection for export (checkbox in list)
+	let selectedArtistIds = $state<Set<string>>(new Set())
+
+	// Filter panel: portaled and fixed (like notification panel) so it renders above sidebar
+	let showFilterPanel = $state(false)
+	let filterPanelPosition = $state({ top: 80, left: 208 })
+	let filterButtonRef = $state<HTMLButtonElement | null>(null)
+	let filterPanelRef = $state<HTMLDivElement | null>(null)
+
+	// Sort panel: same portaled pattern so it renders above sidebar
+	let showSortPanel = $state(false)
+	let sortPanelPosition = $state({ top: 80, left: 208 })
+	let sortButtonRef = $state<HTMLButtonElement | null>(null)
+	let sortPanelRef = $state<HTMLDivElement | null>(null)
 
 	// Search state
 	let searchQuery = $state('')
@@ -53,6 +72,7 @@
 		instruments: [] as string[],
 		canBeSoloist: null as boolean | null,
 		sightReads: null as boolean | null,
+		isProductionManager: null as boolean | null,
 		hideIncomplete: false as boolean,
 		hasEnsemble: false as boolean,
 		employmentStatus: null as string | null
@@ -141,6 +161,11 @@
 			result = result.filter(artist => artist.sightreads === artistFilters.sightReads)
 		}
 
+		// Production manager filter
+		if (artistFilters.isProductionManager !== null) {
+			result = result.filter(artist => !!artist.is_production_manager === artistFilters.isProductionManager)
+		}
+
 		// Has ensemble filter
 		if (artistFilters.hasEnsemble) {
 			result = result.filter(artist => artist.id && artistsWithEnsembles.has(artist.id))
@@ -148,11 +173,20 @@
 
 		// Employment status filter
 		if (artistFilters.employmentStatus) {
-			if (artistFilters.employmentStatus === 'Employee') {
-				// Employee includes those with status set to Employee OR not set
-				result = result.filter(artist => artist.employment_status === 'Employee' || !artist.employment_status)
+			if (artistFilters.employmentStatus === 'W-2') {
+				// W-2 includes legacy Employee/W2 values and unset records.
+				result = result.filter(artist =>
+					artist.employment_status === 'W-2' ||
+					artist.employment_status === 'W2' ||
+					artist.employment_status === 'Employee' ||
+					!artist.employment_status
+				)
 			} else {
-				result = result.filter(artist => artist.employment_status === artistFilters.employmentStatus)
+				result = result.filter(artist =>
+					artistFilters.employmentStatus === '1099'
+						? ['1099', 'LLC', 'contractor'].includes(artist.employment_status || '')
+						: artist.employment_status === artistFilters.employmentStatus
+				)
 			}
 		}
 
@@ -185,6 +219,7 @@
 		artistFilters.instruments.length > 0 ||
 		artistFilters.canBeSoloist !== null ||
 		artistFilters.sightReads !== null ||
+		artistFilters.isProductionManager !== null ||
 		artistFilters.hideIncomplete ||
 		artistFilters.hasEnsemble ||
 		artistFilters.employmentStatus !== null
@@ -243,80 +278,99 @@
 		}
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		// Load ensemble membership data for filtering
 		loadArtistsWithEnsembles()
 
 		// Load event counts for all artists
 		loadArtistEventCounts()
 
-		// Check for artist ID in URL first (e.g., /artists?id=xxx)
-		const urlArtistId = $page.url.searchParams.get('id')
-		if (urlArtistId && data.artists.length > 0) {
-			// Try to find in current data
-			let urlArtist = data.artists.find(artist => artist.id === urlArtistId)
+		;(async () => {
+			// Check for artist ID in URL first (e.g., /artists?id=xxx)
+			const urlArtistId = $page.url.searchParams.get('id')
+			if (urlArtistId && data.artists.length > 0) {
+				let urlArtist = data.artists.find(artist => artist.id === urlArtistId)
 
-			// If not found in current data, fetch it directly
-			if (!urlArtist) {
-				const { data: fetchedArtist } = await supabase
-					.from('phwb_artists')
-					.select('*')
-					.eq('id', urlArtistId)
-					.single()
+				if (!urlArtist) {
+					const { data: fetchedArtist } = await supabase
+						.from('phwb_artists')
+						.select('*')
+						.eq('id', urlArtistId)
+						.single()
 
-				if (fetchedArtist) {
-					urlArtist = fetchedArtist
+					if (fetchedArtist) {
+						urlArtist = fetchedArtist
+					}
+				}
+
+				if (urlArtist) {
+					selectedArtist = urlArtist
+					if (urlArtist.id) {
+						loadArtistEventsCount(urlArtist.id)
+					}
+					artistsStore.subscribeToChanges({
+						onInsert: (payload) => {
+							const newArtist = payload.new as Artist
+							if (!artists.some(a => a.id === newArtist.id)) {
+								artists = [newArtist, ...artists]
+							}
+						},
+						onUpdate: (payload) => {
+							const updatedArtist = payload.new as Artist
+							artists = artists.map(a => a.id === updatedArtist.id ? updatedArtist : a)
+							if (selectedArtist?.id === updatedArtist.id) {
+								selectedArtist = updatedArtist
+							}
+						},
+						onDelete: (payload) => {
+							const deletedId = (payload.old as Artist).id
+							artists = artists.filter(a => a.id !== deletedId)
+							if (selectedArtist?.id === deletedId) {
+								selectedArtist = null
+							}
+						}
+					})
+					return
 				}
 			}
 
-			if (urlArtist) {
-				selectedArtist = urlArtist
-				if (urlArtist.id) {
-					loadArtistEventsCount(urlArtist.id)
+			// Restore selected artist from localStorage on initial client-side mount
+			const artistStorageKey = 'phwb-selected-artist'
+			const savedArtistId = localStorage.getItem(artistStorageKey)
+			if (savedArtistId && data.artists.length > 0) {
+				const savedArtist = data.artists.find(artist => String(artist.id) === savedArtistId)
+				if (savedArtist) {
+					selectedArtist = savedArtist
+					if (savedArtist.id) {
+						loadArtistEventsCount(savedArtist.id)
+					}
 				}
-				return // Don't check localStorage if URL param was used
 			}
-		}
 
-		// Restore selected artist from localStorage on initial client-side mount
-		const artistStorageKey = 'phwb-selected-artist'
-		const savedArtistId = localStorage.getItem(artistStorageKey)
-		if (savedArtistId && data.artists.length > 0) {
-			const savedArtist = data.artists.find(artist => String(artist.id) === savedArtistId)
-			if (savedArtist) {
-				selectedArtist = savedArtist
-				if (savedArtist.id) {
-					loadArtistEventsCount(savedArtist.id)
+			// Subscribe to real-time changes with callbacks to update local state
+			artistsStore.subscribeToChanges({
+				onInsert: (payload) => {
+					const newArtist = payload.new as Artist
+					if (!artists.some(a => a.id === newArtist.id)) {
+						artists = [newArtist, ...artists]
+					}
+				},
+				onUpdate: (payload) => {
+					const updatedArtist = payload.new as Artist
+					artists = artists.map(a => a.id === updatedArtist.id ? updatedArtist : a)
+					if (selectedArtist?.id === updatedArtist.id) {
+						selectedArtist = updatedArtist
+					}
+				},
+				onDelete: (payload) => {
+					const deletedId = (payload.old as Artist).id
+					artists = artists.filter(a => a.id !== deletedId)
+					if (selectedArtist?.id === deletedId) {
+						selectedArtist = null
+					}
 				}
-			}
-		}
-
-		// Subscribe to real-time changes with callbacks to update local state
-		artistsStore.subscribeToChanges({
-			onInsert: (payload) => {
-				const newArtist = payload.new as Artist
-				// Add to beginning if not already present
-				if (!artists.some(a => a.id === newArtist.id)) {
-					artists = [newArtist, ...artists]
-				}
-			},
-			onUpdate: (payload) => {
-				const updatedArtist = payload.new as Artist
-				artists = artists.map(a => a.id === updatedArtist.id ? updatedArtist : a)
-				// Also update selectedArtist if it's the one being updated
-				if (selectedArtist?.id === updatedArtist.id) {
-					selectedArtist = updatedArtist
-				}
-			},
-			onDelete: (payload) => {
-				const deletedId = (payload.old as Artist).id
-				artists = artists.filter(a => a.id !== deletedId)
-				// Clear selection if deleted artist was selected
-				if (selectedArtist?.id === deletedId) {
-					selectedArtist = null
-				}
-			}
-		})
+			})
+		})()
 
 		return () => {
 			artistsStore.unsubscribeFromChanges()
@@ -428,6 +482,80 @@
 		}
 	}
 
+	function handleExportArtistsConfirm(event: CustomEvent<{ scope: 'all' | 'selected' }>) {
+		const scope = event.detail.scope
+		const toExport =
+			scope === 'selected'
+				? filteredArtists.filter((a) => a.id && selectedArtistIds.has(String(a.id)))
+				: [...filteredArtists]
+		exportArtistsAsCSV(toExport)
+		showExportArtistsModal = false
+	}
+
+	function handleExportArtistsClose() {
+		showExportArtistsModal = false
+	}
+
+	function openFilterPanel() {
+		if (filterButtonRef) {
+			const rect = filterButtonRef.getBoundingClientRect()
+			filterPanelPosition = { top: rect.bottom + 4, left: rect.left }
+		} else {
+			filterPanelPosition = { top: 80, left: 208 }
+		}
+		showFilterPanel = true
+	}
+
+	function handleFilterPanelClickOutside(event: MouseEvent) {
+		if (
+			showFilterPanel &&
+			filterButtonRef &&
+			filterPanelRef &&
+			!filterButtonRef.contains(event.target as Node) &&
+			!filterPanelRef.contains(event.target as Node)
+		) {
+			showFilterPanel = false
+		}
+	}
+
+	$effect(() => {
+		if (!showFilterPanel) return
+		document.addEventListener('click', handleFilterPanelClickOutside)
+		return () => document.removeEventListener('click', handleFilterPanelClickOutside)
+	})
+
+	function toggleSortPanel() {
+		if (showSortPanel) {
+			showSortPanel = false
+			return
+		}
+		if (sortButtonRef) {
+			const rect = sortButtonRef.getBoundingClientRect()
+			sortPanelPosition = { top: rect.bottom + 4, left: rect.left }
+		} else {
+			sortPanelPosition = { top: 80, left: 208 }
+		}
+		showSortPanel = true
+	}
+
+	function handleSortPanelClickOutside(event: MouseEvent) {
+		if (
+			showSortPanel &&
+			sortButtonRef &&
+			sortPanelRef &&
+			!sortButtonRef.contains(event.target as Node) &&
+			!sortPanelRef.contains(event.target as Node)
+		) {
+			showSortPanel = false
+		}
+	}
+
+	$effect(() => {
+		if (!showSortPanel) return
+		document.addEventListener('click', handleSortPanelClickOutside)
+		return () => document.removeEventListener('click', handleSortPanelClickOutside)
+	})
+
 	// MasterDetail configuration functions for Artists
 	function getArtistTitle(item: any): string {
 		const fullName = item.full_name ||
@@ -466,7 +594,7 @@
 	}
 
 	function getArtistDetail(item: any): string {
-		// Return empty - we're not using the badge for artists
+		if (item?.is_production_manager) return 'Production Manager'
 		return ''
 	}
 </script>
@@ -491,152 +619,62 @@
 					detailEmptyMessage="Choose an artist from the list to view their full profile"
 					storageKey="phwb-selected-artist"
 					forceShowChildren={showCreateForm}
+					selectionMode={true}
+					bind:selectedIds={selectedArtistIds}
 					on:search={handleSearch}
 					on:select={handleSelectArtist}
 				>
 					{#snippet filters()}
-						<div class="dropdown dropdown-end">
-							<button tabindex="0" class="btn btn-sm btn-outline" class:btn-active={hasActiveArtistFilters}>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-								</svg>
-								Filters
-								{#if hasActiveArtistFilters}
-									<span class="badge badge-sm badge-primary">•</span>
-								{/if}
-							</button>
-							<div tabindex="0" class="dropdown-content z-[1] card card-compact w-80 p-4 shadow bg-base-100 border border-base-300 mt-2">
-								<div class="space-y-3">
-									<div class="flex items-center justify-between">
-										<h3 class="font-semibold text-sm">Filter Artists</h3>
-										{#if hasActiveArtistFilters}
-											<button
-												class="btn btn-ghost btn-xs"
-												onclick={() => {
-													artistFilters = {
-														genres: [],
-														instruments: [],
-														canBeSoloist: null,
-														sightReads: null,
-														hideIncomplete: false,
-														hasEnsemble: false,
-														employmentStatus: null
-													}
-												}}
-											>
-												Clear all
-											</button>
-										{/if}
-									</div>
-
-									<div class="divider my-1"></div>
-
-									<div class="form-control">
-										<label class="label cursor-pointer justify-start gap-2 py-1">
-											<input
-												type="checkbox"
-												class="checkbox checkbox-sm checkbox-primary"
-												bind:checked={artistFilters.hideIncomplete}
-											/>
-											<span class="label-text text-sm font-medium">Hide incomplete contacts</span>
-										</label>
-										<p class="text-xs opacity-60 ml-6">Excludes placeholder emails & missing phone numbers</p>
-									</div>
-
-									<div class="divider my-1"></div>
-
-									<div class="form-control">
-										<label class="label cursor-pointer justify-start gap-2 py-1">
-											<input
-												type="checkbox"
-												class="checkbox checkbox-sm"
-												checked={artistFilters.canBeSoloist === true}
-												onchange={(e) => {
-													artistFilters.canBeSoloist = e.currentTarget.checked ? true : null
-												}}
-											/>
-											<span class="label-text text-sm">Can be soloist</span>
-										</label>
-									</div>
-
-									<div class="form-control">
-										<label class="label cursor-pointer justify-start gap-2 py-1">
-											<input
-												type="checkbox"
-												class="checkbox checkbox-sm"
-												checked={artistFilters.sightReads === true}
-												onchange={(e) => {
-													artistFilters.sightReads = e.currentTarget.checked ? true : null
-												}}
-											/>
-											<span class="label-text text-sm">Sight reads</span>
-										</label>
-									</div>
-
-									<div class="divider my-1"></div>
-
-									<div class="form-control">
-										<label class="label cursor-pointer justify-start gap-2 py-1">
-											<input
-												type="checkbox"
-												class="checkbox checkbox-sm checkbox-primary"
-												bind:checked={artistFilters.hasEnsemble}
-											/>
-											<span class="label-text text-sm font-medium">In an ensemble</span>
-										</label>
-										<p class="text-xs opacity-60 ml-6">Only show artists who belong to an ensemble</p>
-									</div>
-
-									<div class="divider my-1"></div>
-
-									<div class="form-control">
-										<label class="label py-1">
-											<span class="label-text text-sm font-medium">Employment Status</span>
-										</label>
-										<select
-											class="select select-sm select-bordered w-full"
-											value={artistFilters.employmentStatus || ''}
-											onchange={(e) => {
-												artistFilters.employmentStatus = e.currentTarget.value || null
-											}}
-										>
-											<option value="">All</option>
-											<option value="Employee">Employee/W2</option>
-											<option value="1099">LLC/1099</option>
-											<option value="Trial">Trial</option>
-										</select>
-									</div>
-								</div>
-							</div>
-						</div>
+						<button
+							bind:this={filterButtonRef}
+							type="button"
+							class="btn btn-sm btn-outline"
+							class:btn-active={hasActiveArtistFilters}
+							onclick={openFilterPanel}
+							aria-haspopup="true"
+							aria-expanded={showFilterPanel}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+							</svg>
+							Filters
+							{#if hasActiveArtistFilters}
+								<span class="badge badge-sm badge-primary">•</span>
+							{/if}
+						</button>
 					{/snippet}
 
 					{#snippet masterActions()}
-						<div class="dropdown dropdown-end">
-							<button
-								tabindex="0"
-								class="btn btn-xs border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
-								title="Sort artists"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-								</svg>
-								<span class="hidden sm:inline ml-1">{sortOptions.find(o => o.value === sortBy)?.label || 'Sort'}</span>
-							</button>
-							<ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 border border-base-300 rounded-box w-48 mt-1">
-								{#each sortOptions as option}
-									<li>
-										<button
-											class="text-sm"
-											class:active={sortBy === option.value}
-											onclick={() => { sortBy = option.value; (document.activeElement as HTMLElement)?.blur() }}
-										>
-											{option.label}
-										</button>
-									</li>
-								{/each}
-							</ul>
-						</div>
+						<button
+							bind:this={sortButtonRef}
+							type="button"
+							class="btn btn-xs border border-base-content/20 bg-base-100 hover:bg-base-200 text-base-content"
+							title="Sort artists"
+							onclick={toggleSortPanel}
+							aria-haspopup="true"
+							aria-expanded={showSortPanel}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+							</svg>
+							<span class="hidden sm:inline ml-1">{sortOptions.find(o => o.value === sortBy)?.label || 'Sort'}</span>
+						</button>
+						<button
+							class="btn btn-ghost btn-xs"
+							onclick={() => goto('/artists/import')}
+							title="Import artists from CSV"
+						>
+							<Upload class="h-3 w-3 mr-1" />
+							<span class="hidden sm:inline">Import CSV</span>
+						</button>
+						<button
+							class="btn btn-ghost btn-xs"
+							onclick={() => (showExportArtistsModal = true)}
+							title="Export artists to CSV"
+						>
+							<Download class="h-3 w-3 mr-1" />
+							<span class="hidden sm:inline">Export CSV</span>
+						</button>
 						<button
 							class="btn btn-primary btn-xs"
 							onclick={openCreateForm}
@@ -690,11 +728,180 @@
 		</div>
 	</div>
 
+	<!-- Filter panel: fixed + portaled so it renders above sidebar (same pattern as notification panel) -->
+	{#if showFilterPanel}
+		<div
+			use:portal={'dropdown-portal'}
+			bind:this={filterPanelRef}
+			class="w-80 max-h-[90vh] overflow-y-auto bg-base-100 rounded-lg shadow-2xl border border-base-300 card card-compact p-4"
+			style="position: fixed; top: {filterPanelPosition.top}px; left: {filterPanelPosition.left}px; z-index: 9999;"
+			role="dialog"
+			aria-label="Filter artists"
+		>
+			<div class="space-y-3">
+				<div class="flex items-center justify-between">
+					<h3 class="font-semibold text-sm">Filter Artists</h3>
+					{#if hasActiveArtistFilters}
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs"
+							onclick={() => {
+									artistFilters = {
+									genres: [],
+									instruments: [],
+									canBeSoloist: null,
+									sightReads: null,
+									isProductionManager: null,
+									hideIncomplete: false,
+									hasEnsemble: false,
+									employmentStatus: null
+								}
+							}}
+						>
+							Clear all
+						</button>
+					{/if}
+				</div>
+
+				<div class="divider my-1"></div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-2 py-1">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm checkbox-primary"
+							bind:checked={artistFilters.hideIncomplete}
+						/>
+						<span class="label-text text-sm font-medium">Hide incomplete contacts</span>
+					</label>
+					<p class="text-xs opacity-60 ml-6">Excludes placeholder emails & missing phone numbers</p>
+				</div>
+
+				<div class="divider my-1"></div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-2 py-1">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm"
+							checked={artistFilters.canBeSoloist === true}
+							onchange={(e) => {
+								artistFilters.canBeSoloist = e.currentTarget.checked ? true : null
+							}}
+						/>
+						<span class="label-text text-sm">Can be soloist</span>
+					</label>
+				</div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-2 py-1">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm"
+							checked={artistFilters.sightReads === true}
+							onchange={(e) => {
+								artistFilters.sightReads = e.currentTarget.checked ? true : null
+							}}
+						/>
+						<span class="label-text text-sm">Sight reads</span>
+					</label>
+				</div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-2 py-1">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm"
+							checked={artistFilters.isProductionManager === true}
+							onchange={(e) => {
+								artistFilters.isProductionManager = e.currentTarget.checked ? true : null
+							}}
+						/>
+						<span class="label-text text-sm">Production managers</span>
+					</label>
+				</div>
+
+				<div class="divider my-1"></div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-2 py-1">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm checkbox-primary"
+							bind:checked={artistFilters.hasEnsemble}
+						/>
+						<span class="label-text text-sm font-medium">In an ensemble</span>
+					</label>
+					<p class="text-xs opacity-60 ml-6">Only show artists who belong to an ensemble</p>
+				</div>
+
+				<div class="divider my-1"></div>
+
+				<div class="form-control">
+					<label class="label py-1">
+						<span class="label-text text-sm font-medium">Employment Status</span>
+					</label>
+					<select
+						class="select select-sm select-bordered w-full"
+						value={artistFilters.employmentStatus || ''}
+						onchange={(e) => {
+							artistFilters.employmentStatus = e.currentTarget.value || null
+						}}
+					>
+						<option value="">All</option>
+						<option value="W-2">W-2 (Roster)</option>
+						<option value="1099">1099 (LLC)</option>
+					</select>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Sort panel: fixed + portaled so it renders above sidebar -->
+	{#if showSortPanel}
+		<div
+			use:portal={'dropdown-portal'}
+			bind:this={sortPanelRef}
+			class="w-48 bg-base-100 rounded-lg shadow-2xl border border-base-300 p-2"
+			style="position: fixed; top: {sortPanelPosition.top}px; left: {sortPanelPosition.left}px; z-index: 9999;"
+			role="menu"
+			aria-label="Sort artists"
+		>
+			<ul class="menu menu-sm p-0">
+				{#each sortOptions as option}
+					<li>
+						<button
+							type="button"
+							class="text-sm"
+							class:active={sortBy === option.value}
+							role="menuitem"
+							onclick={() => {
+								sortBy = option.value
+								showSortPanel = false
+							}}
+						>
+							{option.label}
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
+
 	<!-- Delete Artist Modal -->
 	<DeleteArtist
 		open={isDeleteArtistModalOpen}
 		artist={selectedArtist}
 		onClose={() => isDeleteArtistModalOpen = false}
 		onSuccess={handleDeleteArtist}
+	/>
+
+	<!-- Export Artists Modal -->
+	<ExportArtistsModal
+		open={showExportArtistsModal}
+		totalCount={filteredArtists.length}
+		selectedCount={selectedArtistIds.size}
+		on:confirm={handleExportArtistsConfirm}
+		on:close={handleExportArtistsClose}
 	/>
 </ErrorBoundary>

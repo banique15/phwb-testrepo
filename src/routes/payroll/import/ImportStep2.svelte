@@ -31,7 +31,7 @@
 		{ key: 'venue_name', label: 'Venue Name', description: 'Venue where the event took place' },
 		{ key: 'additional_pay', label: 'Additional Pay', description: 'Extra compensation amount' },
 		{ key: 'additional_pay_reason', label: 'Additional Pay Reason', description: 'Reason for additional compensation' },
-		{ key: 'status', label: 'Status', description: 'Payment status (Planned, Paid, Unpaid, Cancelled)' },
+		{ key: 'status', label: 'Status', description: 'Payment status (Planned, Approved, Paid, With Issues, Cancelled)' },
 		{ key: 'paid_date', label: 'Paid Date', description: 'Date when payment was made' },
 		{ key: 'event_id', label: 'Event ID', description: 'Optional event identifier' },
 		{ key: 'insperity_hours', label: 'Artist Service Hours', description: 'Artist service hours for payroll processing' }

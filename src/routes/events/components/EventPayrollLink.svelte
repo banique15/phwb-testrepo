@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte'
 	import { DollarSign, ExternalLink, AlertCircle, CheckCircle } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	interface Props {
 		eventId: number
@@ -49,7 +50,7 @@
 
 			linkedPayroll.forEach(p => {
 				if (p.artist_id) artists.add(p.artist_id)
-				totalPay += p.total_pay || (p.hours || 0) * (p.rate || 0) + (p.additional_pay || 0)
+				totalPay += p.total_pay ?? computeEntryTotalPay(p)
 				totalHours += p.hours || 0
 			})
 
@@ -161,7 +162,7 @@
 							<td class="font-mono text-sm">{formatDate(record.event_date)}</td>
 							<td class="font-mono">{record.hours?.toFixed(1) || '0.0'}</td>
 							<td class="font-mono font-medium">
-								{formatCurrency(record.total_pay || (record.hours || 0) * (record.rate || 0) + (record.additional_pay || 0))}
+								{formatCurrency(record.total_pay ?? computeEntryTotalPay(record))}
 							</td>
 							<td>
 								<span class="badge badge-sm {getStatusBadgeClass(record.status)}">{record.status}</span>

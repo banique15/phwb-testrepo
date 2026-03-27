@@ -3,6 +3,7 @@
 	import { Calendar } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
 	import type { Payroll } from '$lib/schemas/payroll'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 	
 	// Report state
 	let loading = $state(false)
@@ -118,7 +119,7 @@
 				}
 				
 				const typeGroup = monthGroup.performanceTypes.get(performanceType)!
-				const recordPay = record.total_pay || (record.hours || 0) * (record.rate || 0) + (record.additional_pay || 0)
+				const recordPay = record.total_pay ?? computeEntryTotalPay(record)
 				
 				// Update type group
 				typeGroup.totalHours += record.hours || 0

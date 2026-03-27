@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte'
 	import { Theater } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 
 	// Report state
 	let loading = $state(false)
@@ -235,7 +236,7 @@
 			// Add linked payroll to monthly trend
 			const linkedPayroll = eventPayrollMap.get(event.id) || []
 			linkedPayroll.forEach(p => {
-				monthlyTrend.get(monthKey)!.totalPay += p.total_pay || (p.hours || 0) * (p.rate || 0) + (p.additional_pay || 0)
+				monthlyTrend.get(monthKey)!.totalPay += p.total_pay ?? computeEntryTotalPay(p)
 			})
 		})
 
@@ -244,7 +245,7 @@
 			const artistId = record.artist_id || 'unknown'
 			const artistName = record.artists?.full_name || 'Unknown Artist'
 			const hours = record.hours || 0
-			const pay = record.total_pay || (record.hours || 0) * (record.rate || 0) + (record.additional_pay || 0)
+			const pay = record.total_pay ?? computeEntryTotalPay(record)
 
 			// Artist participation
 			if (!artistParticipation.has(artistId)) {

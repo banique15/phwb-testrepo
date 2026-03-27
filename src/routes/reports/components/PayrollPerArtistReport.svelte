@@ -5,6 +5,7 @@
 	import { artistsStore } from '$lib/stores/artists'
 	import { supabase } from '$lib/supabase'
 	import type { Payroll } from '$lib/schemas/payroll'
+	import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
 	
 	// Report state
 	let loading = $state(false)
@@ -132,7 +133,7 @@
 				group.records.push(record)
 
 				const recordHours = record.hours || 0
-				const recordPay = record.total_pay || (recordHours * (record.rate || 0)) + (record.additional_pay || 0)
+				const recordPay = record.total_pay ?? computeEntryTotalPay(record)
 
 				group.totalHours += recordHours
 				group.totalPay += recordPay
