@@ -129,6 +129,14 @@
 		return artist.full_name || artist.legal_first_name || artist.artist_name || 'Unnamed Artist'
 	}
 
+	function getLeaderDisplayName(): string {
+		const leaderId = (isEditing ? editData.leader_id : ensemble.leader_id) || null
+		if (!leaderId) return 'Not set'
+		const leaderMember = members.find((member) => member.artist_id === leaderId)
+		if (!leaderMember) return 'Not set'
+		return getArtistDisplayName(leaderMember.artist)
+	}
+
 	function openAddMemberModal() {
 		showAddMemberModal = true
 	}
@@ -340,6 +348,25 @@
 
 				<div class="form-control">
 					<label class="label">
+						<span class="label-text text-xs font-semibold">Bandleader</span>
+					</label>
+					{#if isEditing}
+						<select
+							class="select select-sm select-bordered"
+							bind:value={editData.leader_id}
+						>
+							<option value="">No bandleader selected</option>
+							{#each members as member}
+								<option value={member.artist_id}>{getArtistDisplayName(member.artist)}</option>
+							{/each}
+						</select>
+					{:else}
+						<p class="text-sm">{getLeaderDisplayName()}</p>
+					{/if}
+				</div>
+
+				<div class="form-control">
+					<label class="label">
 						<span class="label-text text-xs font-semibold">Website</span>
 					</label>
 					{#if isEditing}
@@ -422,6 +449,9 @@
 										{:else}
 											<p class="text-xs text-base-content/40 italic">No role specified</p>
 										{/if}
+									{#if ensemble.leader_id === member.artist_id}
+										<p class="text-xs text-warning font-semibold">Bandleader</p>
+									{/if}
 									{/if}
 									{#if member.artist?.email}
 										<p class="text-xs text-base-content/60">{member.artist.email}</p>

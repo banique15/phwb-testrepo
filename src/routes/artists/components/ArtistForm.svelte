@@ -52,6 +52,7 @@
 		sightreads: artist?.sightreads || false,
 		can_be_soloist: artist?.can_be_soloist || false,
 		is_production_manager: artist?.is_production_manager || false,
+		is_bandleader: artist?.is_bandleader || false,
 		anti_harassment_training_date: artist?.anti_harassment_training_date || '',
 		// HR fields
 		associate_id: artist?.associate_id || '',
@@ -488,6 +489,19 @@
 							checked={formData.is_production_manager || false}
 							disabled={disabled || loading}
 							onchange={(e) => handleFieldChange('is_production_manager', e.currentTarget.checked)}
+						/>
+					</label>
+				</div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer">
+						<span class="label-text">Bandleader</span>
+						<input
+							type="checkbox"
+							class="checkbox checkbox-primary"
+							checked={formData.is_bandleader || false}
+							disabled={disabled || loading}
+							onchange={(e) => handleFieldChange('is_bandleader', e.currentTarget.checked)}
 						/>
 					</label>
 				</div>

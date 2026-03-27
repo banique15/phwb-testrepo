@@ -20,6 +20,7 @@ interface ArtistAssignment {
 	artist_id: string
 	artist_name?: string
 	role?: string
+	is_bandleader?: boolean
 	status?: string
 	num_hours?: number
 	hourly_rate?: number
@@ -334,14 +335,28 @@ async function getActiveRateCard(): Promise<{ id: number; name: string } | null>
 }
 
 /**
- * Get rate rule for a specific program type
+ * Get rate rule for a specific program/program type
  */
-async function getRateRule(rateCardId: number, programType: string): Promise<RateRule | null> {
+async function getRateRule(rateCardId: number, programType: string, programId?: number | null): Promise<RateRule | null> {
+	if (typeof programId === 'number') {
+		const { data: specific, error: specificError } = await supabase
+			.from('phwb_rate_rules')
+			.select('*')
+			.eq('rate_card_id', rateCardId)
+			.eq('program_id', programId)
+			.limit(1)
+
+		if (!specificError && specific && specific.length > 0) {
+			return specific[0]
+		}
+	}
+
 	const { data, error } = await supabase
 		.from('phwb_rate_rules')
 		.select('*')
 		.eq('rate_card_id', rateCardId)
 		.eq('program_type', programType)
+		.is('program_id', null)
 		.limit(1)
 	
 	if (error) {
@@ -480,6 +495,9 @@ function calculateArtistPay(
  * First assignment in the list is considered the leader unless role is specified
  */
 function isLeaderAssignment(assignment: ArtistAssignment, allAssignments: ArtistAssignment[]): boolean {
+	if (assignment.is_bandleader) {
+		return true
+	}
 	if (assignment.role === 'leader' || assignment.role === 'bandleader') {
 		return true
 	}
@@ -613,7 +631,7 @@ export async function generatePayrollForDateRange(
 					: null
 				
 				// Get rate rule for this program type
-				const rateRule = await getRateRule(rateCard.id, programType)
+				const rateRule = await getRateRule(rateCard.id, programType, event.program)
 				if (!rateRule) {
 					result.errors.push(`No rate rule found for program type "${programType}" in event "${event.title}"`)
 					continue
@@ -935,7 +953,7 @@ export async function generatePayrollForEvent(
 			: null
 
 		// Get rate rule for this program type
-		const rateRule = await getRateRule(rateCard.id, programType)
+		const rateRule = await getRateRule(rateCard.id, programType, typedEvent.program)
 		if (!rateRule) {
 			result.errors.push(`No rate rule found for program type "${programType}"`)
 			return result

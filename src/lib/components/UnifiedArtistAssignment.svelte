@@ -17,6 +17,7 @@
 		notes?: string
 		ensemble_id?: string // ID of ensemble this artist belongs to (for grouping)
 		ensemble_name?: string // Name of ensemble (for display)
+		is_bandleader?: boolean
 	}
 
 	interface Props {
@@ -206,7 +207,7 @@
 		try {
 			const { data, error: artistsError } = await supabase
 				.from('phwb_artists')
-				.select('id, full_name, artist_name, legal_first_name, legal_last_name, email, profile_photo, instruments')
+				.select('id, full_name, artist_name, legal_first_name, legal_last_name, email, profile_photo, instruments, is_bandleader')
 				.order('full_name')
 
 			if (artistsError) {
@@ -225,7 +226,7 @@
 		try {
 			const { data: ensembleData, error: ensemblesError } = await supabase
 				.from('phwb_ensembles')
-				.select('id, name, description, ensemble_type, status')
+				.select('id, name, description, ensemble_type, status, leader_id')
 				.eq('status', 'active')
 				.order('name')
 
@@ -322,12 +323,28 @@
 				num_hours: assignment.num_hours,
 				hourly_rate: assignment.hourly_rate,
 				notes: assignment.notes,
+				is_bandleader: assignment.is_bandleader,
 				// Preserve ensemble metadata
 				ensemble_id: assignment.ensemble_id,
 				ensemble_name: assignment.ensemble_name
 			}
 		})
 	})
+
+	function getCurrentBandleaderId(assignments: ArtistAssignment[] = localAssignments): string | null {
+		const bandleader = assignments.find((assignment) => assignment.is_bandleader)
+		return bandleader?.artist_id || null
+	}
+
+	function applySingleBandleader(assignments: ArtistAssignment[], leaderArtistId: string | null): ArtistAssignment[] {
+		if (!leaderArtistId) {
+			return assignments.map((assignment) => ({ ...assignment, is_bandleader: false }))
+		}
+		return assignments.map((assignment) => ({
+			...assignment,
+			is_bandleader: assignment.artist_id === leaderArtistId
+		}))
+	}
 
 	// Split assignments into pending and confirmed, grouped by ensemble
 	let pendingArtists = $derived.by(() => {
@@ -431,7 +448,7 @@
 				
 				const { data: members, error: membersError } = await supabase
 					.from('phwb_ensemble_members')
-					.select('artist_id, role, phwb_artists(id, full_name, artist_name, legal_first_name, legal_last_name)')
+					.select('artist_id, role, phwb_artists(id, full_name, artist_name, legal_first_name, legal_last_name, is_bandleader)')
 					.eq('ensemble_id', artistId)
 					.eq('is_active', true)
 
@@ -441,7 +458,19 @@
 					throw new Error('Ensemble has no active members')
 				}
 
+				const memberIds = new Set((members || []).map((member: any) => member.artist_id))
+				let preselectedLeaderId: string | null = null
+				if (ensemble.leader_id && memberIds.has(ensemble.leader_id)) {
+					preselectedLeaderId = ensemble.leader_id
+				} else {
+					const taggedMembers = members.filter((member: any) => member.phwb_artists?.is_bandleader)
+					if (taggedMembers.length === 1) {
+						preselectedLeaderId = taggedMembers[0].artist_id
+					}
+				}
+
 				const existingArtistIds = new Set(localAssignments.map(a => a.artist_id))
+				const hasExistingBandleader = !!getCurrentBandleaderId()
 				const newAssignments = members
 					.filter((member: any) => !existingArtistIds.has(member.artist_id))
 					.map((member: any) => {
@@ -459,7 +488,8 @@
 							hourly_rate: 0,
 							notes: '',
 							ensemble_id: artistId,
-							ensemble_name: ensembleName
+							ensemble_name: ensembleName,
+							is_bandleader: !hasExistingBandleader && preselectedLeaderId === member.artist_id
 						}
 					})
 
@@ -475,7 +505,8 @@
 					status: 'assigned',
 					num_hours: 0,
 					hourly_rate: 0,
-					notes: ''
+					notes: '',
+					is_bandleader: !getCurrentBandleaderId() && !!artist.is_bandleader
 				}
 
 				localAssignments = [...localAssignments, newAssignment]
@@ -538,7 +569,11 @@
 
 		const index = localAssignments.findIndex(a => a.artist_id === modalAssignment!.artist_id)
 		if (index !== -1) {
-			localAssignments[index] = { ...modalAssignment }
+			const updated = [...localAssignments]
+			updated[index] = { ...modalAssignment }
+			localAssignments = modalAssignment.is_bandleader
+				? applySingleBandleader(updated, modalAssignment.artist_id)
+				: updated
 			await saveAssignments()
 		}
 		closeAssignmentModal()
@@ -1245,6 +1280,19 @@
 							{/each}
 						</select>
 					</div>
+				</div>
+
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-3">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-primary"
+							checked={!!modalAssignment.is_bandleader}
+							onchange={(e) => modalAssignment = { ...modalAssignment, is_bandleader: e.currentTarget.checked }}
+						/>
+						<span class="label-text font-medium">Bandleader</span>
+					</label>
+					<p class="text-xs text-base-content/60">Only one bandleader is allowed per event assignment list.</p>
 				</div>
 
 				<div class="grid grid-cols-3 gap-4">

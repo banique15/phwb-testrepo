@@ -37,6 +37,7 @@
 	let artistSearchTerm = $state('')
 	let selectedArtistIds = $state<Set<string>>(new Set())
 	let artistRoles = $state<Record<string, string>>({})
+	let selectedLeaderArtistId = $state<string | null>(null)
 
 	// Load artists on mount
 	onMount(async () => {
@@ -48,7 +49,7 @@
 		try {
 			const { data, error: supabaseError } = await supabase
 				.from('phwb_artists')
-				.select('id, full_name, legal_first_name, artist_name, email')
+				.select('id, full_name, legal_first_name, artist_name, email, is_bandleader')
 				.order('full_name')
 
 			if (supabaseError) throw supabaseError
@@ -77,8 +78,15 @@
 		if (selectedArtistIds.has(artistId)) {
 			selectedArtistIds.delete(artistId)
 			delete artistRoles[artistId]
+			if (selectedLeaderArtistId === artistId) {
+				selectedLeaderArtistId = null
+			}
 		} else {
 			selectedArtistIds.add(artistId)
+			const artist = artists.find((entry) => entry.id === artistId)
+			if (!selectedLeaderArtistId && artist?.is_bandleader) {
+				selectedLeaderArtistId = artistId
+			}
 		}
 		selectedArtistIds = new Set(selectedArtistIds)
 		artistRoles = { ...artistRoles }
@@ -95,6 +103,7 @@
 		selectedArtistIds.clear()
 		selectedArtistIds = new Set()
 		artistRoles = {}
+		selectedLeaderArtistId = null
 	}
 
 	function getArtistDisplayName(artist: Artist) {
@@ -139,6 +148,7 @@
 		selectedArtistIds.clear()
 		selectedArtistIds = new Set()
 		artistRoles = {}
+		selectedLeaderArtistId = null
 		artistSearchTerm = ''
 	}
 
@@ -181,7 +191,10 @@
 
 		try {
 			// Create a clean data object
-			const cleanData = createEnsembleSchema.parse(formData)
+			const cleanData = createEnsembleSchema.parse({
+				...formData,
+				leader_id: selectedLeaderArtistId || undefined
+			})
 
 			// Remove empty strings
 			Object.keys(cleanData).forEach(key => {
@@ -198,7 +211,7 @@
 				const memberInserts = Array.from(selectedArtistIds).map(artistId => ({
 					ensemble_id: newEnsemble.id,
 					artist_id: artistId,
-					role: artistRoles[artistId] || null,
+					role: artistRoles[artistId] || (selectedLeaderArtistId === artistId ? 'Bandleader' : null),
 					joined_at: new Date().toISOString(),
 					is_active: true
 				}))
@@ -468,6 +481,28 @@
 						<h5 class="text-sm font-medium text-primary mb-2">
 							Selected Members ({selectedArtistIds.size})
 						</h5>
+						<div class="form-control mb-3">
+							<label class="label py-1">
+								<span class="label-text text-xs font-semibold">Bandleader</span>
+							</label>
+							<select
+								class="select select-sm select-bordered"
+								value={selectedLeaderArtistId || ''}
+								onchange={(e) => {
+									const value = e.currentTarget.value
+									selectedLeaderArtistId = value || null
+								}}
+								disabled={isLoading}
+							>
+								<option value="">No bandleader selected</option>
+								{#each Array.from(selectedArtistIds) as artistId}
+									{@const artist = artists.find((entry) => entry.id === artistId)}
+									{#if artist}
+										<option value={artistId}>{getArtistDisplayName(artist)}</option>
+									{/if}
+								{/each}
+							</select>
+						</div>
 						<div class="space-y-2">
 							{#each Array.from(selectedArtistIds) as artistId}
 								{@const artist = artists.find(a => a.id === artistId)}
@@ -476,6 +511,9 @@
 										<span class="badge badge-primary badge-sm">
 											{getArtistDisplayName(artist)}
 										</span>
+										{#if selectedLeaderArtistId === artistId}
+											<span class="badge badge-warning badge-sm">Bandleader</span>
+										{/if}
 										<input
 											type="text"
 											placeholder="Role (optional)"
