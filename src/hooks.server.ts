@@ -11,11 +11,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		PUBLIC_SUPABASE_ANON_KEY,
 		{
 			cookies: {
-				get: (key) => event.cookies.get(key),
-				set: (key, value, options) => {
+				get: (key: string) => event.cookies.get(key),
+				set: (key: string, value: string, options: any) => {
 					event.cookies.set(key, value, { ...options, path: '/' })
 				},
-				remove: (key, options) => {
+				remove: (key: string, options: any) => {
 					event.cookies.delete(key, { ...options, path: '/' })
 				}
 			}

@@ -77,7 +77,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 			const location = locations.find(l => l.id === event.location_id)
 			if (location) {
 				enhanced.location_name = location.name
-				enhanced.location_object = location
+				enhanced.location_object = { ...location, active: true }
 
 				// Add facility information via location
 				const facility = facilities.find(f => f.id === location.facility_id)

@@ -3,7 +3,8 @@ import { error } from '@sveltejs/kit'
 import { venuesStore } from '$lib/stores/venues'
 import type { PaginationOptions } from '$lib/types'
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async (event) => {
+	const { locals, url } = event
 	// Check authentication
 	if (!locals.session) {
 		throw error(401, 'Authentication required')

@@ -82,19 +82,19 @@ export async function examplePreviewImport(file: File): Promise<TransformationRe
 		const preview = await previewImport(csvData)
 		
 		console.log('Preview results:')
-		console.log('- Total rows:', preview.summary.totalRows)
-		console.log('- Valid rows:', preview.summary.validRows)
-		console.log('- Error rows:', preview.summary.errorRows)
-		console.log('- Duplicate rows:', preview.summary.duplicateRows)
+		console.log('- Total rows:', preview.summary?.totalRows)
+		console.log('- Valid rows:', preview.summary?.validRows)
+		console.log('- Error rows:', preview.summary?.errorRows)
+		console.log('- Duplicate rows:', preview.summary?.duplicateRows)
 		
-		if (preview.errors.length > 0) {
+		if (preview.errors && preview.errors.length > 0) {
 			console.log('Errors found:')
 			preview.errors.forEach(error => {
 				console.log(`  Row ${error.row}, ${error.field}: ${error.message}`)
 			})
 		}
 
-		if (preview.warnings.length > 0) {
+		if (preview.warnings && preview.warnings.length > 0) {
 			console.log('Warnings:')
 			preview.warnings.forEach(warning => console.log(`  ${warning}`))
 		}
@@ -143,7 +143,7 @@ export async function exampleErrorHandling(file: File): Promise<void> {
 			// Group errors by type for better reporting
 			const errorsByType: Record<string, ValidationError[]> = {}
 			
-			validation.errors.forEach(error => {
+			validation.errors?.forEach(error => {
 				if (!errorsByType[error.field]) {
 					errorsByType[error.field] = []
 				}
@@ -242,10 +242,10 @@ export async function exampleValidateMultipleFiles(files: File[]): Promise<void>
 			console.log(`\nFile ${index + 1}: ${data.filename}`)
 			
 			if (data.success) {
-				console.log(`  ✅ Valid - ${data.summary.validRows}/${data.summary.totalRows} rows`)
+				console.log(`  ✅ Valid - ${data.summary?.validRows}/${data.summary?.totalRows} rows`)
 			} else {
-				console.log(`  ❌ Invalid - ${data.errors.length} errors`)
-				data.errors.slice(0, 3).forEach(error => {
+				console.log(`  ❌ Invalid - ${data.errors?.length} errors`)
+				data.errors?.slice(0, 3).forEach(error => {
 					console.log(`    Row ${error.row}, ${error.field}: ${error.message}`)
 				})
 			}

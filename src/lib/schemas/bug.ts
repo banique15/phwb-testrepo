@@ -34,7 +34,11 @@ export const createBugSchema = bugSchema.omit({
 	closed_by: true,
 })
 
-export const updateBugSchema = createBugSchema.partial()
+export const updateBugSchema = bugSchema.omit({
+	id: true,
+	created_at: true,
+	updated_at: true,
+}).partial()
 
 export type Bug = z.infer<typeof bugSchema>
 export type CreateBug = z.infer<typeof createBugSchema>
