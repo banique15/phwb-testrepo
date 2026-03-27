@@ -22,16 +22,20 @@ export interface RateRuleOption {
 }
 
 function formatRuleLabel(rule: RateRule): string {
+	const descriptor =
+		rule.description?.trim() ||
+		(rule.program_id ? `Program #${rule.program_id}` : rule.program_type || 'Rate rule')
+
 	if (rule.rate_type === 'hourly') {
-		return `${rule.description} - $${Number(rule.hourly_rate || 0).toFixed(0)}/hr`
+		return `${descriptor} - $${Number(rule.hourly_rate || 0).toFixed(0)}/hr`
 	}
 	if (rule.rate_type === 'flat') {
-		return `${rule.description} - $${Number(rule.flat_rate || 0).toFixed(0)} flat`
+		return `${descriptor} - $${Number(rule.flat_rate || 0).toFixed(0)} flat`
 	}
 	if (rule.rate_type === 'tiered') {
-		return `${rule.description} - $${Number(rule.first_hour_rate || 0).toFixed(0)} + $${Number(rule.subsequent_hour_rate || 0).toFixed(0)}/add'l hr`
+		return `${descriptor} - $${Number(rule.first_hour_rate || 0).toFixed(0)} + $${Number(rule.subsequent_hour_rate || 0).toFixed(0)}/add'l hr`
 	}
-	return rule.description || ''
+	return descriptor
 }
 
 function ruleToOption(rule: RateRule): RateRuleOption {
@@ -276,6 +280,7 @@ export const rateCardStore = {
 				const newRules = originalRules.map((rule) => ({
 					rate_card_id: newCard.id,
 					program_type: rule.program_type,
+					program_id: rule.program_id ?? null,
 					rate_type: rule.rate_type,
 					hourly_rate: rule.hourly_rate,
 					first_hour_rate: rule.first_hour_rate,
@@ -397,19 +402,47 @@ export const rateCardStore = {
 
 	async getRuleForProgramType(
 		rateCardId: number,
-		programType: string
+		programType: string,
+		programId?: number | null
 	): Promise<RateRule | null> {
 		try {
+			// Prefer a program-specific rule when a concrete program is provided.
+			if (typeof programId === 'number') {
+				const { data: specific, error: specificError } = await supabase
+					.from('phwb_rate_rules')
+					.select('*')
+					.eq('rate_card_id', rateCardId)
+					.eq('program_id', programId)
+					.limit(1)
+
+				if (specificError) throw specificError
+				if (specific && specific.length > 0) return specific[0]
+			}
+
+			// Then use a generic rule for the program type.
 			const { data, error } = await supabase
 				.from('phwb_rate_rules')
 				.select('*')
 				.eq('rate_card_id', rateCardId)
 				.eq('program_type', programType)
+				.is('program_id', null)
 				.single()
 
 			if (error && error.code !== 'PGRST116') throw error
 
-			return data || null
+			if (data) return data
+
+			// Backward-compatible fallback: if no generic rule exists, use any rule of this type.
+			const { data: byType, error: byTypeError } = await supabase
+				.from('phwb_rate_rules')
+				.select('*')
+				.eq('rate_card_id', rateCardId)
+				.eq('program_type', programType)
+				.order('program_id', { ascending: true, nullsFirst: true })
+				.limit(1)
+
+			if (byTypeError) throw byTypeError
+			return byType?.[0] || null
 		} catch (error) {
 			errorStore.handleError(error, 'Failed to fetch rate rule')
 			return null

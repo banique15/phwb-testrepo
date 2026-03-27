@@ -47,6 +47,7 @@ export const rateRuleSchema = z.object({
 	id: z.number(),
 	rate_card_id: z.number(),
 	program_type: z.string(),
+	program_id: z.number().nullable().optional(),
 	rate_type: z.enum(['hourly', 'tiered', 'flat']),
 	hourly_rate: z.number().nullable().optional(),
 	first_hour_rate: z.number().nullable().optional(),

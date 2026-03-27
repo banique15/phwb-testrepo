@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
+	import { supabase } from '$lib/supabase'
 	import { rateCardStore } from '$lib/stores/rate-cards'
 	import type { RateRule } from '$lib/schemas/rate-card'
 	import { RateType } from '$lib/schemas/rate-card'
@@ -14,6 +16,7 @@
 	let { rateCardId, existingRule, onSave, onCancel }: Props = $props()
 
 	let programType = $state(existingRule?.program_type || '')
+	let programId = $state<string>(existingRule?.program_id ? String(existingRule.program_id) : '')
 	let rateType = $state<'hourly' | 'tiered' | 'flat'>(existingRule?.rate_type || 'hourly')
 	let hourlyRate = $state<string>(existingRule?.hourly_rate?.toString() || '')
 	let firstHourRate = $state<string>(existingRule?.first_hour_rate?.toString() || '')
@@ -26,9 +29,33 @@
 	let notes = $state(existingRule?.notes || '')
 	let saving = $state(false)
 	let error = $state('')
+	let programs = $state<Array<{ id: number; title: string; program_type: string | null }>>([])
 
 	const programTypes = rateCardStore.getAllProgramTypes()
 	const rateTypes = rateCardStore.getAllRateTypes()
+
+	onMount(async () => {
+		const { data, error: programsError } = await supabase
+			.from('phwb_programs')
+			.select('id, title, program_type')
+			.order('title')
+
+		if (programsError) {
+			console.error('Failed to load programs for rate rule editor:', programsError)
+			return
+		}
+
+		programs = data || []
+	})
+
+	function handleProgramChange(value: string) {
+		programId = value
+		if (!value) return
+		const selectedProgram = programs.find((program) => String(program.id) === value)
+		if (selectedProgram?.program_type) {
+			programType = selectedProgram.program_type
+		}
+	}
 
 	async function handleSubmit() {
 		error = ''
@@ -57,6 +84,7 @@
 			const ruleData = {
 				rate_card_id: rateCardId,
 				program_type: programType,
+				program_id: programId ? Number(programId) : null,
 				rate_type: rateType,
 				hourly_rate: rateType === 'hourly' ? parseFloat(hourlyRate) : null,
 				first_hour_rate: rateType === 'tiered' ? parseFloat(firstHourRate) : null,
@@ -86,7 +114,7 @@
 </script>
 
 <form onsubmit={(e) => { e.preventDefault(); handleSubmit() }} class="space-y-3">
-	<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+	<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
 		<!-- Program Type -->
 		<div class="form-control">
 			<label class="label py-1" for="program_type">
@@ -101,6 +129,27 @@
 				<option value="">Select program type...</option>
 				{#each programTypes as pt}
 					<option value={pt.value}>{pt.label}</option>
+				{/each}
+			</select>
+		</div>
+
+		<!-- Program (optional) -->
+		<div class="form-control">
+			<label class="label py-1" for="program_id">
+				<span class="label-text text-xs">Specific Program (optional)</span>
+			</label>
+			<select
+				id="program_id"
+				class="select select-bordered select-sm"
+				value={programId}
+				onchange={(e) => handleProgramChange(e.currentTarget.value)}
+			>
+				<option value="">All programs in selected type</option>
+				{#each programs as program}
+					<option value={String(program.id)}>
+						{program.title}
+						{program.program_type ? ` (${rateCardStore.getProgramTypeLabel(program.program_type)})` : ''}
+					</option>
 				{/each}
 			</select>
 		</div>

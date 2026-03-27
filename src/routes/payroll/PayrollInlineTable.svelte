@@ -4,6 +4,7 @@
 	import { payrollStore } from '$lib/stores/payroll'
 	import { artistsStore } from '$lib/stores/artists'
 	import { facilitiesStore } from '$lib/stores/facilities'
+	import { programsStore } from '$lib/stores/programs'
 	import { PaymentStatus, PaymentType, EmployeeContractorStatus } from '$lib/schemas/payroll'
 	import { rateCardStore, type RateRuleOption } from '$lib/stores/rate-cards'
 	import { DollarSign } from 'lucide-svelte'
@@ -54,6 +55,9 @@
 	let editingRows = $state<Map<string | number, Partial<Payroll>>>(new Map())
 	let editingCell = $state<{ id: number | string, field: string } | null>(null)
 	let newRowCounter = $state(0)
+	let artistSearchQueries = $state<Map<string | number, string>>(new Map())
+	let artistSearchOpenRow = $state<string | number | null>(null)
+	let artistSearchBlurTimeout: ReturnType<typeof setTimeout> | null = null
 	
 	// Validation state
 	let validationErrors = $state<Map<string, Record<string, string>>>(new Map())
@@ -105,6 +109,7 @@
 	let artists = $state<any[]>([])
 	let productionManagers = $state<any[]>([])
 	let facilities = $state<any[]>([])
+	let programs = $state<any[]>([])
 	
 	function getProductionManagerDisplayName(pm: any): string {
 		const artist = Array.isArray(pm?.phwb_artists) ? pm.phwb_artists[0] : pm?.phwb_artists
@@ -170,6 +175,7 @@
 		// Load lookup data
 		artistsStore.fetchAll()
 		facilitiesStore.fetchAll()
+		programsStore.fetchAll()
 		rateCardStore.fetchActiveRuleOptions()
 		void loadProductionManagers()
 		
@@ -182,6 +188,10 @@
 			facilities = state.items
 		})
 
+		const unsubPrograms = programsStore.subscribe(state => {
+			programs = state.items
+		})
+
 		const unsubRateCards = rateCardStore.subscribe((state: { ruleOptions: RateRuleOption[] }) => {
 			rateRuleOptions = state.ruleOptions
 		})
@@ -189,6 +199,7 @@
 		return () => {
 			unsubArtists()
 			unsubFacilities()
+			unsubPrograms()
 			unsubRateCards()
 		}
 	})
@@ -248,6 +259,9 @@
 	function cancelEditing(id: string | number) {
 		editingRows.delete(id)
 		editingRows = new Map(editingRows)
+		artistSearchQueries.delete(id)
+		artistSearchQueries = new Map(artistSearchQueries)
+		if (artistSearchOpenRow === id) artistSearchOpenRow = null
 		editingCell = null
 	}
 	
@@ -380,6 +394,9 @@
 			// Clear editing state
 			editingRows.delete(id)
 			editingRows = new Map(editingRows)
+			artistSearchQueries.delete(id)
+			artistSearchQueries = new Map(artistSearchQueries)
+			if (artistSearchOpenRow === id) artistSearchOpenRow = null
 			editingCell = null
 			dispatch('update', { entry: cleanedData as Payroll })
 		} catch (error) {
@@ -392,6 +409,7 @@
 	async function saveCellEdit() {
 		if (!editingCell) return
 		await saveRow(editingCell.id)
+		artistSearchOpenRow = null
 	}
 
 	// Delete row
@@ -436,6 +454,9 @@
 		if (derivedType) {
 			updateField(id, 'employee_contractor_status', derivedType)
 		}
+
+		artistSearchQueries.set(id, formatArtistOption(artist))
+		artistSearchQueries = new Map(artistSearchQueries)
 	}
 
 	function handlePayeeSelect(id: string | number, value: string) {
@@ -489,6 +510,54 @@
 		if (!payeeName) return ''
 		const pm = productionManagers.find((p: any) => getProductionManagerDisplayName(p) === payeeName && !p.artist_id)
 		return pm ? `non-artist:${pm.id}` : ''
+	}
+
+	function getArtistSearchQuery(id: string | number, editData: Partial<Payroll>): string {
+		const stored = artistSearchQueries.get(id)
+		if (stored !== undefined) return stored
+		if (!editData.artist_id) return ''
+		const selected = artists.find((a: any) => a.id === editData.artist_id)
+		return selected ? formatArtistOption(selected) : ''
+	}
+
+	function setArtistSearchQuery(id: string | number, value: string) {
+		artistSearchQueries.set(id, value)
+		artistSearchQueries = new Map(artistSearchQueries)
+	}
+
+	function openArtistSearch(id: string | number) {
+		if (artistSearchBlurTimeout) {
+			clearTimeout(artistSearchBlurTimeout)
+			artistSearchBlurTimeout = null
+		}
+		artistSearchOpenRow = id
+	}
+
+	function closeArtistSearch(id: string | number) {
+		artistSearchBlurTimeout = setTimeout(() => {
+			if (artistSearchOpenRow === id) {
+				artistSearchOpenRow = null
+			}
+		}, 120)
+	}
+
+	function getFilteredArtistsForRow(id: string | number, editData: Partial<Payroll>): any[] {
+		const query = getArtistSearchQuery(id, editData).trim().toLowerCase()
+		const list = filteredArtists(editData.employee_contractor_status, editData.artist_id)
+		if (!query) return list.slice(0, 20)
+		return list
+			.filter((artist: any) => {
+				const fullName = (artist.full_name || '').toLowerCase()
+				const legalName = `${artist.legal_first_name || ''} ${artist.legal_last_name || ''}`.trim().toLowerCase()
+				const llc = (artist.llc_name || '').toLowerCase()
+				return fullName.includes(query) || legalName.includes(query) || llc.includes(query)
+			})
+			.slice(0, 20)
+	}
+
+	function selectArtistFromSearch(id: string | number, artistId: string) {
+		handleArtistSelect(id, artistId)
+		artistSearchOpenRow = null
 	}
 
 	// Apply a selected rate rule to a payroll entry
@@ -546,6 +615,15 @@
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
 		}).format(amount)
+	}
+
+	function getProgramTitle(entry: Partial<Payroll>): string {
+		if (entry.programs?.title) return entry.programs.title
+		if (entry.program_id) {
+			const program = programs.find((p: any) => p.id === entry.program_id)
+			return program?.title || '-'
+		}
+		return '-'
 	}
 
 	// Check if a specific cell is being edited
@@ -790,20 +868,39 @@
 													{/each}
 												</select>
 											{:else}
-												<select
-													class="select select-bordered select-xs flex-1 min-w-[14rem]"
-													class:select-error={hasFieldError(entry.id!, 'artist_id')}
-													value={editData.artist_id}
-													onchange={(e) => handleArtistSelect(entry.id!, e.currentTarget.value)}
-													required
-												>
-													<option value="">Select artist...</option>
-													{#each filteredArtists(editData.employee_contractor_status, editData.artist_id) as artist}
-														<option value={artist.id}>
-															{formatArtistOption(artist)}
-														</option>
-													{/each}
-												</select>
+												<div class="relative flex-1 min-w-[14rem]">
+													<input
+														type="text"
+														class="input input-bordered input-xs w-full"
+														class:input-error={hasFieldError(entry.id!, 'artist_id')}
+														placeholder="Search artist..."
+														value={getArtistSearchQuery(entry.id!, editData)}
+														onfocus={() => openArtistSearch(entry.id!)}
+														oninput={(e) => {
+															setArtistSearchQuery(entry.id!, e.currentTarget.value)
+															openArtistSearch(entry.id!)
+														}}
+														onblur={() => closeArtistSearch(entry.id!)}
+														required
+													/>
+
+													{#if artistSearchOpenRow === entry.id}
+														<div class="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded border border-base-300 bg-base-100 shadow">
+															{#each getFilteredArtistsForRow(entry.id!, editData) as artist}
+																<button
+																	type="button"
+																	class="w-full px-2 py-1 text-left text-xs hover:bg-base-200"
+																	onmousedown={(e) => e.preventDefault()}
+																	onclick={() => selectArtistFromSearch(entry.id!, artist.id)}
+																>
+																	{formatArtistOption(artist)}
+																</button>
+															{:else}
+																<div class="px-2 py-1 text-xs text-base-content/60">No artists found</div>
+															{/each}
+														</div>
+													{/if}
+												</div>
 											{/if}
 											{#if !isNew}
 												<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
@@ -876,10 +973,41 @@
 							</td>
 							
 							<!-- Program -->
-							<td>
-								<div class="truncate text-xs" title={entry.programs?.title || '-'}>
-									{entry.programs?.title || '-'}
-								</div>
+							<td class="relative group">
+								{#if isEditingCell(entry.id!, 'program_id') || isNew}
+									<div class="flex items-center gap-1">
+										<select
+											class="select select-bordered select-xs flex-1 min-w-[12rem]"
+											value={editData.program_id ?? ''}
+											onchange={(e) => updateField(entry.id!, 'program_id', e.currentTarget.value ? Number(e.currentTarget.value) : null)}
+										>
+											<option value="">Select program...</option>
+											{#each programs as program}
+												<option value={program.id}>{program.title}</option>
+											{/each}
+										</select>
+										{#if !isNew}
+											<button class="btn btn-xs btn-ghost text-success" onclick={() => saveCellEdit()} title="Save">
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+												</svg>
+											</button>
+											<button class="btn btn-xs btn-ghost text-error" onclick={() => cancelCellEdit()} title="Cancel">
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+												</svg>
+											</button>
+										{/if}
+									</div>
+								{:else}
+									<div
+										class="cursor-pointer hover:bg-base-200 px-2 py-1 rounded truncate transition-all duration-150 border border-transparent hover:border-base-300"
+										title={getProgramTitle(entry)}
+										onclick={() => startEditingCell(entry, 'program_id')}
+									>
+										{getProgramTitle(entry)}
+									</div>
+								{/if}
 							</td>
 							
 							<!-- Musicians -->
