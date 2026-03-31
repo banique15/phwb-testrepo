@@ -25,6 +25,14 @@ npm run dev
 npm run dev -- --open
 ```
 
+For the PHWB + Dev Fix workflow, run the UI with:
+
+```bash
+cd "/Users/banik/Desktop/Projects2026/phwb-testrepo"
+npm install
+npm run dev
+```
+
 ## Building
 
 To create a production version of your app:
