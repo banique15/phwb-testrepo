@@ -21,6 +21,37 @@ const initialState: StoreState<Payroll> = {
 
 export const payrollState = writable<StoreState<Payroll>>(initialState)
 
+async function attachFacilityDetails(rows: Payroll[]): Promise<Payroll[]> {
+	const facilityIds = Array.from(
+		new Set(
+			rows
+				.map((row) => row.facility_id)
+				.filter((id): id is number => typeof id === 'number')
+		)
+	)
+
+	if (facilityIds.length === 0) {
+		return rows.map((row) => ({ ...row, facilities: null }))
+	}
+
+	const { data: facilitiesData, error } = await supabase
+		.from('phwb_facilities')
+		.select('id, name')
+		.in('id', facilityIds)
+
+	if (error) throw error
+
+	const facilitiesMap = new Map<number, { id: number; name: string }>(
+		(facilitiesData || []).map((f: any) => [f.id, { id: f.id, name: f.name }])
+	)
+
+	return rows.map((row) => ({
+		...row,
+		facilities:
+			typeof row.facility_id === 'number' ? (facilitiesMap.get(row.facility_id) ?? null) : null
+	}))
+}
+
 export const payrollStore = {
 	subscribe: payrollState.subscribe,
 	
@@ -34,7 +65,6 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`, { count: 'exact' })
 			
@@ -148,7 +178,6 @@ export const payrollStore = {
 			query = query
 				.order('source_event_id', { ascending: false, nullsFirst: false })
 				.order('event_id', { ascending: false, nullsFirst: false })
-				.order('is_production_manager', { ascending: false })
 				.order('id', { ascending: false })
 			
 			// Add pagination
@@ -159,12 +188,13 @@ export const payrollStore = {
 			const { data, error, count } = await query
 			
 			if (error) throw error
+			const enrichedData = await attachFacilityDetails((data || []) as Payroll[])
 			
 			const totalPages = Math.ceil((count || 0) / options.limit)
 			
 			payrollState.update(state => ({
 				...state,
-				items: data || [],
+				items: enrichedData,
 				loading: false,
 				pagination: {
 					total: count || 0,
@@ -174,7 +204,7 @@ export const payrollStore = {
 				}
 			}))
 			
-			return { data: data || [], total: count || 0, totalPages }
+			return { data: enrichedData, total: count || 0, totalPages }
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to fetch payroll')
 			payrollState.update(state => ({ ...state, loading: false, error: errorId }))
@@ -191,14 +221,14 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.order('event_date', { ascending: false })
 			
 			if (error) throw error
+			const enrichedData = await attachFacilityDetails((data || []) as Payroll[])
 			
-			return { data: data || [], total: data?.length || 0, totalPages: 1 }
+			return { data: enrichedData, total: enrichedData.length, totalPages: 1 }
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to fetch all payroll records')
 			throw error
@@ -219,16 +249,16 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
 			
 			if (error) throw error
+			const [enrichedData] = await attachFacilityDetails([data as Payroll])
 			
 			payrollState.update(state => ({
 				...state,
-				items: [data, ...state.items],
+				items: [enrichedData, ...state.items],
 				loading: false,
 				pagination: {
 					...state.pagination,
@@ -236,7 +266,7 @@ export const payrollStore = {
 				}
 			}))
 			
-			return data
+			return enrichedData
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to create payroll entry')
 			payrollState.update(state => ({ ...state, loading: false, error: errorId }))
@@ -259,20 +289,20 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
 			
 			if (error) throw error
+			const [enrichedData] = await attachFacilityDetails([data as Payroll])
 			
 			payrollState.update(state => ({
 				...state,
-				items: state.items.map(entry => entry.id === id ? data : entry),
+				items: state.items.map(entry => entry.id === id ? enrichedData : entry),
 				loading: false
 			}))
 			
-			return data
+			return enrichedData
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to update payroll entry')
 			payrollState.update(state => ({ ...state, loading: false, error: errorId }))
@@ -326,12 +356,12 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
 
 			if (error) throw error
+			const [enrichedData] = await attachFacilityDetails([data as Payroll])
 
 			// Create audit log
 			await this.createAuditLog({
@@ -343,11 +373,11 @@ export const payrollStore = {
 
 			payrollState.update(state => ({
 				...state,
-				items: state.items.map(entry => entry.id === id ? data : entry),
+				items: state.items.map(entry => entry.id === id ? enrichedData : entry),
 				loading: false
 			}))
 
-			return data
+			return enrichedData
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to approve payment')
 			payrollState.update(state => ({ ...state, loading: false, error: errorId }))
@@ -394,11 +424,11 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 
 			if (error) throw error
+			const enrichedData = await attachFacilityDetails((data || []) as Payroll[])
 
 			// Create audit logs for each payment
 			const auditPromises = payrollIds.map(id => 
@@ -412,7 +442,7 @@ export const payrollStore = {
 			await Promise.all(auditPromises)
 
 			try {
-				await queuePayoutProcessedNotifications(data || [], new Date().toISOString())
+				await queuePayoutProcessedNotifications(enrichedData, new Date().toISOString())
 			} catch (notificationError) {
 				console.error('Failed to queue payout processed notifications:', notificationError)
 			}
@@ -421,13 +451,13 @@ export const payrollStore = {
 				...state,
 				items: state.items.map(entry => 
 					payrollIds.includes(entry.id!) ? 
-						data.find(updated => updated.id === entry.id) || entry : 
+						enrichedData.find(updated => updated.id === entry.id) || entry : 
 						entry
 				),
 				loading: false
 			}))
 
-			return { batch: batchId, payments: data }
+			return { batch: batchId, payments: enrichedData }
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to process payment batch')
 			payrollState.update(state => ({ ...state, loading: false, error: errorId }))
@@ -452,12 +482,12 @@ export const payrollStore = {
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.single()
 
 			if (error) throw error
+			const [enrichedData] = await attachFacilityDetails([data as Payroll])
 
 			// Create audit log
 			await this.createAuditLog({
@@ -469,10 +499,10 @@ export const payrollStore = {
 
 			payrollState.update(state => ({
 				...state,
-				items: state.items.map(entry => entry.id === id ? data : entry)
+				items: state.items.map(entry => entry.id === id ? enrichedData : entry)
 			}))
 
-			return data
+			return enrichedData
 		} catch (error) {
 			const errorId = errorStore.handleError(error, 'Failed to reconcile payment')
 			throw error
@@ -486,13 +516,12 @@ export const payrollStore = {
 				*,
 				artists:artist_id(id, full_name, legal_first_name, legal_last_name, llc_name, employment_status),
 				venues:venue_id(id, name),
-				facilities:facility_id(id, name),
 				programs:program_id(id, title, program_type)
 			`)
 			.in('id', ids)
 
 		if (error) throw error
-		return data || []
+		return attachFacilityDetails((data || []) as Payroll[])
 	},
 
 	async getAuditLog(payrollId: number) {
@@ -538,13 +567,12 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, first_name, last_name),
-				venues:venue_id(id, name),
-				facilities:facility_id(id, name)
+				venues:venue_id(id, name)
 			`)
 			.eq('batch_id', batchId)
 
 		if (error) throw error
-		return data || []
+		return attachFacilityDetails((data || []) as Payroll[])
 	},
 
 	async exportPayments(filters: { 
@@ -558,8 +586,7 @@ export const payrollStore = {
 			.select(`
 				*,
 				artists:artist_id(id, first_name, last_name, email),
-				venues:venue_id(id, name),
-				facilities:facility_id(id, name)
+				venues:venue_id(id, name)
 			`)
 
 		if (filters.status?.length) {
@@ -581,6 +608,6 @@ export const payrollStore = {
 		const { data, error } = await query.order('event_date', { ascending: false })
 
 		if (error) throw error
-		return data || []
+		return attachFacilityDetails((data || []) as Payroll[])
 	}
 }

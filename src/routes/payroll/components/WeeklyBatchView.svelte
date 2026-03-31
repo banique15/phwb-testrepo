@@ -51,7 +51,6 @@
 					*,
 					artists:artist_id(id, full_name, legal_first_name, legal_last_name),
 					venues:venue_id(id, name),
-					facilities:facility_id(id, name),
 					programs:program_id(id, title, program_type)
 				`)
 				.eq('status', PaymentStatus.APPROVED)
@@ -59,7 +58,35 @@
 
 			if (fetchError) throw fetchError
 
-			approvedEntries = data || []
+			const entries = data || []
+			const facilityIds = Array.from(
+				new Set(
+					entries
+						.map((entry: any) => entry?.facility_id)
+						.filter((id: unknown): id is number => typeof id === 'number')
+				)
+			)
+
+			if (facilityIds.length > 0) {
+				const { data: facilitiesData } = await supabase
+					.from('phwb_facilities')
+					.select('id, name')
+					.in('id', facilityIds)
+
+				const facilitiesMap = new Map<number, { id: number; name: string }>(
+					(facilitiesData || []).map((f: any) => [f.id, { id: f.id, name: f.name }])
+				)
+
+				approvedEntries = entries.map((entry: any) => ({
+					...entry,
+					facilities:
+						typeof entry.facility_id === 'number'
+							? (facilitiesMap.get(entry.facility_id) ?? null)
+							: null
+				}))
+			} else {
+				approvedEntries = entries
+			}
 			groupByWeek()
 		} catch (err: any) {
 			error = err.message || 'Failed to load approved entries'

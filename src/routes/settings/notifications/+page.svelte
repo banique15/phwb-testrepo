@@ -129,6 +129,13 @@
     await loadData()
   })
 
+  function isMissingTableError(err: unknown, tableName?: string): boolean {
+    const e = err as { code?: string; message?: string; details?: string } | null
+    const text = `${e?.message ?? ''} ${e?.details ?? ''}`.toLowerCase()
+    const mentionsTable = tableName ? text.includes(tableName.toLowerCase()) : text.includes('could not find the table')
+    return e?.code === 'PGRST205' || (mentionsTable && text.includes('schema cache'))
+  }
+
   function getRecipientsForType(notificationType: string) {
     return notificationRecipients.filter(
       (recipient) => recipient.notification_type === notificationType && recipient.active
@@ -141,22 +148,47 @@
     successMessage = null
 
     try {
-      const [templateResult, policyResult, recipientResult, globalToggleResult] = await Promise.all([
-        notificationTemplatesStore.fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' }),
-        notificationPoliciesStore.fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' }),
-        supabase
-          .from('phwb_notification_recipients')
-          .select('*')
-          .order('notification_type', { ascending: true })
-          .order('recipient_email', { ascending: true }),
-        supabase
-          .from('phwb_config_options')
-          .select('id, value')
-          .eq('entity', 'notification_system')
-          .eq('field', 'enabled')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-      ])
+      const missingTables = new Set<string>()
+
+      const templateResult = await notificationTemplatesStore
+        .fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' })
+        .catch((err) => {
+          if (isMissingTableError(err, 'phwb_notification_templates')) {
+            missingTables.add('phwb_notification_templates')
+            return { data: [], total: 0, totalPages: 0 }
+          }
+          throw err
+        })
+
+      const policyResult = await notificationPoliciesStore
+        .fetchAll({ limit: 200, sortBy: 'notification_type', sortOrder: 'asc' })
+        .catch((err) => {
+          if (isMissingTableError(err, 'phwb_notification_policies')) {
+            missingTables.add('phwb_notification_policies')
+            return { data: [], total: 0, totalPages: 0 }
+          }
+          throw err
+        })
+
+      const recipientResult = await supabase
+        .from('phwb_notification_recipients')
+        .select('*')
+        .order('notification_type', { ascending: true })
+        .order('recipient_email', { ascending: true })
+
+      if (recipientResult.error && isMissingTableError(recipientResult.error, 'phwb_notification_recipients')) {
+        missingTables.add('phwb_notification_recipients')
+      } else if (recipientResult.error) {
+        throw recipientResult.error
+      }
+
+      const globalToggleResult = await supabase
+        .from('phwb_config_options')
+        .select('id, value')
+        .eq('entity', 'notification_system')
+        .eq('field', 'enabled')
+        .order('updated_at', { ascending: false })
+        .limit(1)
 
       templates = templateResult.data
       policies = policyResult.data
@@ -167,7 +199,7 @@
         globalToggleRow?.value == null
           ? true
           : ['true', '1', 'yes', 'on', 'enabled'].includes(String(globalToggleRow.value).trim().toLowerCase())
-      await loadNotificationRuns()
+      await loadNotificationRuns(missingTables)
 
       if (!selectedTemplateId && templates.length > 0) {
         selectedTemplateId = templates[0].id ?? null
@@ -180,6 +212,11 @@
         const nextTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null
         hydrateEditors(nextTemplate)
       }
+
+      if (missingTables.size > 0) {
+        const tableList = Array.from(missingTables).join(', ')
+        error = `Notification schema is incomplete (${tableList}). Apply migrations 017_create_notification_engine.sql, 018_upsert_notification_template_content.sql, and 021_notification_admin_recipients.sql.`
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load notification settings'
     } finally {
@@ -187,13 +224,20 @@
     }
   }
 
-  async function loadNotificationRuns() {
+  async function loadNotificationRuns(missingTables?: Set<string>) {
     const { data: runRows, error: runError } = await supabase
       .from('phwb_notification_runs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50)
-    if (runError) throw runError
+    if (runError) {
+      if (isMissingTableError(runError, 'phwb_notification_runs')) {
+        if (missingTables) missingTables.add('phwb_notification_runs')
+        notificationRuns = []
+        return
+      }
+      throw runError
+    }
     notificationRuns = (runRows as NotificationRun[]) || []
   }
 
