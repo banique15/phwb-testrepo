@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
+import { updateEventSchema } from '$lib/schemas/event'
 
 export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 	try {
@@ -17,6 +18,15 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 			return json({ error: 'Invalid update payload' }, { status: 400 })
 		}
 
+		// Validate updates against the schema to reject unknown fields
+		const validationResult = updateEventSchema.safeParse(updates)
+		if (!validationResult.success) {
+			return json({ 
+				error: 'Invalid update data', 
+				details: validationResult.error.errors 
+			}, { status: 400 })
+		}
+
 		// Prefer admin client to bypass RLS for server-side trusted update.
 		const supabase = locals.supabaseAdmin || locals.supabase
 		if (!supabase) {
@@ -25,7 +35,7 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 
 		const { data, error } = await supabase
 			.from('phwb_events')
-			.update(updates)
+			.update(validationResult.data)
 			.eq('id', eventId)
 			.select()
 			.maybeSingle()
@@ -43,4 +53,3 @@ export const PATCH: RequestHandler = async ({ request, params, locals }) => {
 		return json({ error: `Internal server error: ${message}` }, { status: 500 })
 	}
 }
-

@@ -39,7 +39,7 @@ export const createEventSchema = eventSchema.omit({
 	created_at: true,
 })
 
-export const updateEventSchema = createEventSchema.partial()
+export const updateEventSchema = createEventSchema.partial().strict()
 
 export type Event = z.infer<typeof eventSchema>
 export type CreateEvent = z.infer<typeof createEventSchema>
