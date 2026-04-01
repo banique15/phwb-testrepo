@@ -68,6 +68,7 @@
 	let payrollChangePreviewRows = $state<PayrollReconcilePreviewRow[]>([])
 	let payrollChangePreviewResolver: ((confirmed: boolean) => void) | null = null
 	let createFormInitialDate = $state<string | undefined>(undefined)
+	let createFormInitialProgramId = $state<number | undefined>(undefined)
 	
 	let eventArtistsCount = $state(0)
 
@@ -191,6 +192,20 @@
 			viewMode = 'list'
 			externalActiveTab = 'settings'
 		}
+	})
+
+	// Support deep-linking from Programs page into prefilled create mode.
+	$effect(() => {
+		if (!browser) return
+		const shouldCreate = $page.url.searchParams.get('create') === 'true'
+		if (!shouldCreate) return
+		const prefillProgramId = $page.url.searchParams.get('prefillProgramId')
+		const parsedProgramId = prefillProgramId ? Number(prefillProgramId) : undefined
+
+		showCreateForm = true
+		selectedEvent = null
+		createFormInitialDate = undefined
+		createFormInitialProgramId = Number.isFinite(parsedProgramId as number) ? parsedProgramId : undefined
 	})
 
 	async function selectEvent(event: EnhancedEvent) {
@@ -830,12 +845,14 @@
 	function openCreateModal() {
 		selectedEvent = null
 		createFormInitialDate = undefined
+		createFormInitialProgramId = undefined
 		showCreateForm = true
 	}
 
 	function openCreateModalForDate(dateStr: string) {
 		selectedEvent = null
 		createFormInitialDate = dateStr
+		createFormInitialProgramId = undefined
 		showCreateForm = true
 	}
 
@@ -843,6 +860,7 @@
 		selectedEvent = null
 		showCreateForm = false
 		createFormInitialDate = undefined
+		createFormInitialProgramId = undefined
 		rightPanelWidth = DEFAULT_PANEL_WIDTH
 		rightPanelExpanded = false
 	}
@@ -897,6 +915,7 @@
 
 	async function handleCreateFormSuccess(createdEvent?: EnhancedEvent) {
 		showCreateForm = false
+		createFormInitialProgramId = undefined
 		if (createdEvent) {
 			newlyCreatedEvents = [createdEvent, ...newlyCreatedEvents]
 			await selectEvent(createdEvent)
@@ -909,6 +928,7 @@
 
 	function handleCreateFormCancel() {
 		showCreateForm = false
+		createFormInitialProgramId = undefined
 	}
 
 	function handleArtistCountClick() {
@@ -1116,6 +1136,7 @@
 						{#snippet children(props)}
 							{#if showCreateForm}
 								<EventCreateForm
+									initialProgramId={createFormInitialProgramId}
 									onSuccess={handleCreateFormSuccess}
 									onCancel={handleCreateFormCancel}
 								/>

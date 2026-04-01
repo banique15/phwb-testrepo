@@ -255,9 +255,13 @@
 		return (column / columns) * 100
 	}
 
-	function getEventCascadeWidthPercent(columns: number): number {
+	function getEventCascadeWidthPercent(column: number, columns: number): number {
 		if (columns <= 1) return 100
-		return Math.min(100, (100 / columns) + 10)
+		const baseWidth = 100 / columns
+		const overlap = Math.min(10, baseWidth * 0.35)
+		const desiredWidth = baseWidth + overlap
+		const maxAllowedWidth = 100 - (column * baseWidth)
+		return Math.max(0, Math.min(desiredWidth, maxAllowedWidth))
 	}
 
 	function prevPeriod() {
@@ -725,12 +729,12 @@
 									tabindex="0"
 								>
 									<button
-										class="absolute right-0 top-0 bottom-0 w-6 bg-base-100/95 border-l border-base-200/80 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+										class="absolute right-0 top-0 bottom-0 z-30 w-6 bg-base-100 border-l border-base-200/80 flex items-center justify-center hover:bg-base-200/70 transition-colors"
 										onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
 										aria-label="Add event at {formatHour(hour)}"
 										title="Add event at {formatHour(hour)}"
 									>
-										<svg class="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<svg class="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 										</svg>
 									</button>
@@ -754,7 +758,7 @@
 													top: {layout.top}px;
 													height: {layout.height}px;
 													left: calc({getEventCascadeLeftPercent(layout.column, layout.columns)}% + 2px);
-													width: calc({getEventCascadeWidthPercent(layout.columns)}% - 4px);
+													width: calc({getEventCascadeWidthPercent(layout.column, layout.columns)}% - 4px);
 													z-index: {layout.column + 1};
 												"
 												onclick={(e) => handleEventClick(layout.event, e)}

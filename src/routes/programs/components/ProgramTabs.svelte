@@ -176,7 +176,8 @@
 	function handleCreateEvent() {
 		const params = new URLSearchParams()
 		if (program.id) {
-			params.set('program', String(program.id))
+			params.set('create', 'true')
+			params.set('prefillProgramId', String(program.id))
 		}
 		goto(`/events?${params.toString()}`)
 	}
@@ -316,7 +317,10 @@
 				{:else}
 					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 						{#each events as event}
-							<div class="card bg-base-100 cursor-pointer" onclick={() => goto(`/events?id=${event.id}`)}>
+							<div
+								class="card bg-base-100 border border-base-300 shadow-sm hover:shadow-md transition-all cursor-pointer"
+								onclick={() => goto(`/events?id=${event.id}`)}
+							>
 								<div class="card-body p-3">
 									<h3 class="card-title text-lg {!event.title ? 'border border-yellow-400 dark:border-yellow-600 rounded px-2 py-1 inline-block' : ''}">{event.title || 'Untitled Event'}</h3>
 									<div class="space-y-1 text-sm">
