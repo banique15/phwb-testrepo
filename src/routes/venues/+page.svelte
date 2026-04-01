@@ -271,6 +271,7 @@
 					getItemTitle={getVenueTitle}
 					getItemSubtitle={getVenueSubtitle}
 					getItemDetail={getVenueDetail}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={Landmark}
 					detailEmptyTitle="Select a venue"
 					detailEmptyMessage="Choose a venue from the list to view its full information"

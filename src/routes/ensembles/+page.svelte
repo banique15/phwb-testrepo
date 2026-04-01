@@ -202,6 +202,7 @@
 					getItemTitle={getEnsembleTitle}
 					getItemSubtitle={getEnsembleSubtitle}
 					getItemDetail={getEnsembleDetail}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={Theater}
 					detailEmptyTitle="Select an ensemble"
 					detailEmptyMessage="Choose an ensemble from the list to view details and members"

@@ -1013,6 +1013,7 @@
 						getItemTitle={getEventTitle}
 						getItemSubtitle={getEventSubtitle}
 						getItemDetail={getEventDetail}
+						stackMetaOnSecondRow={true}
 						detailEmptyIcon={Calendar}
 						detailEmptyTitle="Select an event"
 						detailEmptyMessage="Choose an event from the list to view its full information"

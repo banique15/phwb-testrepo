@@ -338,17 +338,53 @@ async function getActiveRateCard(): Promise<{ id: number; name: string } | null>
  * Get rate rule for a specific program/program type
  */
 async function getRateRule(rateCardId: number, programType: string, programId?: number | null): Promise<RateRule | null> {
+	// Primary path: use the generic rule for the selected program type.
+	// This aligns with the new program_type-driven assignment workflow.
+	const { data: genericByType, error: genericError } = await supabase
+		.from('phwb_rate_rules')
+		.select('*')
+		.eq('rate_card_id', rateCardId)
+		.eq('program_type', programType)
+		.is('program_id', null)
+		.order('updated_at', { ascending: false })
+		.limit(1)
+
+	if (!genericError && genericByType && genericByType.length > 0) {
+		return genericByType[0]
+	}
+
+	// Backward-compatible path: if no generic rule exists, allow a
+	// program-specific rule with the same type.
 	if (typeof programId === 'number') {
 		const { data: specific, error: specificError } = await supabase
 			.from('phwb_rate_rules')
 			.select('*')
 			.eq('rate_card_id', rateCardId)
 			.eq('program_id', programId)
+			.eq('program_type', programType)
+			.order('updated_at', { ascending: false })
 			.limit(1)
 
 		if (!specificError && specific && specific.length > 0) {
 			return specific[0]
 		}
+	}
+
+	// Additional backward-compatible fallback: if there is no generic rule and
+	// no exact program-specific match, use any rule for this program_type.
+	// This preserves legacy cards where a single type rule was created as
+	// program-specific instead of generic.
+	const { data: anyByType, error: anyByTypeError } = await supabase
+		.from('phwb_rate_rules')
+		.select('*')
+		.eq('rate_card_id', rateCardId)
+		.eq('program_type', programType)
+		.order('program_id', { ascending: true, nullsFirst: true })
+		.order('updated_at', { ascending: false })
+		.limit(1)
+
+	if (!anyByTypeError && anyByType && anyByType.length > 0) {
+		return anyByType[0]
 	}
 
 	const { data, error } = await supabase
@@ -357,6 +393,7 @@ async function getRateRule(rateCardId: number, programType: string, programId?: 
 		.eq('rate_card_id', rateCardId)
 		.eq('program_type', programType)
 		.is('program_id', null)
+		.order('updated_at', { ascending: false })
 		.limit(1)
 	
 	if (error) {
@@ -660,10 +697,15 @@ export async function generatePayrollForDateRange(
 						bandleaderFee
 					)
 					
-					// Use assignment rate if specified, otherwise use calculated rate
-					const effectiveRate = assignment.hourly_rate && assignment.hourly_rate > 0
-						? assignment.hourly_rate
-						: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
+					// For hourly rules, preserve explicit assignment hourly_rate overrides.
+					// For tiered/flat rules, always reflect the rate card rule.
+					const effectiveRate = rateRule.rate_type === 'hourly'
+						? ((assignment.hourly_rate && assignment.hourly_rate > 0)
+							? assignment.hourly_rate
+							: (rateRule.hourly_rate || 0))
+						: (rateRule.rate_type === 'tiered'
+							? (rateRule.first_hour_rate || 0)
+							: (rateRule.flat_rate || 0))
 					const rateDetails = getRateDetailsForRule(rateRule)
 					
 					const artistProfile = artistProfiles.get(assignment.artist_id)
@@ -980,10 +1022,15 @@ export async function generatePayrollForEvent(
 				bandleaderFee
 			)
 
-			// Use assignment rate if specified, otherwise use calculated rate
-			const effectiveRate = assignment.hourly_rate && assignment.hourly_rate > 0
-				? assignment.hourly_rate
-				: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
+			// For hourly rules, preserve explicit assignment hourly_rate overrides.
+			// For tiered/flat rules, always reflect the rate card rule.
+			const effectiveRate = rateRule.rate_type === 'hourly'
+				? ((assignment.hourly_rate && assignment.hourly_rate > 0)
+					? assignment.hourly_rate
+					: (rateRule.hourly_rate || 0))
+				: (rateRule.rate_type === 'tiered'
+					? (rateRule.first_hour_rate || 0)
+					: (rateRule.flat_rate || 0))
 			const rateDetails = getRateDetailsForRule(rateRule)
 
 			const artistProfile = artistProfiles.get(assignment.artist_id)

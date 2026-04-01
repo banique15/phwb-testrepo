@@ -406,31 +406,34 @@ export const rateCardStore = {
 		programId?: number | null
 	): Promise<RateRule | null> {
 		try {
-			// Prefer a program-specific rule when a concrete program is provided.
+			// Primary path: pick the latest generic rule for this program type.
+			// Use limit(1) instead of single() to avoid failure when legacy duplicate rows exist.
+			const { data: genericRows, error: genericError } = await supabase
+				.from('phwb_rate_rules')
+				.select('*')
+				.eq('rate_card_id', rateCardId)
+				.eq('program_type', programType)
+				.is('program_id', null)
+				.order('updated_at', { ascending: false })
+				.limit(1)
+
+			if (genericError) throw genericError
+			if (genericRows && genericRows.length > 0) return genericRows[0]
+
+			// Backward-compatible fallback: program-specific rule with matching type.
 			if (typeof programId === 'number') {
 				const { data: specific, error: specificError } = await supabase
 					.from('phwb_rate_rules')
 					.select('*')
 					.eq('rate_card_id', rateCardId)
 					.eq('program_id', programId)
+					.eq('program_type', programType)
+					.order('updated_at', { ascending: false })
 					.limit(1)
 
 				if (specificError) throw specificError
 				if (specific && specific.length > 0) return specific[0]
 			}
-
-			// Then use a generic rule for the program type.
-			const { data, error } = await supabase
-				.from('phwb_rate_rules')
-				.select('*')
-				.eq('rate_card_id', rateCardId)
-				.eq('program_type', programType)
-				.is('program_id', null)
-				.single()
-
-			if (error && error.code !== 'PGRST116') throw error
-
-			if (data) return data
 
 			// Backward-compatible fallback: if no generic rule exists, use any rule of this type.
 			const { data: byType, error: byTypeError } = await supabase
@@ -439,6 +442,7 @@ export const rateCardStore = {
 				.eq('rate_card_id', rateCardId)
 				.eq('program_type', programType)
 				.order('program_id', { ascending: true, nullsFirst: true })
+				.order('updated_at', { ascending: false })
 				.limit(1)
 
 			if (byTypeError) throw byTypeError

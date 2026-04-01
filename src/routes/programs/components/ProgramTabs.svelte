@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
 	import type { Program } from '$lib/schemas/program'
 	import type { ComponentType, SvelteComponent } from 'svelte'
 	import { ClipboardList, Calendar, Users, BarChart, Settings } from 'lucide-svelte'
 	import InlineEditableField from '$lib/components/ui/InlineEditableField.svelte'
+	import { ProgramType } from '$lib/schemas/rate-card'
 	import type { Event } from '$lib/schemas/event'
 	import { supabase } from '$lib/supabase'
 	import { goto } from '$app/navigation'
@@ -14,6 +16,49 @@
 	}
 
 	let { program, onUpdateField, onDelete }: Props = $props()
+	const programTypeLabelByValue: Record<string, string> = {
+		[ProgramType.HEALING_ARTS]: 'In-person Healing Arts',
+		[ProgramType.TRANSIT_HUB]: 'In-person Transit Hub',
+		[ProgramType.VIRTUAL_ARTIST]: 'Virtual Program (Artist)',
+		[ProgramType.VIRTUAL_TEACHING]: 'Virtual Program (Teaching Artist)',
+		[ProgramType.TEACHING_IN_PERSON]: 'In-person Teaching Artist',
+		[ProgramType.NEWARK_AIRPORT]: 'Newark Airport',
+		[ProgramType.DONOR_EVENT]: 'Donor/Board/High-Profile Event',
+		[ProgramType.HOLIDAY_SOLOIST]: 'Holiday Series - Soloist',
+		[ProgramType.HOLIDAY_GROUP]: 'Holiday Series - Group/Chorus',
+		[ProgramType.HOLIDAY_SPECIAL]: 'Holiday Special',
+		[ProgramType.PM]: 'Production Manager',
+		[ProgramType.TRAINING]: 'Training',
+		[ProgramType.OTHER]: 'Other'
+	}
+
+	const defaultProgramTypeOptions = Object.values(ProgramType).map((value) => ({
+		value,
+		label: programTypeLabelByValue[value] || value
+	}))
+	let programTypeOptions = $state<Array<{ value: string; label: string }>>(defaultProgramTypeOptions)
+
+	function getProgramTypeLabel(value: string | null | undefined): string {
+		if (!value) return 'Not set'
+		return programTypeLabelByValue[value] || value
+	}
+
+	onMount(async () => {
+		const { data, error } = await supabase
+			.from('phwb_rate_rules')
+			.select('program_type')
+			.not('program_type', 'is', null)
+
+		if (error || !data) return
+
+		const uniqueTypes = Array.from(new Set(data.map((row) => row.program_type).filter(Boolean)))
+		if (uniqueTypes.length === 0) return
+
+		programTypeOptions = uniqueTypes.map((value) => ({
+			value,
+			label: programTypeLabelByValue[value] || value
+		}))
+	})
 
 	const tabs: Array<{ id: string; label: string; icon: ComponentType<SvelteComponent> }> = [
 		{ id: 'details', label: 'Details', icon: ClipboardList },
@@ -22,6 +67,7 @@
 		{ id: 'reports', label: 'Reports', icon: BarChart },
 		{ id: 'settings', label: 'Settings', icon: Settings }
 	]
+	const validTabIds = tabs.map((tab) => tab.id)
 
 	let activeTab = $state<string>(
 		(typeof window !== 'undefined' ? localStorage.getItem('phwb-program-active-tab') : null) || 'details'
@@ -35,6 +81,9 @@
 	let sortOrder = $state<'asc' | 'desc'>('asc')
 
 	function setActiveTab(tabId: string) {
+		if (!validTabIds.includes(tabId)) {
+			tabId = 'details'
+		}
 		activeTab = tabId
 		if (typeof window !== 'undefined') {
 			localStorage.setItem('phwb-program-active-tab', tabId)
@@ -46,6 +95,15 @@
 	}
 
 	$effect(() => {
+		// Guard against stale/invalid localStorage values from older tab ids
+		if (!validTabIds.includes(activeTab)) {
+			activeTab = 'details'
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('phwb-program-active-tab', 'details')
+			}
+			return
+		}
+
 		// Reload events when program changes or when events tab is active
 		if (activeTab === 'events' && program.id) {
 			loadEvents()
@@ -139,11 +197,22 @@
 	</div>
 
 	<!-- Tab Content -->
-	<div class="tab-content">
+	<div class="pt-2">
 		{#if activeTab === 'details'}
 			<div class="space-y-4">
 				<h3 class="text-lg font-semibold border-b pb-2">Program Details</h3>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div>
+						<InlineEditableField
+							value={program.program_type || ''}
+							field="program_type"
+							type="select"
+							label="Program Type"
+							options={programTypeOptions}
+							onSave={(value) => onUpdateField('program_type', value || null)}
+							formatDisplay={(val) => getProgramTypeLabel(val ? String(val) : null)}
+						/>
+					</div>
 					<div>
 						<InlineEditableField
 							value={program.geo_coverage}
@@ -306,6 +375,11 @@
 						Delete Program
 					</button>
 				</div>
+			</div>
+		{:else}
+			<div class="space-y-4">
+				<h3 class="text-lg font-semibold border-b pb-2">Program Details</h3>
+				<p class="text-base opacity-70">Tab state reset. Please pick a tab.</p>
 			</div>
 		{/if}
 	</div>
