@@ -23,6 +23,12 @@ const config = {
 		// Client-side navigation settings
 		inlineStyleThreshold: 2048, // Inline small CSS for faster initial paint
 
+		// Poll for newly deployed app versions and expose via `$app/stores` `updated`.
+		// This lets clients detect fresh deployments without requiring logout/login.
+		version: {
+			pollInterval: 30000 // 30 seconds
+		},
+
 		// Service worker configuration for offline support
 		serviceWorker: {
 			register: false // Enable when ready for PWA

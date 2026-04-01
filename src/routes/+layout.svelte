@@ -2,19 +2,35 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/auth';
-	import { page } from '$app/stores';
+	import { page, updated } from '$app/stores';
 	import { sidebarStore } from '$lib/stores/sidebar';
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import ErrorDisplay from '$lib/components/ui/ErrorDisplay.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
+	import { toast } from '$lib/stores/toast';
 
 	let { children } = $props();
+	let hasTriggeredVersionReload = $state(false)
 
 	onMount(() => {
 		authStore.initialize();
 		themeStore.initialize();
+
+		const unsubscribeUpdated = updated.subscribe((isUpdated) => {
+			if (isUpdated && !hasTriggeredVersionReload) {
+				hasTriggeredVersionReload = true
+				toast.info('A new version is available. Refreshing now...', 2500)
+				setTimeout(() => {
+					window.location.reload()
+				}, 700)
+			}
+		})
+
+		return () => {
+			unsubscribeUpdated()
+		}
 	});
 
 	const isLoginPage = $derived($page.url.pathname === '/login');
