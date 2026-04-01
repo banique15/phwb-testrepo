@@ -51,6 +51,7 @@
 
 	const defaultStartHour = 8
 	const defaultEndHour = 20
+	const weekSlotHeightPx = 56
 
 	function getMonthDays(date: Date) {
 		const year = date.getFullYear()
@@ -101,13 +102,19 @@
 			})
 	}
 
-	function getEventsForDateAndHour(date: string, hour: number): CalendarEvent[] {
-		return allEvents.filter(e => {
-			if (e.date !== date) return false
-			if (!e.start_time) return hour === 9
-			const eventHour = parseInt(e.start_time.split(':')[0])
-			return eventHour === hour
-		})
+	function parseTimeToMinutes(time: string | null | undefined): number | null {
+		if (!time) return null
+		const [hours, minutes] = time.split(':').map(Number)
+		if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+		return hours * 60 + minutes
+	}
+
+	function getEventTimeRangeInMinutes(event: CalendarEvent): { start: number; end: number } {
+		const start = parseTimeToMinutes(event.start_time) ?? 9 * 60
+		const parsedEnd = parseTimeToMinutes(event.end_time)
+		const fallbackEnd = start + 60
+		const end = parsedEnd && parsedEnd > start ? parsedEnd : fallbackEnd
+		return { start, end }
 	}
 
 	function formatDateKey(year: number, month: number, day: number): string {
@@ -120,17 +127,11 @@
 			const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())
 			const dayEvents = getEventsForDate(dateKey)
 			dayEvents.forEach(event => {
-				if (event.start_time) {
-					const startHour = parseInt(event.start_time.split(':')[0])
-					hours.add(startHour)
-					if (event.end_time) {
-						const endHour = parseInt(event.end_time.split(':')[0])
-						for (let h = startHour; h <= endHour; h++) {
-							hours.add(h)
-						}
-					}
-				} else {
-					hours.add(9)
+				const { start, end } = getEventTimeRangeInMinutes(event)
+				const firstHour = Math.floor(start / 60)
+				const lastHour = Math.ceil(end / 60) - 1
+				for (let h = Math.max(0, firstHour); h <= Math.min(23, lastHour); h++) {
+					hours.add(h)
 				}
 			})
 		})
@@ -163,11 +164,100 @@
 		return visible
 	}
 
-	function hasEventsAtHour(weekDays: Date[], hour: number): boolean {
-		return weekDays.some(day => {
-			const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())
-			return getEventsForDateAndHour(dateKey, hour).length > 0
-		})
+	type PositionedWeekEvent = {
+		event: CalendarEvent
+		top: number
+		height: number
+		column: number
+		columns: number
+	}
+
+	function getWeekGridStartHour(): number {
+		return visibleHours.length > 0 ? visibleHours[0] : defaultStartHour
+	}
+
+	function getWeekGridEndHour(): number {
+		return visibleHours.length > 0 ? visibleHours[visibleHours.length - 1] + 1 : defaultEndHour + 1
+	}
+
+	function getWeekEventLayoutsForDate(date: string): PositionedWeekEvent[] {
+		const gridStart = getWeekGridStartHour() * 60
+		const gridEnd = getWeekGridEndHour() * 60
+
+		const normalized = getEventsForDate(date)
+			.map(event => {
+				const range = getEventTimeRangeInMinutes(event)
+				const start = Math.max(gridStart, range.start)
+				const end = Math.min(gridEnd, range.end)
+				return { event, start, end }
+			})
+			.filter(item => item.end > item.start)
+			.sort((a, b) => a.start - b.start || a.end - b.end)
+
+		if (normalized.length === 0) return []
+
+		const groups: Array<typeof normalized> = []
+		let currentGroup: typeof normalized = []
+		let currentGroupEnd = -1
+
+		for (const item of normalized) {
+			if (currentGroup.length === 0 || item.start < currentGroupEnd) {
+				currentGroup.push(item)
+				currentGroupEnd = Math.max(currentGroupEnd, item.end)
+			} else {
+				groups.push(currentGroup)
+				currentGroup = [item]
+				currentGroupEnd = item.end
+			}
+		}
+		if (currentGroup.length > 0) groups.push(currentGroup)
+
+		const positioned: PositionedWeekEvent[] = []
+
+		for (const group of groups) {
+			type ActiveColumn = { end: number; column: number }
+			type GroupItem = (typeof group)[number] & { column: number }
+			const active: ActiveColumn[] = []
+			const placed: GroupItem[] = []
+			let maxColumns = 1
+
+			for (const item of group) {
+				for (let i = active.length - 1; i >= 0; i--) {
+					if (active[i].end <= item.start) active.splice(i, 1)
+				}
+
+				const used = new Set(active.map(a => a.column))
+				let column = 0
+				while (used.has(column)) column++
+
+				active.push({ end: item.end, column })
+				maxColumns = Math.max(maxColumns, column + 1)
+				placed.push({ ...item, column })
+			}
+
+			for (const item of placed) {
+				const top = ((item.start - gridStart) / 60) * weekSlotHeightPx
+				const height = Math.max(((item.end - item.start) / 60) * weekSlotHeightPx, 22)
+				positioned.push({
+					event: item.event,
+					top,
+					height,
+					column: item.column,
+					columns: maxColumns
+				})
+			}
+		}
+
+		return positioned
+	}
+
+	function getEventCascadeLeftPercent(column: number, columns: number): number {
+		return (column / columns) * 100
+	}
+
+	function getEventCascadeWidthPercent(columns: number): number {
+		if (columns <= 1) return 100
+		return Math.min(100, (100 / columns) + 10)
 	}
 
 	function prevPeriod() {
@@ -315,14 +405,14 @@
 		}
 	}
 
-	function handleDayClick(dateKey: string, e: MouseEvent) {
+	function handleDayClick(dateKey: string, e: Event) {
 		if ((e.target as HTMLElement).closest('.event-item')) return
 		newEventDate = dateKey
 		newEventTime = ''
 		showCreateDrawer = true
 	}
 
-	function handleTimeSlotClick(dateKey: string, hour: number, e: MouseEvent) {
+	function handleTimeSlotClick(dateKey: string, hour: number, e: Event) {
 		if ((e.target as HTMLElement).closest('.event-item')) return
 		newEventDate = dateKey
 		newEventTime = `${String(hour).padStart(2, '0')}:00`
@@ -616,42 +706,75 @@
 				bind:this={weekViewRef}
 				class="max-h-[500px] overflow-y-auto border-x border-b border-base-300 rounded-b-lg"
 			>
-				<div class="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] gap-px bg-base-300">
-					{#each visibleHours as hour}
-						{@const hasEvents = hasEventsAtHour(weekDays, hour)}
-						{@const rowHeight = hasEvents ? 'min-h-16' : 'min-h-8'}
-
-						<!-- Time label -->
-						<div class="bg-base-100 {rowHeight} flex items-start justify-end pr-2 pt-1">
-							<span class="text-xs text-base-content/50">{formatHour(hour)}</span>
-						</div>
-
-						<!-- Day cells for this hour -->
-						{#each weekDays as day}
-							{@const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())}
-							{@const hourEvents = getEventsForDateAndHour(dateKey, hour)}
-
-							<div
-								class="bg-base-100 {rowHeight} p-0.5 border-t border-base-200 cursor-pointer hover:bg-base-200/30"
-								onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
-								role="button"
-								tabindex="0"
-							>
-								{#each hourEvents as event}
-									<button
-										class="event-item block w-full text-left text-xs p-1.5 rounded {getProgramColor(event.program_id)} hover:opacity-80 transition-opacity mb-0.5 {blinkingEventId === event.id ? 'animate-blink' : ''}"
-										onclick={(e) => handleEventClick(event, e)}
-										title="{event.program_name || 'No program'}"
-									>
-										{#if event.start_time}
-											<div class="text-[10px] opacity-80">{formatTime(event.start_time)}{#if event.end_time} - {formatTime(event.end_time)}{/if}</div>
-										{/if}
-										<div class="font-semibold leading-tight">{event.title}</div>
-									</button>
-								{/each}
+				<div class="relative">
+					<div class="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] gap-px bg-base-300">
+						{#each visibleHours as hour}
+							<!-- Time label -->
+							<div class="bg-base-100 h-14 flex items-start justify-end pr-2 pt-1">
+								<span class="text-xs text-base-content/50">{formatHour(hour)}</span>
 							</div>
+
+							<!-- Day cells for this hour -->
+							{#each weekDays as day}
+								{@const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())}
+								<div
+									class="group bg-base-100 h-14 pr-7 border-t border-base-200 cursor-pointer hover:bg-base-200/30 relative"
+									onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
+									onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleTimeSlotClick(dateKey, hour, e)}
+									role="button"
+									tabindex="0"
+								>
+									<button
+										class="absolute right-0 top-0 bottom-0 w-6 bg-base-100/95 border-l border-base-200/80 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+										onclick={(e) => handleTimeSlotClick(dateKey, hour, e)}
+										aria-label="Add event at {formatHour(hour)}"
+										title="Add event at {formatHour(hour)}"
+									>
+										<svg class="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+										</svg>
+									</button>
+								</div>
+							{/each}
 						{/each}
-					{/each}
+					</div>
+
+					<div class="pointer-events-none absolute inset-0">
+						<div class="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] h-full">
+							<div></div>
+							{#each weekDays as day}
+								{@const dateKey = formatDateKey(day.getFullYear(), day.getMonth(), day.getDate())}
+								{@const dayLayouts = getWeekEventLayoutsForDate(dateKey)}
+								<div class="relative">
+									<div class="absolute inset-y-0 left-0 right-6">
+										{#each dayLayouts as layout}
+											<button
+												class="event-item group pointer-events-auto absolute text-left rounded-md shadow-sm border border-black/10 {getProgramColor(layout.event.program_id)} hover:brightness-95 hover:shadow-md transition-all p-1.5 {blinkingEventId === layout.event.id ? 'animate-blink' : ''}"
+												style="
+													top: {layout.top}px;
+													height: {layout.height}px;
+													left: calc({getEventCascadeLeftPercent(layout.column, layout.columns)}% + 2px);
+													width: calc({getEventCascadeWidthPercent(layout.columns)}% - 4px);
+													z-index: {layout.column + 1};
+												"
+												onclick={(e) => handleEventClick(layout.event, e)}
+												title="{layout.event.title}{layout.event.start_time ? ` · ${formatTime(layout.event.start_time)}` : ''}{layout.event.end_time ? ` - ${formatTime(layout.event.end_time)}` : ''}"
+											>
+												<div class="text-[10px] opacity-90">
+													{#if layout.event.start_time}{formatTime(layout.event.start_time)}{/if}
+													{#if layout.event.end_time} - {formatTime(layout.event.end_time)}{/if}
+												</div>
+												<div class="font-semibold leading-tight line-clamp-2">{layout.event.title}</div>
+												<div class="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 line-clamp-2">
+													{layout.event.program_name || 'No Program'} · {layout.event.status}
+												</div>
+											</button>
+										{/each}
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
 				</div>
 			</div>
 		{/if}
