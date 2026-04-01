@@ -61,6 +61,11 @@
 	let modalAssignment = $state<ArtistAssignment | null>(null)
 	let viewMode = $state<'artists' | 'ensembles'>('artists') // Toggle between artists and ensembles
 	let showCreateArtistModal = $state(false)
+	let showEnsembleMemberPicker = $state(false)
+	let pendingEnsemble = $state<(Ensemble & { member_count?: number }) | null>(null)
+	let pendingEnsembleMembers = $state<Array<{ artist_id: string; artist_name: string; role: string; is_bandleader: boolean }>>([])
+	let selectedPendingMemberIds = $state<Set<string>>(new Set())
+	let pendingLeaderId = $state<string | null>(null)
 	let displayTotalCost = $state(0)
 	let totalCostLabel = $state<'Assignment' | 'Estimated Payroll' | 'Payroll'>('Assignment')
 
@@ -365,6 +370,7 @@
 	let groupedPendingArtists = $derived.by(() => {
 		const grouped = new Map<string, typeof pendingArtists>()
 		const ungrouped: typeof pendingArtists = []
+		const groupedWithLeader = new Map<string, typeof pendingArtists>()
 
 		for (const artist of pendingArtists) {
 			if (artist.ensemble_id && artist.ensemble_name) {
@@ -378,12 +384,24 @@
 			}
 		}
 
-		return { grouped, ungrouped }
+		// Show ensemble grouping indicator only when the same column contains:
+		// 1) a bandleader and 2) at least one additional member.
+		for (const [key, ensembleArtists] of grouped.entries()) {
+			const hasBandleader = ensembleArtists.some((artist) => artist.is_bandleader === true)
+			if (hasBandleader && ensembleArtists.length >= 2) {
+				groupedWithLeader.set(key, ensembleArtists)
+			} else {
+				ungrouped.push(...ensembleArtists)
+			}
+		}
+
+		return { grouped: groupedWithLeader, ungrouped }
 	})
 
 	let groupedConfirmedArtists = $derived.by(() => {
 		const grouped = new Map<string, typeof confirmedArtists>()
 		const ungrouped: typeof confirmedArtists = []
+		const groupedWithLeader = new Map<string, typeof confirmedArtists>()
 
 		for (const artist of confirmedArtists) {
 			if (artist.ensemble_id && artist.ensemble_name) {
@@ -397,7 +415,16 @@
 			}
 		}
 
-		return { grouped, ungrouped }
+		for (const [key, ensembleArtists] of grouped.entries()) {
+			const hasBandleader = ensembleArtists.some((artist) => artist.is_bandleader === true)
+			if (hasBandleader && ensembleArtists.length >= 2) {
+				groupedWithLeader.set(key, ensembleArtists)
+			} else {
+				ungrouped.push(...ensembleArtists)
+			}
+		}
+
+		return { grouped: groupedWithLeader, ungrouped }
 	})
 
 	function getArtistDisplayName(artist: any): string {
@@ -443,14 +470,21 @@
 			const ensemble = allEnsembles.find(e => e.id === artistId)
 			
 			if (ensemble) {
-				// Handle ensemble assignment - add all members
-				const ensembleName = ensemble.name || 'Unknown Ensemble'
-				
-				const { data: members, error: membersError } = await supabase
-					.from('phwb_ensemble_members')
-					.select('artist_id, role, phwb_artists(id, full_name, artist_name, legal_first_name, legal_last_name, is_bandleader)')
-					.eq('ensemble_id', artistId)
-					.eq('is_active', true)
+				// Handle ensemble assignment with member subset selection
+				let members: any[] | null = null
+				let membersError: any = null
+				for (let attempt = 0; attempt < 3; attempt++) {
+					const response = await supabase
+						.from('phwb_ensemble_members')
+						.select('artist_id, role, phwb_artists(id, full_name, artist_name, legal_first_name, legal_last_name, is_bandleader)')
+						.eq('ensemble_id', artistId)
+						.eq('is_active', true)
+					members = response.data
+					membersError = response.error
+					if (!membersError) break
+					// Handle transient gateway/CORS-adjacent failures gracefully.
+					await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+				}
 
 				if (membersError) throw membersError
 
@@ -458,42 +492,36 @@
 					throw new Error('Ensemble has no active members')
 				}
 
-				const memberIds = new Set((members || []).map((member: any) => member.artist_id))
+				const normalizedMembers = members.map((member: any) => {
+					const artist = member.phwb_artists
+					const artistName = artist?.full_name ||
+						`${artist?.legal_first_name || ''} ${artist?.legal_last_name || ''}`.trim() ||
+						artist?.artist_name ||
+						'Unknown Artist'
+					return {
+						artist_id: member.artist_id,
+						artist_name: artistName,
+						role: member.role || 'Ensemble Member',
+						is_bandleader: !!artist?.is_bandleader
+					}
+				})
+
+				const memberIds = new Set(normalizedMembers.map((member) => member.artist_id))
 				let preselectedLeaderId: string | null = null
 				if (ensemble.leader_id && memberIds.has(ensemble.leader_id)) {
 					preselectedLeaderId = ensemble.leader_id
 				} else {
-					const taggedMembers = members.filter((member: any) => member.phwb_artists?.is_bandleader)
+					const taggedMembers = normalizedMembers.filter((member) => member.is_bandleader)
 					if (taggedMembers.length === 1) {
 						preselectedLeaderId = taggedMembers[0].artist_id
 					}
 				}
 
-				const existingArtistIds = new Set(localAssignments.map(a => a.artist_id))
-				const hasExistingBandleader = !!getCurrentBandleaderId()
-				const newAssignments = members
-					.filter((member: any) => !existingArtistIds.has(member.artist_id))
-					.map((member: any) => {
-						const artist = member.phwb_artists
-						const artistName = artist?.full_name || 
-							`${artist?.legal_first_name || ''} ${artist?.legal_last_name || ''}`.trim() ||
-							artist?.artist_name || 
-							'Unknown Artist'
-						return {
-							artist_id: member.artist_id,
-							artist_name: artistName,
-							role: member.role || 'Ensemble Member',
-							status: 'assigned' as const,
-							num_hours: 0,
-							hourly_rate: 0,
-							notes: '',
-							ensemble_id: artistId,
-							ensemble_name: ensembleName,
-							is_bandleader: !hasExistingBandleader && preselectedLeaderId === member.artist_id
-						}
-					})
-
-				localAssignments = [...localAssignments, ...newAssignments]
+				pendingEnsemble = ensemble
+				pendingEnsembleMembers = normalizedMembers
+				selectedPendingMemberIds = new Set(normalizedMembers.map((member) => member.artist_id))
+				pendingLeaderId = preselectedLeaderId
+				showEnsembleMemberPicker = true
 			} else {
 				// Handle individual artist assignment
 				const artist = allArtists.find(a => a.id === artistId)
@@ -510,10 +538,9 @@
 				}
 
 				localAssignments = [...localAssignments, newAssignment]
+				await saveAssignments()
+				selectedLeftArtistId = null
 			}
-
-			await saveAssignments()
-			selectedLeftArtistId = null
 		} catch (err: any) {
 			console.error('Error assigning artist/ensemble:', err)
 			error = err.message || 'Failed to assign artist/ensemble'
@@ -677,6 +704,42 @@
 			return Object.values(instruments).join(', ')
 		}
 		return String(instruments)
+	}
+
+	function closeEnsemblePicker() {
+		showEnsembleMemberPicker = false
+		pendingEnsemble = null
+		pendingEnsembleMembers = []
+		selectedPendingMemberIds = new Set()
+		pendingLeaderId = null
+	}
+
+	async function confirmEnsembleSelection() {
+		if (!pendingEnsemble) return
+
+		const hasExistingBandleader = !!getCurrentBandleaderId()
+		const existingArtistIds = new Set(localAssignments.map((assignment) => assignment.artist_id))
+		const membersToAdd = pendingEnsembleMembers.filter(
+			(member) => selectedPendingMemberIds.has(member.artist_id) && !existingArtistIds.has(member.artist_id)
+		)
+
+		const newAssignments: ArtistAssignment[] = membersToAdd.map((member) => ({
+			artist_id: member.artist_id,
+			artist_name: member.artist_name,
+			role: member.role,
+			status: 'assigned',
+			num_hours: 0,
+			hourly_rate: 0,
+			notes: '',
+			ensemble_id: pendingEnsemble!.id,
+			ensemble_name: pendingEnsemble!.name || 'Unknown Ensemble',
+			is_bandleader: !hasExistingBandleader && pendingLeaderId === member.artist_id
+		}))
+
+		localAssignments = [...localAssignments, ...newAssignments]
+		await saveAssignments()
+		selectedLeftArtistId = null
+		closeEnsemblePicker()
 	}
 </script>
 
@@ -1257,7 +1320,7 @@
 						<select 
 							class="select select-bordered"
 							value={modalAssignment.role || ''}
-							onchange={(e) => modalAssignment = { ...modalAssignment, role: (e.target as HTMLSelectElement)?.value || '' }}
+							onchange={(e) => modalAssignment = { ...(modalAssignment as ArtistAssignment), role: (e.target as HTMLSelectElement)?.value || '' }}
 						>
 							<option value="">Select role...</option>
 							{#each roleOptions as role}
@@ -1273,7 +1336,7 @@
 						<select 
 							class="select select-bordered"
 							value={modalAssignment.status || 'assigned'}
-							onchange={(e) => modalAssignment = { ...modalAssignment, status: (e.target as HTMLSelectElement)?.value as any || 'assigned' }}
+							onchange={(e) => modalAssignment = { ...(modalAssignment as ArtistAssignment), status: (e.target as HTMLSelectElement)?.value as any || 'assigned' }}
 						>
 							{#each statusOptions as status}
 								<option value={status.value}>{status.label}</option>
@@ -1288,7 +1351,7 @@
 							type="checkbox"
 							class="checkbox checkbox-primary"
 							checked={!!modalAssignment.is_bandleader}
-							onchange={(e) => modalAssignment = { ...modalAssignment, is_bandleader: e.currentTarget.checked }}
+							onchange={(e) => modalAssignment = { ...(modalAssignment as ArtistAssignment), is_bandleader: e.currentTarget.checked }}
 						/>
 						<span class="label-text font-medium">Bandleader</span>
 					</label>
@@ -1307,7 +1370,7 @@
 							step="0.5"
 							placeholder="0"
 							value={modalAssignment.num_hours || 0}
-							onchange={(e) => modalAssignment = { ...modalAssignment, num_hours: parseFloat((e.target as HTMLInputElement)?.value || '0') || 0 }}
+							onchange={(e) => modalAssignment = { ...(modalAssignment as ArtistAssignment), num_hours: parseFloat((e.target as HTMLInputElement)?.value || '0') || 0 }}
 						/>
 					</div>
 					
@@ -1322,7 +1385,7 @@
 							step="0.01"
 							placeholder="0.00"
 							value={modalAssignment.hourly_rate || 0}
-							onchange={(e) => modalAssignment = { ...modalAssignment, hourly_rate: parseFloat((e.target as HTMLInputElement)?.value || '0') || 0 }}
+							onchange={(e) => modalAssignment = { ...(modalAssignment as ArtistAssignment), hourly_rate: parseFloat((e.target as HTMLInputElement)?.value || '0') || 0 }}
 						/>
 					</div>
 					
@@ -1345,7 +1408,7 @@
 						placeholder="Additional notes or details..."
 						rows="3"
 						value={modalAssignment.notes || ''}
-						onchange={(e) => modalAssignment = { ...modalAssignment, notes: (e.target as HTMLTextAreaElement)?.value || '' }}
+						onchange={(e) => modalAssignment = { ...(modalAssignment as ArtistAssignment), notes: (e.target as HTMLTextAreaElement)?.value || '' }}
 					></textarea>
 				</div>
 			</div>
@@ -1371,3 +1434,68 @@
 	onClose={() => showCreateArtistModal = false}
 	onSuccess={handleNewArtistCreated}
 />
+
+{#if showEnsembleMemberPicker && pendingEnsemble}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-2xl">
+			<h3 class="font-bold text-lg mb-2">Select Members: {pendingEnsemble.name}</h3>
+			<p class="text-sm opacity-70 mb-4">Choose which ensemble members are performing in this event.</p>
+
+			<div class="form-control mb-3">
+				<label class="label py-1">
+					<span class="label-text text-xs font-semibold">Bandleader</span>
+				</label>
+				<select
+					class="select select-sm select-bordered"
+					value={pendingLeaderId || ''}
+					onchange={(e) => (pendingLeaderId = e.currentTarget.value || null)}
+				>
+					<option value="">No bandleader selected</option>
+					{#each pendingEnsembleMembers as member}
+						{#if selectedPendingMemberIds.has(member.artist_id)}
+							<option value={member.artist_id}>{member.artist_name}</option>
+						{/if}
+					{/each}
+				</select>
+			</div>
+
+			<div class="max-h-72 overflow-y-auto border border-base-300 rounded-lg">
+				{#each pendingEnsembleMembers as member}
+					<label class="flex items-center gap-3 p-3 border-b border-base-300 last:border-b-0 hover:bg-base-200 cursor-pointer">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-sm checkbox-primary"
+							checked={selectedPendingMemberIds.has(member.artist_id)}
+							onchange={(e) => {
+								if (e.currentTarget.checked) {
+									selectedPendingMemberIds.add(member.artist_id)
+								} else {
+									selectedPendingMemberIds.delete(member.artist_id)
+									if (pendingLeaderId === member.artist_id) pendingLeaderId = null
+								}
+								selectedPendingMemberIds = new Set(selectedPendingMemberIds)
+							}}
+						/>
+						<div class="flex-1 min-w-0">
+							<div class="font-medium text-sm">{member.artist_name}</div>
+							<div class="text-xs opacity-70">{member.role}</div>
+						</div>
+						{#if pendingLeaderId === member.artist_id}
+							<span class="badge badge-warning badge-xs">Bandleader</span>
+						{/if}
+					</label>
+				{/each}
+			</div>
+
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={closeEnsemblePicker}>Cancel</button>
+				<button class="btn btn-primary" onclick={confirmEnsembleSelection} disabled={selectedPendingMemberIds.size === 0}>
+					Add Selected Members
+				</button>
+			</div>
+		</div>
+		<form method="dialog" class="modal-backdrop" onclick={closeEnsemblePicker}>
+			<button>close</button>
+		</form>
+	</div>
+{/if}

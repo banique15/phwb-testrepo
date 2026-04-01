@@ -43,6 +43,7 @@
 		return computeEntryTotalPay({
 			hours: entry.hours,
 			rate: entry.rate,
+			base_rate: entry.base_rate,
 			rate_type: entry.rate_type || undefined,
 			additional_rate: entry.additional_rate || undefined,
 			additional_pay: entry.additional_pay
@@ -213,17 +214,58 @@
 		}).format(amount)
 	}
 
-	// Group entries by event for display
-	function groupEntriesByEvent(entries: GeneratedPayrollEntry[]): Map<number, GeneratedPayrollEntry[]> {
-		const grouped = new Map<number, GeneratedPayrollEntry[]>()
-		for (const entry of entries) {
-			const eventId = entry.event_id
-			if (!grouped.has(eventId)) {
-				grouped.set(eventId, [])
-			}
-			grouped.get(eventId)!.push(entry)
+	type IndexedEntry = { index: number; entry: GeneratedPayrollEntry }
+	type EntryGroup = {
+		eventId: number
+		eventDate: string
+		ensembleGroups: Array<{ key: string; name: string; entries: IndexedEntry[] }>
+		ungroupedEntries: IndexedEntry[]
+	}
+
+	// Group entries by event, then by ensemble for display.
+	function groupEntriesByEvent(entries: GeneratedPayrollEntry[]): EntryGroup[] {
+		const indexed = entries.map((entry, index) => ({ entry, index }))
+		const byEvent = new Map<number, IndexedEntry[]>()
+
+		for (const row of indexed) {
+			const eventId = row.entry.event_id
+			if (!byEvent.has(eventId)) byEvent.set(eventId, [])
+			byEvent.get(eventId)!.push(row)
 		}
-		return grouped
+
+		const groups: EntryGroup[] = []
+		for (const [eventId, rows] of byEvent.entries()) {
+			const ensembleMap = new Map<string, { key: string; name: string; entries: IndexedEntry[] }>()
+			const ungroupedEntries: IndexedEntry[] = []
+
+			for (const row of rows) {
+				const entry = row.entry
+				const groupId = entry.ensemble_id || entry.rollup_group_id
+				const groupName = entry.ensemble_name || entry.rollup_group_name
+				if (!groupId && !groupName) {
+					ungroupedEntries.push(row)
+					continue
+				}
+				const key = groupId || `name:${groupName}`
+				if (!ensembleMap.has(key)) {
+					ensembleMap.set(key, {
+						key,
+						name: groupName || 'Ensemble Group',
+						entries: []
+					})
+				}
+				ensembleMap.get(key)!.entries.push(row)
+			}
+
+			groups.push({
+				eventId,
+				eventDate: rows[0]?.entry.event_date || '',
+				ensembleGroups: Array.from(ensembleMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+				ungroupedEntries
+			})
+		}
+
+		return groups.sort((a, b) => a.eventDate.localeCompare(b.eventDate))
 	}
 
 	// Load preview when week changes
@@ -355,78 +397,189 @@
 							</div>
 
 							{#if showDetails}
-								<!-- Entries Table with optional rate override -->
-								<div class="overflow-x-auto max-h-64 overflow-y-auto border rounded-lg">
-									<table class="table table-zebra table-sm">
-										<thead class="sticky top-0 bg-base-200">
-											<tr>
-												<th>Date</th>
-												<th>Artist</th>
-												<th>Hours</th>
-												<th>Rate {showRateOverrides ? '(Editable)' : ''}</th>
-												<th>Add'l Pay {showRateOverrides ? '(Editable)' : ''}</th>
-												<th>Total</th>
-												{#if showRateOverrides}
-													<th>Actions</th>
+								<div class="max-h-64 overflow-y-auto space-y-3 border rounded-lg p-2">
+									{#each groupEntriesByEvent(previewResult.entries) as eventGroup}
+										<div class="rounded-lg border border-base-300">
+											<div class="px-3 py-2 border-b border-base-300 bg-base-200/50 text-sm font-semibold">
+												Event #{eventGroup.eventId} - {eventGroup.eventDate}
+											</div>
+											<div class="p-2 space-y-2">
+												{#each eventGroup.ensembleGroups as ensembleGroup}
+													<div class="rounded border border-primary/30">
+														<div class="px-3 py-2 text-xs font-medium border-b border-base-300">
+															{ensembleGroup.name} ({ensembleGroup.entries.length} member{ensembleGroup.entries.length === 1 ? '' : 's'})
+														</div>
+														<div class="overflow-x-auto">
+															<table class="table table-sm">
+																<thead class="bg-base-100">
+																	<tr>
+																		<th>Artist</th>
+																		<th>Hours</th>
+																		<th>Rate {showRateOverrides ? '(Editable)' : ''}</th>
+																		<th>Add'l Pay {showRateOverrides ? '(Editable)' : ''}</th>
+																		<th>Total</th>
+																		{#if showRateOverrides}
+																			<th>Actions</th>
+																		{/if}
+																	</tr>
+																</thead>
+																<tbody>
+																	{#each ensembleGroup.entries as row}
+																		{@const entry = row.entry}
+																		{@const index = row.index}
+																		<tr class:bg-warning={hasOverride(index)} class:bg-opacity-20={hasOverride(index)}>
+																			<td class="font-medium">
+																				{entry.artist_name}
+																				{#if entry.rolled_into_bandleader}
+																					<span class="badge badge-warning badge-xs ml-2">Rolled to Bandleader</span>
+																				{/if}
+																				{#if (entry.rollup_member_count || 0) > 0}
+																					<span class="badge badge-info badge-xs ml-2">Bandleader (+{entry.rollup_member_count})</span>
+																				{/if}
+																				{#if entry.rolled_into_bandleader && entry.rollup_owner_name}
+																					<div class="text-xs opacity-70 mt-1">Paid via {entry.rollup_owner_name}</div>
+																				{/if}
+																			</td>
+																			<td>{entry.hours}h</td>
+																			<td>
+																				{#if showRateOverrides}
+																					<input
+																						type="number"
+																						class="input input-bordered input-xs w-20"
+																						value={entry.rate}
+																						min="0"
+																						step="5"
+																						onchange={(e) => setRateOverride(index, 'rate', parseFloat(e.currentTarget.value) || 0)}
+																					/>
+																				{:else}
+																					{formatCurrency(entry.rate)}
+																				{/if}
+																			</td>
+																			<td>
+																				{#if showRateOverrides}
+																					<input
+																						type="number"
+																						class="input input-bordered input-xs w-20"
+																						value={entry.additional_pay}
+																						min="0"
+																						step="5"
+																						onchange={(e) => setRateOverride(index, 'additionalPay', parseFloat(e.currentTarget.value) || 0)}
+																					/>
+																				{:else if entry.additional_pay > 0}
+																					<span class="badge badge-sm badge-success">
+																						+{formatCurrency(entry.additional_pay)}
+																					</span>
+																				{:else}
+																					-
+																				{/if}
+																			</td>
+																			<td class="font-bold">{formatCurrency(entry.total_pay)}</td>
+																			{#if showRateOverrides}
+																				<td>
+																					{#if hasOverride(index)}
+																						<button
+																							class="btn btn-ghost btn-xs text-warning"
+																							onclick={() => clearOverride(index)}
+																							title="Reset to calculated rate"
+																						>
+																							Reset
+																						</button>
+																					{/if}
+																				</td>
+																			{/if}
+																		</tr>
+																	{/each}
+																</tbody>
+															</table>
+														</div>
+													</div>
+												{/each}
+
+												{#if eventGroup.ungroupedEntries.length > 0}
+													<div class="rounded border border-base-300">
+														<div class="px-3 py-2 text-xs font-medium border-b border-base-300">Individual / Non-ensemble</div>
+														<div class="overflow-x-auto">
+															<table class="table table-sm">
+																<thead class="bg-base-100">
+																	<tr>
+																		<th>Artist</th>
+																		<th>Hours</th>
+																		<th>Rate {showRateOverrides ? '(Editable)' : ''}</th>
+																		<th>Add'l Pay {showRateOverrides ? '(Editable)' : ''}</th>
+																		<th>Total</th>
+																		{#if showRateOverrides}
+																			<th>Actions</th>
+																		{/if}
+																	</tr>
+																</thead>
+																<tbody>
+																	{#each eventGroup.ungroupedEntries as row}
+																		{@const entry = row.entry}
+																		{@const index = row.index}
+																		<tr class:bg-warning={hasOverride(index)} class:bg-opacity-20={hasOverride(index)}>
+																			<td class="font-medium">
+																				{entry.artist_name}
+																				{#if entry.is_production_manager}
+																					<span class="badge badge-secondary badge-xs ml-2">PM</span>
+																				{/if}
+																			</td>
+																			<td>{entry.hours}h</td>
+																			<td>
+																				{#if showRateOverrides}
+																					<input
+																						type="number"
+																						class="input input-bordered input-xs w-20"
+																						value={entry.rate}
+																						min="0"
+																						step="5"
+																						onchange={(e) => setRateOverride(index, 'rate', parseFloat(e.currentTarget.value) || 0)}
+																					/>
+																				{:else}
+																					{formatCurrency(entry.rate)}
+																				{/if}
+																			</td>
+																			<td>
+																				{#if showRateOverrides}
+																					<input
+																						type="number"
+																						class="input input-bordered input-xs w-20"
+																						value={entry.additional_pay}
+																						min="0"
+																						step="5"
+																						onchange={(e) => setRateOverride(index, 'additionalPay', parseFloat(e.currentTarget.value) || 0)}
+																					/>
+																				{:else if entry.additional_pay > 0}
+																					<span class="badge badge-sm badge-success">
+																						+{formatCurrency(entry.additional_pay)}
+																					</span>
+																				{:else}
+																					-
+																				{/if}
+																			</td>
+																			<td class="font-bold">{formatCurrency(entry.total_pay)}</td>
+																			{#if showRateOverrides}
+																				<td>
+																					{#if hasOverride(index)}
+																						<button
+																							class="btn btn-ghost btn-xs text-warning"
+																							onclick={() => clearOverride(index)}
+																							title="Reset to calculated rate"
+																						>
+																							Reset
+																						</button>
+																					{/if}
+																				</td>
+																			{/if}
+																		</tr>
+																	{/each}
+																</tbody>
+															</table>
+														</div>
+													</div>
 												{/if}
-											</tr>
-										</thead>
-										<tbody>
-											{#each previewResult.entries as entry, index}
-												<tr class:bg-warning={hasOverride(index)} class:bg-opacity-20={hasOverride(index)}>
-													<td class="text-xs">{entry.event_date}</td>
-													<td class="font-medium">{entry.artist_name}</td>
-													<td>{entry.hours}h</td>
-													<td>
-														{#if showRateOverrides}
-															<input
-																type="number"
-																class="input input-bordered input-xs w-20"
-																value={entry.rate}
-																min="0"
-																step="5"
-																onchange={(e) => setRateOverride(index, 'rate', parseFloat(e.currentTarget.value) || 0)}
-															/>
-														{:else}
-															{formatCurrency(entry.rate)}
-														{/if}
-													</td>
-													<td>
-														{#if showRateOverrides}
-															<input
-																type="number"
-																class="input input-bordered input-xs w-20"
-																value={entry.additional_pay}
-																min="0"
-																step="5"
-																onchange={(e) => setRateOverride(index, 'additionalPay', parseFloat(e.currentTarget.value) || 0)}
-															/>
-														{:else if entry.additional_pay > 0}
-															<span class="badge badge-sm badge-success">
-																+{formatCurrency(entry.additional_pay)}
-															</span>
-														{:else}
-															-
-														{/if}
-													</td>
-													<td class="font-bold">{formatCurrency(entry.total_pay)}</td>
-													{#if showRateOverrides}
-														<td>
-															{#if hasOverride(index)}
-																<button 
-																	class="btn btn-ghost btn-xs text-warning"
-																	onclick={() => clearOverride(index)}
-																	title="Reset to calculated rate"
-																>
-																	Reset
-																</button>
-															{/if}
-														</td>
-													{/if}
-												</tr>
-											{/each}
-										</tbody>
-									</table>
+											</div>
+										</div>
+									{/each}
 								</div>
 								
 								{#if rateOverrides.size > 0}

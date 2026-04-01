@@ -23,7 +23,8 @@
 	let members = $state<any[]>([])
 	let loadingMembers = $state(false)
 	let showAddMemberModal = $state(false)
-	let lastLoadedEnsembleId = $state<string | null>(null)
+	let membersLoadRequestId = 0
+	let lastLoadedEnsembleId: string | null = null
 	let editingMemberId = $state<string | null>(null)
 	let editingMemberRole = $state<string>('')
 	let removingMemberId = $state<string | null>(null)
@@ -35,7 +36,6 @@
 			isEditing = false
 			error = null
 			
-			// Only load members if ensemble ID actually changed
 			if (ensemble.id && ensemble.id !== lastLoadedEnsembleId) {
 				lastLoadedEnsembleId = ensemble.id
 				loadMembers()
@@ -45,12 +45,10 @@
 
 	async function loadMembers() {
 		if (!ensemble.id) return
-		
-		// Prevent multiple simultaneous loads
-		if (loadingMembers) return
-		
+
+		const requestId = ++membersLoadRequestId
 		loadingMembers = true
-		
+
 		try {
 			const { data, error: membersError } = await supabase
 				.from('phwb_ensemble_members')
@@ -76,13 +74,20 @@
 
 			if (membersError) throw membersError
 
-			members = data || []
+			// Ignore stale responses from earlier requests.
+			if (requestId === membersLoadRequestId) {
+				members = data || []
+			}
 		} catch (err: any) {
 			console.error('Failed to load members:', err)
 			error = err.message || 'Failed to load members'
-			members = []
+			if (requestId === membersLoadRequestId) {
+				members = []
+			}
 		} finally {
-			loadingMembers = false
+			if (requestId === membersLoadRequestId) {
+				loadingMembers = false
+			}
 		}
 	}
 

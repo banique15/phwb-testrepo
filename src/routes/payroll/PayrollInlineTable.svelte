@@ -591,11 +591,12 @@
 	// Format the rate display value for existing entries
 	function formatRateDisplay(entry: Partial<Payroll>): string {
 		const rateType = entry.rate_type
+		const displayBaseRate = entry.base_rate ?? entry.rate ?? 0
 		if (rateType === 'flat') {
-			return `${formatCurrency(entry.rate || 0)} flat`
+			return `${formatCurrency(displayBaseRate)} flat`
 		}
 		if (rateType === 'tiered') {
-			return `${formatCurrency(entry.rate || 0)} + ${formatCurrency(entry.additional_rate || 0)}/hr`
+			return `${formatCurrency(displayBaseRate)} + ${formatCurrency(entry.additional_rate || 0)}/hr`
 		}
 		return `${formatCurrency(entry.rate || 0)}/hr`
 	}
@@ -644,6 +645,59 @@
 			.map(([id, data]) => ({ ...data, id } as Payroll)),
 		...entries
 	])
+
+	type DisplayGroup = {
+		key: string
+		label: string
+		entries: Payroll[]
+	}
+
+	let groupedDisplayEntries = $derived.by(() => {
+		const groups: DisplayGroup[] = []
+		const unsaved = displayEntries.filter((entry) => typeof entry.id === 'string' && String(entry.id).startsWith('new'))
+		if (unsaved.length > 0) {
+			groups.push({
+				key: 'new',
+				label: 'Unsaved Entries',
+				entries: unsaved
+			})
+		}
+
+		const persisted = displayEntries.filter((entry) => typeof entry.id === 'number')
+		const byEvent = new Map<string, Payroll[]>()
+		for (const entry of persisted) {
+			const eventId = entry.source_event_id || entry.event_id
+			const key = eventId ? `event-${eventId}` : `row-${entry.id}`
+			if (!byEvent.has(key)) byEvent.set(key, [])
+			byEvent.get(key)!.push(entry)
+		}
+
+		for (const [key, rows] of byEvent.entries()) {
+			const eventId = rows[0]?.source_event_id || rows[0]?.event_id
+			groups.push({
+				key,
+				label: eventId ? `Event #${eventId}` : 'Standalone Entry',
+				entries: rows
+			})
+		}
+
+		return groups
+	})
+
+	function isRolledMember(entry: Payroll): boolean {
+		const notes = (entry.notes || '').toLowerCase()
+		return notes.includes('rolled into bandleader')
+	}
+
+	function isRollupOwner(entry: Payroll): boolean {
+		const notes = (entry.notes || '').toLowerCase()
+		return notes.includes('payout rollup')
+	}
+
+	function isIndividualArtist(entry: Payroll): boolean {
+		if (entry.is_production_manager) return false
+		return !isRolledMember(entry) && !isRollupOwner(entry)
+	}
 
 	// Derive a reactive snapshot of selected IDs so Svelte 5 tracks changes
 	let selectedSnapshot = $derived(new Set(selectedEntries))
@@ -775,10 +829,17 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each displayEntries as entry (entry.id)}
+					{#each groupedDisplayEntries as group (group.key)}
+						<tr class="bg-base-200/70">
+							<td colspan="20" class="text-xs font-semibold uppercase tracking-wide text-base-content/70 py-2">
+								{group.label}
+							</td>
+						</tr>
+					{#each group.entries as entry (entry.id)}
 						{@const isNew = isNewRow(entry)}
 						{@const editData = editingRows.get(entry.id!) || entry}
 						{@const isSelected = isEntrySelected(entry.id)}
+						{@const isEditingRow = editingRows.has(entry.id!) || isNew}
 						<tr 
 							class:bg-warning={isNew} 
 							class:bg-opacity-20={isNew}
@@ -921,14 +982,27 @@
 									</div>
 								{:else}
 									<div 
-										class="cursor-pointer hover:bg-base-200 hover:shadow-sm px-2 py-1 rounded truncate transition-all duration-150 border border-transparent hover:border-base-300" 
+										class="cursor-pointer hover:bg-base-200 hover:shadow-sm px-2 py-1 rounded transition-all duration-150 border border-transparent hover:border-base-300" 
 										onclick={() => startEditingCell(entry, 'artist_id')}
 										title={formatArtistDisplay(entry)}
 									>
-										<span>{formatArtistDisplay(entry)}</span>
-										{#if entry.is_production_manager}
-											<span class="badge badge-secondary badge-xs ml-2">PM</span>
-										{/if}
+										<div class="flex items-center justify-between gap-2">
+											<span class="truncate">{formatArtistDisplay(entry)}</span>
+											<div class="flex items-center gap-1 shrink-0">
+												{#if isIndividualArtist(entry)}
+													<span class="badge badge-ghost badge-xs">Individual</span>
+												{/if}
+												{#if entry.is_production_manager}
+													<span class="badge badge-secondary badge-xs">PM</span>
+												{/if}
+												{#if isRolledMember(entry)}
+													<span class="badge badge-warning badge-xs">Rolled to Bandleader</span>
+												{/if}
+												{#if isRollupOwner(entry)}
+													<span class="badge badge-info badge-xs">Bandleader Rollup</span>
+												{/if}
+											</div>
+										</div>
 									</div>
 								{/if}
 							</td>
@@ -1235,7 +1309,11 @@
 							
 							<!-- Total Pay -->
 							<td class="font-semibold">
-								{formatCurrency(computeEntryTotalPay(editData || entry))}
+								{#if isEditingRow}
+									{formatCurrency(computeEntryTotalPay(editData || entry))}
+								{:else}
+									{formatCurrency(entry.total_pay ?? computeEntryTotalPay(entry))}
+								{/if}
 							</td>
 							
 							<!-- Artist Service Hours -->
@@ -1488,6 +1566,7 @@
 								{/if}
 							</td>
 						</tr>
+					{/each}
 					{/each}
 				</tbody>
 			</table>

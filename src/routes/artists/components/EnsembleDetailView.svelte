@@ -23,6 +23,8 @@
 	let members = $state<any[]>([])
 	let loadingMembers = $state(false)
 	let showAddMemberModal = $state(false)
+	let membersLoadRequestId = 0
+	let lastLoadedEnsembleId: string | null = null
 	let editingMemberId = $state<string | null>(null)
 	let editingMemberRole = $state<string>('')
 	let removingMemberId = $state<string | null>(null)
@@ -33,13 +35,17 @@
 			editData = { ...ensemble }
 			isEditing = false
 			error = null
-			loadMembers()
+			if (ensemble.id && ensemble.id !== lastLoadedEnsembleId) {
+				lastLoadedEnsembleId = ensemble.id
+				loadMembers()
+			}
 		}
 	})
 
 	async function loadMembers() {
 		if (!ensemble.id) return
 
+		const requestId = ++membersLoadRequestId
 		loadingMembers = true
 		try {
 			const { data, error: membersError } = await supabase
@@ -60,11 +66,18 @@
 
 			if (membersError) throw membersError
 
-			members = data || []
+			if (requestId === membersLoadRequestId) {
+				members = data || []
+			}
 		} catch (err: any) {
 			console.error('Failed to load members:', err)
+			if (requestId === membersLoadRequestId) {
+				members = []
+			}
 		} finally {
-			loadingMembers = false
+			if (requestId === membersLoadRequestId) {
+				loadingMembers = false
+			}
 		}
 	}
 

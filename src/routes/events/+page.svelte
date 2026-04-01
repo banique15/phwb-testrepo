@@ -25,6 +25,8 @@
 	import MasterDetail from '$lib/components/ui/MasterDetail.svelte'
 	import { Calendar } from 'lucide-svelte'
 	import { updateEventSchema } from '$lib/schemas/event'
+import { computeEntryTotalPay } from '$lib/utils/payrollTotals'
+import { rateCardStore, type RateRuleOption } from '$lib/stores/rate-cards'
 	import { z } from 'zod'
 
 	interface Props {
@@ -71,6 +73,8 @@
 	let createFormInitialProgramId = $state<number | undefined>(undefined)
 	
 	let eventArtistsCount = $state(0)
+	let rateRuleOptions = $state<RateRuleOption[]>([])
+	let unsubscribeRateCards: (() => void) | null = null
 
 	// External tab switch for jumping to performers tab
 	let externalActiveTab = $state<string | null>(null)
@@ -199,6 +203,9 @@
 		if (!browser) return
 		const shouldCreate = $page.url.searchParams.get('create') === 'true'
 		if (!shouldCreate) return
+		const selectedIdInUrl = $page.url.searchParams.get('id')
+		// If an event is explicitly selected, detail mode should win.
+		if (selectedIdInUrl) return
 		const prefillProgramId = $page.url.searchParams.get('prefillProgramId')
 		const parsedProgramId = prefillProgramId ? Number(prefillProgramId) : undefined
 
@@ -219,6 +226,9 @@
 			// Update URL to reflect selected event
 			const searchParams = new URLSearchParams($page.url.searchParams)
 			searchParams.set('id', eventToSelect.id.toString())
+			// Clear create-mode deep-link params so they don't re-open the create form.
+			searchParams.delete('create')
+			searchParams.delete('prefillProgramId')
 			// Preserve other query params like filters
 			await goto(`/events?${searchParams.toString()}`, { replaceState: true, keepFocus: true })
 		}
@@ -364,10 +374,104 @@
 		const next = [...payrollPreviewEntries]
 		const current = { ...next[index] }
 		current[field] = value
-		current.total_pay = Number((current.hours * current.rate + current.additional_pay).toFixed(2))
+		current.total_pay = computeEntryTotalPay({
+			hours: current.hours,
+			rate: current.rate,
+			base_rate: current.base_rate,
+			rate_type: current.rate_type || undefined,
+			additional_rate: current.additional_rate,
+			additional_pay: current.additional_pay
+		})
 		next[index] = current
 		payrollPreviewEntries = next
 	}
+
+	function formatCurrency(amount: number) {
+		return `$${Number(amount || 0).toFixed(2)}`
+	}
+
+	function getPreviewRateDetail(entry: GeneratedPayrollEntry): string | null {
+		if (entry.rate_type === 'tiered') {
+			return `${formatCurrency(entry.rate)} + ${formatCurrency(entry.additional_rate || 0)}/hr`
+		}
+		if (entry.rate_type === 'flat') {
+			return `${formatCurrency(entry.rate)} flat`
+		}
+		if (entry.rate_type === 'hourly') {
+			return `${formatCurrency(entry.rate)}/hr`
+		}
+		return null
+	}
+
+	function handlePreviewRateRuleSelect(index: number, ruleId: number) {
+		const option = rateRuleOptions.find((r) => r.ruleId === ruleId)
+		if (!option) return
+		const next = [...payrollPreviewEntries]
+		const current = { ...next[index] }
+
+		current.rate_rule_id = option.ruleId
+		current.rate_type = option.rateType
+		current.rate_description = option.description
+		current.rate = option.primaryRate
+
+		if (option.rateType === 'tiered') {
+			current.base_rate = option.primaryRate
+			current.additional_rate = option.additionalRate ?? 0
+		} else {
+			current.base_rate = option.primaryRate
+			current.additional_rate = null
+		}
+
+		current.total_pay = computeEntryTotalPay({
+			hours: current.hours,
+			rate: current.rate,
+			base_rate: current.base_rate,
+			rate_type: current.rate_type || undefined,
+			additional_rate: current.additional_rate,
+			additional_pay: current.additional_pay
+		})
+
+		next[index] = current
+		payrollPreviewEntries = next
+	}
+
+	type IndexedPreviewEntry = { index: number; entry: GeneratedPayrollEntry }
+	type EnsemblePreviewGroup = { key: string; name: string; entries: IndexedPreviewEntry[] }
+
+	function getIndexedPreviewEntries(entries: GeneratedPayrollEntry[]): IndexedPreviewEntry[] {
+		return entries.map((entry, index) => ({ entry, index }))
+	}
+
+	function getEnsemblePreviewGroups(indexedEntries: IndexedPreviewEntry[]): EnsemblePreviewGroup[] {
+		const grouped = new Map<string, EnsemblePreviewGroup>()
+		for (const indexed of indexedEntries) {
+			const entry = indexed.entry
+			const groupId = entry.ensemble_id || entry.rollup_group_id
+			const groupName = entry.ensemble_name || entry.rollup_group_name
+			if (!groupId && !groupName) continue
+			const key = groupId || `name:${groupName}`
+			if (!grouped.has(key)) {
+				grouped.set(key, {
+					key,
+					name: groupName || 'Ensemble Group',
+					entries: []
+				})
+			}
+			grouped.get(key)!.entries.push(indexed)
+		}
+		return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name))
+	}
+
+	function getUngroupedPreviewEntries(indexedEntries: IndexedPreviewEntry[]): IndexedPreviewEntry[] {
+		return indexedEntries.filter((indexed) => {
+			const entry = indexed.entry
+			return !entry.ensemble_id && !entry.rollup_group_id
+		})
+	}
+
+	let indexedPreviewEntries = $derived(getIndexedPreviewEntries(payrollPreviewEntries))
+	let ensemblePreviewGroups = $derived(getEnsemblePreviewGroups(indexedPreviewEntries))
+	let ungroupedPreviewEntries = $derived(getUngroupedPreviewEntries(indexedPreviewEntries))
 
 	async function confirmPayrollReviewAndComplete() {
 		if (!selectedEvent?.id) return
@@ -982,12 +1086,20 @@
 	onMount(() => {
 		// Enable real-time subscriptions for automatic UI updates
 		realtimeSubscription = eventsStore.enhanced.subscribeToChanges()
+		rateCardStore.fetchActiveRuleOptions()
+		unsubscribeRateCards = rateCardStore.subscribe((state) => {
+			rateRuleOptions = state.ruleOptions || []
+		})
 	})
 	
 	// Cleanup subscription on component destroy
 	onDestroy(() => {
 		if (realtimeSubscription) {
 			eventsStore.unsubscribeFromChanges()
+		}
+		if (unsubscribeRateCards) {
+			unsubscribeRateCards()
+			unsubscribeRateCards = null
 		}
 	})
 </script>
@@ -1264,62 +1376,165 @@
 		<div class="modal-box max-w-5xl">
 			<h3 class="font-bold text-lg">Review Payroll Before Completion</h3>
 			<p class="text-sm opacity-70 mt-1">Adjust entries as needed before payroll is generated for this completed event.</p>
-			<div class="overflow-x-auto mt-4 max-h-[50vh]">
-				<table class="table table-zebra table-sm">
-					<thead>
-						<tr>
-							<th>Payee</th>
-							<th>Date</th>
-							<th>Hours</th>
-							<th>Rate</th>
-							<th>Additional</th>
-							<th>Total</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each payrollPreviewEntries as entry, index}
-							<tr>
-								<td>
-									{entry.payee_name || entry.artist_name}
-									{#if entry.is_production_manager}
-										<span class="badge badge-secondary badge-xs ml-2">PM</span>
-									{/if}
-								</td>
-								<td>{entry.event_date}</td>
-								<td>
-									<input
-										type="number"
-										class="input input-bordered input-xs w-24"
-										min="0"
-										step="0.25"
-										value={entry.hours}
-										oninput={(e) => updatePreviewEntry(index, 'hours', Number(e.currentTarget.value || 0))}
-									/>
-								</td>
-								<td>
-									<input
-										type="number"
-										class="input input-bordered input-xs w-24"
-										min="0"
-										step="0.01"
-										value={entry.rate}
-										oninput={(e) => updatePreviewEntry(index, 'rate', Number(e.currentTarget.value || 0))}
-									/>
-								</td>
-								<td>
-									<input
-										type="number"
-										class="input input-bordered input-xs w-24"
-										step="0.01"
-										value={entry.additional_pay}
-										oninput={(e) => updatePreviewEntry(index, 'additional_pay', Number(e.currentTarget.value || 0))}
-									/>
-								</td>
-								<td>${entry.total_pay.toFixed(2)}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+			<div class="mt-4 max-h-[55vh] overflow-y-auto space-y-4">
+				<div class="rounded-lg border border-base-300 p-3">
+					<div class="text-sm font-semibold mb-2">Event Payroll Entries</div>
+
+					{#if ensemblePreviewGroups.length > 0}
+						<div class="space-y-3">
+							{#each ensemblePreviewGroups as group}
+								<div class="rounded-lg border border-primary/30 bg-base-100">
+									<div class="px-3 py-2 border-b border-base-300 flex items-center justify-between">
+										<div class="font-medium text-sm">{group.name}</div>
+										<div class="text-xs opacity-70">{group.entries.length} member{group.entries.length === 1 ? '' : 's'}</div>
+									</div>
+									<div class="overflow-x-auto">
+										<table class="table table-sm">
+											<thead>
+												<tr>
+													<th>Payee</th>
+													<th>Hours</th>
+													<th>Rate</th>
+													<th>Additional</th>
+													<th>Total</th>
+												</tr>
+											</thead>
+											<tbody>
+												{#each group.entries as { entry, index }}
+													<tr>
+														<td>
+															{entry.payee_name || entry.artist_name}
+															{#if entry.rolled_into_bandleader}
+																<span class="badge badge-warning badge-xs ml-2">Rolled to Bandleader</span>
+															{/if}
+															{#if (entry.rollup_member_count || 0) > 0}
+																<span class="badge badge-info badge-xs ml-2">Bandleader (+{entry.rollup_member_count})</span>
+															{/if}
+															{#if entry.rollup_owner_name && entry.rolled_into_bandleader}
+																<div class="text-xs opacity-70 mt-1">Paid via {entry.rollup_owner_name}</div>
+															{/if}
+														</td>
+														<td>
+															<input
+																type="number"
+																class="input input-bordered input-xs w-24"
+																min="0"
+																step="0.25"
+																value={entry.hours}
+																oninput={(e) => updatePreviewEntry(index, 'hours', Number(e.currentTarget.value || 0))}
+															/>
+														</td>
+														<td>
+															<div class="space-y-1">
+																<select
+																	class="select select-bordered select-xs min-w-[17rem]"
+																	value={entry.rate_rule_id || ''}
+																	onchange={(e) => {
+																		const selected = Number(e.currentTarget.value || 0)
+																		if (selected > 0) handlePreviewRateRuleSelect(index, selected)
+																	}}
+																>
+																	<option value="">Select rate rule...</option>
+																	{#each rateRuleOptions as option}
+																		<option value={option.ruleId}>{option.label}</option>
+																	{/each}
+																</select>
+																{#if getPreviewRateDetail(entry)}
+																	<div class="text-[11px] opacity-70 whitespace-nowrap">{getPreviewRateDetail(entry)}</div>
+																{/if}
+															</div>
+														</td>
+														<td>
+															<input
+																type="number"
+																class="input input-bordered input-xs w-24"
+																step="0.01"
+																value={entry.additional_pay}
+																oninput={(e) => updatePreviewEntry(index, 'additional_pay', Number(e.currentTarget.value || 0))}
+															/>
+														</td>
+														<td>{formatCurrency(entry.total_pay)}</td>
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+
+					{#if ungroupedPreviewEntries.length > 0}
+						<div class="rounded-lg border border-base-300 mt-3">
+							<div class="px-3 py-2 border-b border-base-300 text-sm font-medium">Individual / Non-ensemble</div>
+							<div class="overflow-x-auto">
+								<table class="table table-sm">
+									<thead>
+										<tr>
+											<th>Payee</th>
+											<th>Hours</th>
+											<th>Rate</th>
+											<th>Additional</th>
+											<th>Total</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each ungroupedPreviewEntries as { entry, index }}
+											<tr>
+												<td>
+													{entry.payee_name || entry.artist_name}
+													{#if entry.is_production_manager}
+														<span class="badge badge-secondary badge-xs ml-2">PM</span>
+													{/if}
+												</td>
+												<td>
+													<input
+														type="number"
+														class="input input-bordered input-xs w-24"
+														min="0"
+														step="0.25"
+														value={entry.hours}
+														oninput={(e) => updatePreviewEntry(index, 'hours', Number(e.currentTarget.value || 0))}
+													/>
+												</td>
+												<td>
+													<div class="space-y-1">
+														<select
+															class="select select-bordered select-xs min-w-[17rem]"
+															value={entry.rate_rule_id || ''}
+															onchange={(e) => {
+																const selected = Number(e.currentTarget.value || 0)
+																if (selected > 0) handlePreviewRateRuleSelect(index, selected)
+															}}
+														>
+															<option value="">Select rate rule...</option>
+															{#each rateRuleOptions as option}
+																<option value={option.ruleId}>{option.label}</option>
+															{/each}
+														</select>
+														{#if getPreviewRateDetail(entry)}
+															<div class="text-[11px] opacity-70 whitespace-nowrap">{getPreviewRateDetail(entry)}</div>
+														{/if}
+													</div>
+												</td>
+												<td>
+													<input
+														type="number"
+														class="input input-bordered input-xs w-24"
+														step="0.01"
+														value={entry.additional_pay}
+														oninput={(e) => updatePreviewEntry(index, 'additional_pay', Number(e.currentTarget.value || 0))}
+													/>
+												</td>
+												<td>{formatCurrency(entry.total_pay)}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					{/if}
+				</div>
 			</div>
 			<div class="modal-action">
 				<button class="btn btn-ghost" onclick={() => showPayrollReviewModal = false} disabled={payrollPreviewLoading}>Cancel</button>

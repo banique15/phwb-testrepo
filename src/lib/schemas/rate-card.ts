@@ -127,6 +127,8 @@ export interface GeneratedPayrollEntry {
 	event_date: string
 	artist_id: string | null
 	artist_name: string
+	ensemble_id?: string | null
+	ensemble_name?: string | null
 	venue_id: number | null
 	facility_id?: number | null
 	program_id: number | null
@@ -151,6 +153,13 @@ export interface GeneratedPayrollEntry {
 	notes: string
 	payee_name?: string | null
 	is_production_manager?: boolean
+	rolled_into_bandleader?: boolean
+	rollup_group_id?: string | null
+	rollup_group_name?: string | null
+	rollup_owner_artist_id?: string | null
+	rollup_owner_name?: string | null
+	rollup_member_count?: number
+	rollup_member_total?: number
 	linked_payroll_id?: number | null
 	adjustment_type?: 'increase' | 'decrease' | 'correction' | null
 }
