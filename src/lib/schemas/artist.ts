@@ -50,6 +50,7 @@ export const artistSchema = z.object({
 	associate_id: z.string().optional(),
 	job_title: z.string().optional(),
 	is_production_manager: z.boolean().optional(),
+	is_band_manager: z.boolean().optional(),
 	worker_category: z.string().optional(),
 	position_status: z.enum(['active', 'terminated', 'on_leave']).optional(),
 	hire_date: z.string().optional(),
