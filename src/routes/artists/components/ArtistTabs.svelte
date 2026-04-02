@@ -50,7 +50,7 @@
 	let booleanSaveError = $state<string | null>(null)
 
 	async function handleBooleanToggle(
-		field: 'sightreads' | 'can_be_soloist' | 'is_production_manager',
+		field: 'sightreads' | 'can_be_soloist' | 'is_production_manager' | 'is_band_manager',
 		checked: boolean
 	) {
 		savingBooleanField = field
@@ -276,6 +276,18 @@
 									onchange={(e) => handleBooleanToggle('is_production_manager', e.currentTarget.checked)}
 								/>
 								<span class="label-text">Production Manager</span>
+							</label>
+						</div>
+						<div class="form-control min-w-[220px]">
+							<label class="label cursor-pointer justify-start gap-3">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									checked={!!artist.is_band_manager}
+									disabled={savingBooleanField === 'is_band_manager'}
+									onchange={(e) => handleBooleanToggle('is_band_manager', e.currentTarget.checked)}
+								/>
+								<span class="label-text">Band Manager</span>
 							</label>
 						</div>
 					</div>
