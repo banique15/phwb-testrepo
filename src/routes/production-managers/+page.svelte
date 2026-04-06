@@ -323,6 +323,7 @@
 				getItemTitle={getPmTitle as any}
 				getItemSubtitle={getPmSubtitle as any}
 				getItemDetail={getPmDetail as any}
+				stackMetaOnSecondRow={true}
 				detailEmptyIcon={User}
 				detailEmptyTitle="Select a production manager"
 				detailEmptyMessage="Choose a production manager from the list to view their profile"

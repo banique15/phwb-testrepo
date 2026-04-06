@@ -614,6 +614,7 @@
 					getItemTitle={getArtistTitle}
 					getItemSubtitle={getArtistSubtitle}
 					getItemDetail={getArtistDetail}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={User}
 					detailEmptyTitle="Select an artist"
 					detailEmptyMessage="Choose an artist from the list to view their full profile"

@@ -13,7 +13,9 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 	import UnifiedArtistAssignment from '$lib/components/UnifiedArtistAssignment.svelte'
 	import ProgramSelector from '$lib/components/ui/ProgramSelector.svelte'
 	import CreateEnsemble from '../../ensembles/components/modals/CreateEnsemble.svelte'
+	import type { ArtistAssignment } from '$lib/components/UnifiedArtistAssignment.svelte'
 	import type { Ensemble } from '$lib/schemas/ensemble'
+	import { persistEventAssignmentsAsEnsemble } from '$lib/services/ensemble-persistence'
 	import { supabase } from '$lib/supabase'
 	import { onMount } from 'svelte'
 	import { createEventSchema, type UpdateEvent } from '$lib/schemas/event'
@@ -84,6 +86,13 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 	let showInvitePromptModal = $state(false)
 	let invitePromptResolver: ((sendInvites: boolean) => void) | null = null
 	let invitePromptNewArtistsCount = $state(0)
+	let showSaveEnsemblePromptModal = $state(false)
+	let saveEnsemblePromptResolver: ((shouldSave: boolean) => void) | null = null
+	let showSaveEnsembleModal = $state(false)
+	let savingEnsemble = $state(false)
+	let saveEnsembleName = $state('')
+	let saveEnsembleType = $state('Band')
+	let saveEnsembleError = $state('')
 
 	// Ensemble state
 	let ensembles = $state<(Ensemble & { member_count?: number })[]>([])
@@ -212,6 +221,129 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		invitePromptNewArtistsCount = 0
 	}
 
+	function normalizeAssignmentsWithSingleBandleader(assignments: ArtistAssignment[]): ArtistAssignment[] {
+		let sawLeader = false
+		return (assignments || []).map((assignment) => {
+			if (assignment?.is_bandleader && !sawLeader) {
+				sawLeader = true
+				return { ...assignment, is_bandleader: true }
+			}
+			return { ...assignment, is_bandleader: false }
+		})
+	}
+
+	function getCurrentBandleaderArtistId(assignments: ArtistAssignment[]): string | null {
+		return assignments.find((assignment) => assignment.is_bandleader)?.artist_id || null
+	}
+
+	function setBandleader(artistId: string) {
+		formData.artist_assignments = (formData.artist_assignments || []).map((assignment: ArtistAssignment) => ({
+			...assignment,
+			is_bandleader: assignment.artist_id === artistId
+		}))
+	}
+
+	function getSharedEnsembleId(assignments: ArtistAssignment[]): string | null {
+		const ids = Array.from(
+			new Set(
+				(assignments || [])
+					.map((assignment) => assignment?.ensemble_id)
+					.filter((id): id is string => typeof id === 'string' && id.length > 0)
+			)
+		)
+		return ids.length === 1 ? ids[0] : null
+	}
+
+	function hasAdHocGroupEligibleForSave(assignments: ArtistAssignment[]): boolean {
+		if (!assignments || assignments.length < 2) return false
+		return !getSharedEnsembleId(assignments)
+	}
+
+	function getDefaultEnsembleName(): string {
+		const datePart = formData.date || event?.date || ''
+		const titlePart = formData.title || event?.title || 'Event Ensemble'
+		return datePart ? `${titlePart} (${datePart})` : titlePart
+	}
+
+	async function confirmSaveEnsemblePrompt(): Promise<boolean> {
+		showSaveEnsemblePromptModal = true
+		return await new Promise((resolve) => {
+			saveEnsemblePromptResolver = resolve
+		})
+	}
+
+	function resolveSaveEnsemblePrompt(shouldSave: boolean) {
+		showSaveEnsemblePromptModal = false
+		saveEnsemblePromptResolver?.(shouldSave)
+		saveEnsemblePromptResolver = null
+	}
+
+	function openSaveAsEnsembleModal() {
+		saveEnsembleError = ''
+		saveEnsembleName = getDefaultEnsembleName()
+		saveEnsembleType = 'Band'
+		showSaveEnsembleModal = true
+	}
+
+	async function persistCurrentAssignmentsAsEnsemble(): Promise<void> {
+		if (!formData.artist_assignments || formData.artist_assignments.length < 2) {
+			saveEnsembleError = 'Select at least two performers to save an ensemble.'
+			return
+		}
+
+		savingEnsemble = true
+		saveEnsembleError = ''
+
+		try {
+			const result = await persistEventAssignmentsAsEnsemble({
+				assignments: formData.artist_assignments,
+				ensembleName: saveEnsembleName,
+				ensembleType: saveEnsembleType,
+				eventId: event?.id || null,
+				leaderArtistId: getCurrentBandleaderArtistId(formData.artist_assignments)
+			})
+
+			formData.artist_assignments = formData.artist_assignments.map((assignment: ArtistAssignment) => ({
+				...assignment,
+				ensemble_id: result.ensemble.id,
+				ensemble_name: result.ensemble.name
+			}))
+			formData.selected_artists = formData.artist_assignments.map((assignment: ArtistAssignment) => assignment.artist_id)
+			selectedEnsembleId = result.ensemble.id || null
+
+			await loadEnsembles()
+			showSaveEnsembleModal = false
+		} catch (error: any) {
+			saveEnsembleError = error?.message || 'Failed to save ensemble from current performers.'
+		} finally {
+			savingEnsemble = false
+		}
+	}
+
+	async function persistAssignmentsAsEnsembleWithDefaults(): Promise<boolean> {
+		try {
+			const result = await persistEventAssignmentsAsEnsemble({
+				assignments: formData.artist_assignments,
+				ensembleName: getDefaultEnsembleName(),
+				ensembleType: 'Band',
+				eventId: event?.id || null,
+				leaderArtistId: getCurrentBandleaderArtistId(formData.artist_assignments)
+			})
+			formData.artist_assignments = formData.artist_assignments.map((assignment: ArtistAssignment) => ({
+				...assignment,
+				ensemble_id: result.ensemble.id,
+				ensemble_name: result.ensemble.name
+			}))
+			formData.selected_artists = formData.artist_assignments.map((assignment: ArtistAssignment) => assignment.artist_id)
+			selectedEnsembleId = result.ensemble.id || null
+			await loadEnsembles()
+			return true
+		} catch (error: any) {
+			submitError = error?.message || 'Failed to save performers as ensemble.'
+			return false
+		}
+	}
+
 	async function saveEdit() {
 		if (!event?.id) return
 
@@ -268,15 +400,30 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				}
 			} else if (editingTab === 'performers') {
 				if (formData.artist_assignments !== event.artists?.assignments) {
-					updateData.artists = { assignments: formData.artist_assignments }
+					const normalizedAssignments = normalizeAssignmentsWithSingleBandleader(
+						(formData.artist_assignments || []) as ArtistAssignment[]
+					)
+					formData.artist_assignments = normalizedAssignments
+					updateData.artists = { assignments: normalizedAssignments }
 					const previousArtistIds = new Set(
 						extractArtistIdsFromAssignments(event.artists?.assignments || [])
 					)
-					const nextArtistIds = extractArtistIdsFromAssignments(formData.artist_assignments)
+					const nextArtistIds = extractArtistIdsFromAssignments(normalizedAssignments)
 					const newlyAddedArtistIds = nextArtistIds.filter((artistId) => !previousArtistIds.has(artistId))
 					if (newlyAddedArtistIds.length > 0) {
 						const sendInvites = await confirmInvitePrompt(newlyAddedArtistIds.length)
 						;(updateData as any).__sendInvitationNotifications = sendInvites
+					}
+					if (hasAdHocGroupEligibleForSave(normalizedAssignments)) {
+						const shouldSaveAsEnsemble = await confirmSaveEnsemblePrompt()
+						if (shouldSaveAsEnsemble) {
+							const persisted = await persistAssignmentsAsEnsembleWithDefaults()
+							if (!persisted) {
+								loading = false
+								return
+							}
+							updateData.artists = { assignments: formData.artist_assignments }
+						}
 					}
 				}
 			} else if (editingTab === 'notes') {
@@ -370,7 +517,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 			
 			const { data: members, error: membersError } = await supabase
 				.from('phwb_ensemble_members')
-				.select('artist_id, role, phwb_artists(id, full_name, artist_name)')
+				.select('artist_id, role, phwb_artists(id, full_name, artist_name, is_bandleader)')
 				.eq('ensemble_id', ensembleId)
 				.eq('is_active', true)
 
@@ -381,25 +528,41 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 			}
 
 			if (members && members.length > 0) {
+				const currentLeaderId = getCurrentBandleaderArtistId(formData.artist_assignments as ArtistAssignment[])
+				const memberIds = new Set(members.map((member: any) => member.artist_id))
+				let preselectedLeaderId: string | null = null
+				if (ensemble?.leader_id && memberIds.has(ensemble.leader_id)) {
+					preselectedLeaderId = ensemble.leader_id
+				} else {
+					const taggedMembers = members.filter((member: any) => !!member?.phwb_artists?.is_bandleader)
+					if (taggedMembers.length === 1) {
+						preselectedLeaderId = taggedMembers[0].artist_id
+					}
+				}
+
 				const newAssignments = members.map((member: any) => {
 					const artist = member.phwb_artists
 					return {
 						artist_id: member.artist_id,
 						artist_name: artist?.full_name || artist?.artist_name || 'Unknown',
 						role: member.role || 'Ensemble Member',
-						status: 'pending',
+						status: 'pending' as const,
 						num_hours: 0,
 						hourly_rate: 0,
 						notes: '',
 						ensemble_id: ensembleId,
-						ensemble_name: ensembleName
+						ensemble_name: ensembleName,
+						is_bandleader: !currentLeaderId && preselectedLeaderId === member.artist_id
 					}
 				})
 
 				const existingArtistIds = new Set(formData.artist_assignments.map((a: any) => a.artist_id))
 				const uniqueNewAssignments = newAssignments.filter((a: any) => !existingArtistIds.has(a.artist_id))
 				
-				formData.artist_assignments = [...formData.artist_assignments, ...uniqueNewAssignments]
+				formData.artist_assignments = normalizeAssignmentsWithSingleBandleader([
+					...(formData.artist_assignments as ArtistAssignment[]),
+					...uniqueNewAssignments
+				])
 				formData.selected_artists = formData.artist_assignments.map((a: any) => a.artist_id)
 			}
 		} catch (err) {
@@ -438,8 +601,9 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 	}
 
 	function handleArtistAssignmentsUpdate(assignments: any[]) {
-		formData.artist_assignments = assignments
-		formData.selected_artists = assignments.map(a => a.artist_id)
+		const normalizedAssignments = normalizeAssignmentsWithSingleBandleader(assignments as ArtistAssignment[])
+		formData.artist_assignments = normalizedAssignments
+		formData.selected_artists = normalizedAssignments.map((assignment) => assignment.artist_id)
 	}
 
 
@@ -544,7 +708,42 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 							eventEndTime={formData.end_time}
 						/>
 
-						<div class="flex justify-end gap-2 pt-4">
+						{#if formData.artist_assignments.length > 0}
+							<div class="border border-base-300 rounded-lg p-3 space-y-2">
+								<div class="flex items-center justify-between gap-2">
+									<h4 class="font-semibold text-sm">Bandleader</h4>
+									<span class="text-xs text-base-content/70">One leader per event</span>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+									{#each formData.artist_assignments as assignment}
+										<label class="label cursor-pointer justify-start gap-3 px-2 py-1 rounded hover:bg-base-200">
+											<input
+												type="radio"
+												name="event-bandleader"
+												class="radio radio-sm radio-primary"
+												checked={assignment.is_bandleader === true}
+												onchange={() => setBandleader(assignment.artist_id)}
+											/>
+											<span class="label-text">
+												{assignment.artist_name || 'Unknown Artist'}
+											</span>
+										</label>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						<div class="flex flex-wrap justify-between gap-2 pt-4">
+							<button
+								type="button"
+								class="btn btn-outline"
+								onclick={openSaveAsEnsembleModal}
+								disabled={loading || formData.artist_assignments.length < 2}
+							>
+								<Music class="w-4 h-4 mr-1" />
+								Save As Ensemble
+							</button>
+							<div class="flex gap-2">
 							<button
 								type="button"
 								class="btn btn-outline"
@@ -564,6 +763,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 								{/if}
 								Save Changes
 							</button>
+							</div>
 						</div>
 					</div>
 				{:else}
@@ -898,6 +1098,72 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 			<div class="modal-action">
 				<button class="btn btn-ghost" onclick={() => resolveInvitePrompt(false)}>Skip</button>
 				<button class="btn btn-primary" onclick={() => resolveInvitePrompt(true)}>Send Invitation</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showSaveEnsemblePromptModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-lg">
+			<h3 class="font-bold text-lg">Save This Group As Ensemble?</h3>
+			<p class="text-sm opacity-80 mt-2">
+				This performer group does not match a saved ensemble yet. Save it now so it can be reused in future events?
+			</p>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => resolveSaveEnsemblePrompt(false)}>Skip</button>
+				<button class="btn btn-primary" onclick={() => resolveSaveEnsemblePrompt(true)}>Save Group</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showSaveEnsembleModal}
+	<div class="modal modal-open">
+		<div class="modal-box max-w-xl">
+			<h3 class="font-bold text-lg">Save Performers As Ensemble</h3>
+			<p class="text-sm opacity-80 mt-2">Create a reusable ensemble from the current event performers.</p>
+			{#if saveEnsembleError}
+				<div class="alert alert-error mt-3">
+					<span>{saveEnsembleError}</span>
+				</div>
+			{/if}
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+				<div class="form-control">
+					<label class="label"><span class="label-text">Ensemble Name</span></label>
+					<input
+						type="text"
+						class="input input-bordered"
+						bind:value={saveEnsembleName}
+						placeholder="Enter ensemble name"
+						disabled={savingEnsemble}
+					/>
+				</div>
+				<div class="form-control">
+					<label class="label"><span class="label-text">Ensemble Type</span></label>
+					<input
+						type="text"
+						class="input input-bordered"
+						bind:value={saveEnsembleType}
+						placeholder="Band"
+						disabled={savingEnsemble}
+					/>
+				</div>
+			</div>
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => (showSaveEnsembleModal = false)} disabled={savingEnsemble}>
+					Cancel
+				</button>
+				<button
+					class="btn btn-primary"
+					onclick={persistCurrentAssignmentsAsEnsemble}
+					disabled={savingEnsemble || !saveEnsembleName.trim()}
+				>
+					{#if savingEnsemble}
+						<span class="loading loading-spinner loading-sm"></span>
+					{/if}
+					Save Ensemble
+				</button>
 			</div>
 		</div>
 	</div>

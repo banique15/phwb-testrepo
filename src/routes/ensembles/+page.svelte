@@ -118,11 +118,14 @@
 	async function reloadEnsembles() {
 		try {
 			const result = await ensemblesStore.fetchAll()
-			// Update local ensembles state with fresh data
-			ensembles = result
+			// fetchAll() returns paginated shape ({ data, total, totalPages })
+			const nextEnsembles = Array.isArray((result as any)?.data)
+				? (result as any).data as Ensemble[]
+				: (Array.isArray(result) ? (result as Ensemble[]) : [])
+			ensembles = nextEnsembles
 			// If we have a selected ensemble, update it from the new data
 			if (selectedEnsemble?.id) {
-				const updatedEnsemble = result.find(e => e.id === selectedEnsemble.id)
+				const updatedEnsemble = nextEnsembles.find(e => e.id === selectedEnsemble.id)
 				if (updatedEnsemble) {
 					selectedEnsemble = updatedEnsemble
 				}
@@ -202,6 +205,7 @@
 					getItemTitle={getEnsembleTitle}
 					getItemSubtitle={getEnsembleSubtitle}
 					getItemDetail={getEnsembleDetail}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={Theater}
 					detailEmptyTitle="Select an ensemble"
 					detailEmptyMessage="Choose an ensemble from the list to view details and members"

@@ -23,7 +23,8 @@
 	let members = $state<any[]>([])
 	let loadingMembers = $state(false)
 	let showAddMemberModal = $state(false)
-	let lastLoadedEnsembleId = $state<string | null>(null)
+	let membersLoadRequestId = 0
+	let lastLoadedEnsembleId: string | null = null
 	let editingMemberId = $state<string | null>(null)
 	let editingMemberRole = $state<string>('')
 	let removingMemberId = $state<string | null>(null)
@@ -35,7 +36,6 @@
 			isEditing = false
 			error = null
 			
-			// Only load members if ensemble ID actually changed
 			if (ensemble.id && ensemble.id !== lastLoadedEnsembleId) {
 				lastLoadedEnsembleId = ensemble.id
 				loadMembers()
@@ -45,12 +45,10 @@
 
 	async function loadMembers() {
 		if (!ensemble.id) return
-		
-		// Prevent multiple simultaneous loads
-		if (loadingMembers) return
-		
+
+		const requestId = ++membersLoadRequestId
 		loadingMembers = true
-		
+
 		try {
 			const { data, error: membersError } = await supabase
 				.from('phwb_ensemble_members')
@@ -76,13 +74,20 @@
 
 			if (membersError) throw membersError
 
-			members = data || []
+			// Ignore stale responses from earlier requests.
+			if (requestId === membersLoadRequestId) {
+				members = data || []
+			}
 		} catch (err: any) {
 			console.error('Failed to load members:', err)
 			error = err.message || 'Failed to load members'
-			members = []
+			if (requestId === membersLoadRequestId) {
+				members = []
+			}
 		} finally {
-			loadingMembers = false
+			if (requestId === membersLoadRequestId) {
+				loadingMembers = false
+			}
 		}
 	}
 
@@ -127,6 +132,14 @@
 	function getArtistDisplayName(artist: any) {
 		if (!artist) return 'Unknown Artist'
 		return artist.full_name || artist.legal_first_name || artist.artist_name || 'Unnamed Artist'
+	}
+
+	function getLeaderDisplayName(): string {
+		const leaderId = (isEditing ? editData.leader_id : ensemble.leader_id) || null
+		if (!leaderId) return 'Not set'
+		const leaderMember = members.find((member) => member.artist_id === leaderId)
+		if (!leaderMember) return 'Not set'
+		return getArtistDisplayName(leaderMember.artist)
 	}
 
 	function openAddMemberModal() {
@@ -340,6 +353,25 @@
 
 				<div class="form-control">
 					<label class="label">
+						<span class="label-text text-xs font-semibold">Bandleader</span>
+					</label>
+					{#if isEditing}
+						<select
+							class="select select-sm select-bordered"
+							bind:value={editData.leader_id}
+						>
+							<option value="">No bandleader selected</option>
+							{#each members as member}
+								<option value={member.artist_id}>{getArtistDisplayName(member.artist)}</option>
+							{/each}
+						</select>
+					{:else}
+						<p class="text-sm">{getLeaderDisplayName()}</p>
+					{/if}
+				</div>
+
+				<div class="form-control">
+					<label class="label">
 						<span class="label-text text-xs font-semibold">Website</span>
 					</label>
 					{#if isEditing}
@@ -422,6 +454,9 @@
 										{:else}
 											<p class="text-xs text-base-content/40 italic">No role specified</p>
 										{/if}
+									{#if ensemble.leader_id === member.artist_id}
+										<p class="text-xs text-warning font-semibold">Bandleader</p>
+									{/if}
 									{/if}
 									{#if member.artist?.email}
 										<p class="text-xs text-base-content/60">{member.artist.email}</p>

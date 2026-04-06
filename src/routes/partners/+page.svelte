@@ -477,6 +477,7 @@
 					masterTitle="Partners"
 					getItemTitle={getPartnerTitle}
 					getItemSubtitle={getPartnerSubtitle}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={Handshake}
 					detailEmptyTitle="Select a partner"
 					detailEmptyMessage="Choose a partner from the list to view their full profile"

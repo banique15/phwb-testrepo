@@ -39,6 +39,7 @@ export const artistSchema = z.object({
 	sightreads: z.boolean().optional(),
 	sight_reading_level: z.string().optional(),
 	can_be_soloist: z.boolean().optional(),
+	is_bandleader: z.boolean().optional(),
 	anti_harassment_training_date: z.string().optional(),
 	social_security_number: z.string().optional(),
 	instagram: z.string().optional(),

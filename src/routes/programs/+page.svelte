@@ -321,6 +321,7 @@
 					getItemTitle={getProgramTitle}
 					getItemSubtitle={getProgramSubtitle}
 					getItemDetail={getProgramDetail}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={ClipboardList}
 					detailEmptyTitle="Select a program"
 					detailEmptyMessage="Choose a program from the list to view its full information"

@@ -12,6 +12,7 @@ export type RateType = 'hourly' | 'flat' | 'tiered'
 export interface EntryForTotalPay {
 	hours?: number | null
 	rate?: number | null
+	base_rate?: number | null
 	rate_type?: RateType | null
 	additional_rate?: number | null
 	additional_pay?: number | null
@@ -29,15 +30,16 @@ export function computeEntryTotalPay(entry: EntryForTotalPay): number {
 	const rateType = entry.rate_type || 'hourly'
 	const hours = entry.hours ?? 0
 	const rate = entry.rate ?? 0
+	const baseRate = entry.base_rate ?? rate
 	const additionalRate = entry.additional_rate ?? 0
 	const additionalPay = entry.additional_pay ?? 0
 
 	let base = 0
 
 	if (rateType === 'flat') {
-		base = rate
+		base = baseRate
 	} else if (rateType === 'tiered') {
-		base = hours <= 1 ? hours * rate : rate + (hours - 1) * additionalRate
+		base = hours <= 1 ? hours * baseRate : baseRate + (hours - 1) * additionalRate
 	} else {
 		// hourly (default)
 		base = hours * rate

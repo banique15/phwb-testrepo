@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
 	import { createEventDispatcher } from 'svelte'
 	import Modal from '$lib/components/ui/Modal.svelte'
 	import { createProgramSchema, type CreateProgram } from '$lib/schemas/program'
 	import { programsStore } from '$lib/stores/programs'
+	import { supabase } from '$lib/supabase'
 	import { z } from 'zod'
 
 	interface Props {
@@ -29,6 +31,21 @@
 	let isLoading = $state(false)
 	let formErrors = $state<Record<string, string>>({})
 	let submitError = $state<string | null>(null)
+	let partners = $state<Array<{ id: number; name: string }>>([])
+
+	onMount(async () => {
+		try {
+			const { data, error } = await supabase
+				.from('phwb_partners')
+				.select('id, name')
+				.order('name')
+			if (error) throw error
+			partners = data || []
+		} catch (error) {
+			console.error('Failed to load partners for program form:', error)
+			partners = []
+		}
+	})
 
 	// Validation helper
 	function validateField(field: keyof CreateProgram, value: any) {
@@ -120,6 +137,9 @@
 					delete cleanData[key as keyof CreateProgram]
 				}
 			})
+			if (cleanData.partner === undefined) {
+				delete cleanData.partner
+			}
 
 			const newProgram = await programsStore.create(cleanData)
 			
@@ -209,23 +229,26 @@
 
 				<div class="form-control">
 					<label class="label" for="program-partner">
-						<span class="label-text">Partner ID</span>
+						<span class="label-text">Partner</span>
 					</label>
-					<input 
+					<select
 						id="program-partner"
-						type="number" 
-						class="input input-bordered {formErrors.partner ? 'input-error' : ''}"
-						value={formData.partner || ''}
-						oninput={(e) => handleInputChange('partner', e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
-						placeholder="Enter partner ID (optional)"
-					/>
+						class="select select-bordered {formErrors.partner ? 'select-error' : ''}"
+						value={formData.partner ?? ''}
+						onchange={(e) => handleInputChange('partner', e.currentTarget.value ? Number(e.currentTarget.value) : undefined)}
+					>
+						<option value="">No partner assigned</option>
+						{#each partners as partner}
+							<option value={partner.id}>{partner.name}</option>
+						{/each}
+					</select>
 					{#if formErrors.partner}
 						<label class="label">
 							<span class="label-text-alt text-error">{formErrors.partner}</span>
 						</label>
 					{/if}
 					<label class="label">
-						<span class="label-text-alt">Leave empty if no partner assigned</span>
+						<span class="label-text-alt">Select an existing partner or leave unassigned</span>
 					</label>
 				</div>
 			</div>

@@ -80,6 +80,40 @@ async function updateEventViaApi(eventId: number, updates: UpdateEvent): Promise
 	return response.json()
 }
 
+function normalizeArtistsPayloadForEvent(
+	artists: any
+): { assignments: Array<Record<string, any>> } | null {
+	if (!artists) return null
+
+	let assignments: Array<Record<string, any>> = []
+
+	if (Array.isArray(artists)) {
+		assignments = artists
+			.filter((artistId) => typeof artistId === 'string' && artistId.length > 0)
+			.map((artistId) => ({ artist_id: artistId, status: 'assigned', is_bandleader: false }))
+	} else if (typeof artists === 'object' && Array.isArray(artists.assignments)) {
+		assignments = artists.assignments
+			.filter((assignment: any) => typeof assignment?.artist_id === 'string' && assignment.artist_id.length > 0)
+			.map((assignment: any) => ({
+				...assignment,
+				is_bandleader: !!assignment?.is_bandleader
+			}))
+	} else {
+		return null
+	}
+
+	let sawLeader = false
+	const normalizedAssignments = assignments.map((assignment) => {
+		if (assignment.is_bandleader && !sawLeader) {
+			sawLeader = true
+			return { ...assignment, is_bandleader: true }
+		}
+		return { ...assignment, is_bandleader: false }
+	})
+
+	return normalizedAssignments.length > 0 ? { assignments: normalizedAssignments } : null
+}
+
 // Function to enhance events with related data
 function enhanceEvents(events: Event[]): EnhancedEvent[] {
 	return events.map(event => {
@@ -179,6 +213,9 @@ export const eventsStore = {
 		const persistedUpdates = { ...(updates as any) }
 		delete (persistedUpdates as any).__reviewedPayrollEntries
 		delete (persistedUpdates as any).__sendInvitationNotifications
+		if (Object.prototype.hasOwnProperty.call(persistedUpdates, 'artists')) {
+			;(persistedUpdates as any).artists = normalizeArtistsPayloadForEvent((persistedUpdates as any).artists)
+		}
 		let previousEvent: Event | null = null
 		try {
 			previousEvent = await baseStore.getById(normalizedId)
@@ -352,6 +389,9 @@ export const eventsStore = {
 			try {
 				// Validate data
 				const validatedData = eventSchema.omit({ id: true, created_at: true }).parse(eventData)
+				if (Object.prototype.hasOwnProperty.call(validatedData, 'artists')) {
+					;(validatedData as any).artists = normalizeArtistsPayloadForEvent((validatedData as any).artists)
+				}
 
 				logger.debug('Enhanced store: Creating event with data:', validatedData)
 

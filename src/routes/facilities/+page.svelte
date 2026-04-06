@@ -677,6 +677,7 @@
 					getItemTitle={getFacilityTitle}
 					getItemSubtitle={getFacilitySubtitle}
 					getItemDetail={getFacilityDetail}
+					stackMetaOnSecondRow={true}
 					detailEmptyIcon={Building}
 					detailEmptyTitle="Select a facility"
 					detailEmptyMessage="Choose a facility from the list to view its details and locations"

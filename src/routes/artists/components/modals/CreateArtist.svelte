@@ -34,6 +34,7 @@
 		sightreads: false,
 		can_be_soloist: false,
 		is_production_manager: false,
+		is_bandleader: false,
 		shirt_size: undefined,
 		website: '',
 		instagram: '',
@@ -151,6 +152,7 @@
 			sightreads: false,
 			can_be_soloist: false,
 			is_production_manager: false,
+			is_bandleader: false,
 			shirt_size: undefined,
 			website: '',
 			instagram: '',
@@ -587,6 +589,14 @@
 									bind:checked={formData.is_production_manager}
 								/>
 								<span class="text-sm">Production Manager</span>
+							</label>
+							<label class="flex items-center gap-3 cursor-pointer">
+								<input
+									type="checkbox"
+									class="toggle toggle-primary toggle-sm"
+									bind:checked={formData.is_bandleader}
+								/>
+								<span class="text-sm">Bandleader</span>
 							</label>
 						</div>
 					</div>

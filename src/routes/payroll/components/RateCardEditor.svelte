@@ -16,6 +16,7 @@
 
 	let rules = $state<RateRule[]>([])
 	let fees = $state<AdditionalFee[]>([])
+	let programs = $state<Array<{ id: number; title: string }>>([])
 	let loading = $state(false)
 	let editingCard = $state(false)
 	let editName = $state('')
@@ -45,7 +46,7 @@
 	async function loadRulesAndFees() {
 		loading = true
 		try {
-			const [rulesResponse, feesResponse] = await Promise.all([
+			const [rulesResponse, feesResponse, programsResponse] = await Promise.all([
 				supabase
 					.from('phwb_rate_rules')
 					.select('*')
@@ -55,14 +56,20 @@
 					.from('phwb_additional_fees')
 					.select('*')
 					.eq('rate_card_id', rateCard.id)
-					.order('fee_type')
+					.order('fee_type'),
+				supabase
+					.from('phwb_programs')
+					.select('id, title')
+					.order('title')
 			])
 			
 			if (rulesResponse.error) throw rulesResponse.error
 			if (feesResponse.error) throw feesResponse.error
+			if (programsResponse.error) throw programsResponse.error
 			
 			rules = rulesResponse.data || []
 			fees = feesResponse.data || []
+			programs = programsResponse.data || []
 		} catch (error) {
 			console.error('Failed to load rules and fees:', error)
 		} finally {
@@ -140,6 +147,12 @@
 			month: 'short',
 			day: 'numeric'
 		})
+	}
+
+	function getProgramTitle(programId: number | null | undefined): string {
+		if (!programId) return 'All'
+		const program = programs.find((p) => p.id === programId)
+		return program?.title || `Program #${programId}`
 	}
 
 	// Group rules by program type category
@@ -290,6 +303,7 @@
 									<table class="table table-sm table-zebra">
 										<thead>
 											<tr>
+												<th>Program</th>
 												<th>Program Type</th>
 												<th>Rate Type</th>
 												<th>Rate</th>
@@ -301,7 +315,7 @@
 											{#each categoryRules as rule (rule.id)}
 												{#if editingRuleId === rule.id}
 													<tr>
-														<td colspan="5" class="bg-base-200 p-3">
+														<td colspan="6" class="bg-base-200 p-3">
 															<RateRuleEditor
 																rateCardId={rateCard.id}
 																existingRule={rule}
@@ -312,6 +326,9 @@
 													</tr>
 												{:else}
 													<tr>
+														<td>
+															<span class="text-sm">{getProgramTitle(rule.program_id)}</span>
+														</td>
 														<td>
 															<span class="font-medium">
 																{rateCardStore.getProgramTypeLabel(rule.program_type)}

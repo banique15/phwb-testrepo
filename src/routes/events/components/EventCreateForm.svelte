@@ -18,10 +18,11 @@
 		onCancel?: () => void
 		initialDate?: string
 		initialTime?: string
+		initialProgramId?: number
 		onFieldFocus?: () => void
 	}
 
-	let { onSuccess, onCancel, initialDate, initialTime, onFieldFocus }: Props = $props()
+	let { onSuccess, onCancel, initialDate, initialTime, initialProgramId, onFieldFocus }: Props = $props()
 
 	// Form state
 	let title = $state('')
@@ -31,7 +32,7 @@
 	let status = $state('planned')
 	let locationId = $state<number | null>(null)
 	let selectedLocation = $state<LocationWithFacility | null>(null)
-	let programId = $state<number | null>(null)
+	let programId = $state<number | null>(initialProgramId ?? null)
 	let artistAssignments = $state<ArtistAssignment[]>([])
 	let notes = $state('')
 	let numberOfAttendees = $state<number | null>(null)

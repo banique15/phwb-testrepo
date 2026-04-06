@@ -20,6 +20,9 @@ interface ArtistAssignment {
 	artist_id: string
 	artist_name?: string
 	role?: string
+	is_bandleader?: boolean
+	ensemble_id?: string
+	ensemble_name?: string
 	status?: string
 	num_hours?: number
 	hourly_rate?: number
@@ -68,6 +71,12 @@ interface GenerationOptions {
 interface ArtistCompProfile {
 	employment_status: string | null
 	paid_through_artist_id: string | null
+}
+
+interface EnsembleMembershipCandidate {
+	ensemble_id: string
+	ensemble_name: string | null
+	leader_id: string | null
 }
 
 /**
@@ -179,6 +188,29 @@ function shouldRetryWithoutTotalPay(error: any): boolean {
 	return message.includes('total_pay') && message.includes('non-default')
 }
 
+function coerceNumber(value: unknown, fallback = 0): number {
+	const n = Number(value)
+	return Number.isFinite(n) ? n : fallback
+}
+
+function normalizeRowsForComputedTotal(rows: Record<string, any>[]): Record<string, any>[] {
+	// Compatibility path for DBs where total_pay is generated server-side.
+	// Keep intended totals by adjusting persisted rate to:
+	// rate = (total_pay - additional_pay) / hours
+	return rows.map((row) => {
+		const hours = coerceNumber(row.hours, 0)
+		const additional = coerceNumber(row.additional_pay, 0)
+		const intendedTotal = coerceNumber(row.total_pay, 0)
+		const safeHours = hours > 0 ? hours : 0
+		const computedRate = safeHours > 0 ? (intendedTotal - additional) / safeHours : 0
+
+		return {
+			...row,
+			rate: Number(computedRate.toFixed(6))
+		}
+	})
+}
+
 async function insertPayrollRowsWithCompat(rows: Record<string, any>[]): Promise<{ error: any }> {
 	const firstAttempt = await supabase.from('phwb_payroll').insert(rows)
 	if (!firstAttempt.error || !shouldRetryWithoutTotalPay(firstAttempt.error)) {
@@ -186,8 +218,9 @@ async function insertPayrollRowsWithCompat(rows: Record<string, any>[]): Promise
 	}
 
 	// Some DB variants compute total_pay server-side (generated/default-only column).
-	// Retry without total_pay in that case.
-	const rowsWithoutTotal = rows.map((row) => {
+	// Retry without total_pay in that case, while preserving intended total amounts.
+	const normalizedRows = normalizeRowsForComputedTotal(rows)
+	const rowsWithoutTotal = normalizedRows.map((row) => {
 		const sanitized = { ...row }
 		delete (sanitized as any).total_pay
 		return sanitized
@@ -232,20 +265,103 @@ async function getArtistCompProfiles(artistIds: string[]): Promise<Map<string, A
 	return profileMap
 }
 
+async function getEnsembleMembershipsForArtists(
+	artistIds: string[]
+): Promise<Map<string, EnsembleMembershipCandidate[]>> {
+	const membershipMap = new Map<string, EnsembleMembershipCandidate[]>()
+	if (artistIds.length === 0) return membershipMap
+
+	const uniqueIds = Array.from(new Set(artistIds))
+	const { data, error } = await supabase
+		.from('phwb_ensemble_members')
+		.select('artist_id, ensemble_id, ensemble:phwb_ensembles(id, name, leader_id)')
+		.in('artist_id', uniqueIds)
+		.eq('is_active', true)
+
+	if (error || !data) {
+		console.error('Failed to load ensemble memberships:', error)
+		return membershipMap
+	}
+
+	for (const row of data as any[]) {
+		if (!row.artist_id || !row.ensemble_id) continue
+		const list = membershipMap.get(row.artist_id) || []
+		list.push({
+			ensemble_id: row.ensemble_id,
+			ensemble_name: row.ensemble?.name ?? null,
+			leader_id: row.ensemble?.leader_id ?? null
+		})
+		membershipMap.set(row.artist_id, list)
+	}
+
+	return membershipMap
+}
+
 function applyLlcOwnerRollup(
 	entries: GeneratedPayrollEntry[],
 	assignments: ArtistAssignment[],
-	artistProfiles: Map<string, ArtistCompProfile>
+	artistProfiles: Map<string, ArtistCompProfile>,
+	ensembleMemberships: Map<string, EnsembleMembershipCandidate[]>
 ): GeneratedPayrollEntry[] {
+	const appendNote = (current: string, note: string) => (current ? `${current} | ${note}` : note)
 	const assignmentArtistIds = new Set(assignments.map((a) => a.artist_id))
-	const rollups = new Map<string, string>()
+	const assignmentByArtistId = new Map(assignments.map((assignment) => [assignment.artist_id, assignment]))
+	const rollups = new Map<string, { ownerId: string; groupId: string | null; groupName: string | null }>()
+	const ensembleLeaderById = new Map<string, string>()
+
+	for (const assignment of assignments) {
+		if (!assignment.ensemble_id) continue
+		const isExplicitLeader =
+			assignment.is_bandleader === true ||
+			assignment.role === 'leader' ||
+			assignment.role === 'bandleader'
+		if (isExplicitLeader && !ensembleLeaderById.has(assignment.ensemble_id)) {
+			ensembleLeaderById.set(assignment.ensemble_id, assignment.artist_id)
+		}
+	}
 
 	for (const assignment of assignments) {
 		const profile = artistProfiles.get(assignment.artist_id)
-		const ownerId = assignment.paid_through_artist_id ?? profile?.paid_through_artist_id ?? null
+		let ownerId = assignment.paid_through_artist_id ?? profile?.paid_through_artist_id ?? null
+		let groupId: string | null = assignment.ensemble_id ?? null
+		let groupName: string | null = assignment.ensemble_name ?? null
+		if (!ownerId && assignment.ensemble_id) {
+			const isExplicitLeader =
+				assignment.is_bandleader === true ||
+				assignment.role === 'leader' ||
+				assignment.role === 'bandleader'
+			if (!isExplicitLeader) {
+				ownerId = ensembleLeaderById.get(assignment.ensemble_id) ?? null
+			}
+		}
+		if (!ownerId) {
+			const candidates = ensembleMemberships.get(assignment.artist_id) || []
+			const eligible = candidates.filter((candidate) =>
+				!!candidate.leader_id && assignmentArtistIds.has(candidate.leader_id as string)
+			)
+			const preferred = eligible.find((candidate) => {
+				const leaderAssignment = assignmentByArtistId.get(candidate.leader_id as string)
+				return !!leaderAssignment && (
+					leaderAssignment.is_bandleader === true ||
+					leaderAssignment.role === 'leader' ||
+					leaderAssignment.role === 'bandleader'
+				)
+			})
+			const chosen = preferred || eligible[0]
+			if (chosen?.leader_id && chosen.leader_id !== assignment.artist_id) {
+				ownerId = chosen.leader_id
+				groupId = groupId || chosen.ensemble_id
+				groupName = groupName || chosen.ensemble_name
+			}
+		}
 		if (!ownerId || ownerId === assignment.artist_id) continue
 		if (!assignmentArtistIds.has(ownerId)) continue
-		rollups.set(assignment.artist_id, ownerId)
+		const ownerAssignment = assignmentByArtistId.get(ownerId)
+		rollups.set(assignment.artist_id, {
+			ownerId,
+			groupId: groupId ?? ownerAssignment?.ensemble_id ?? null,
+			groupName: groupName ?? ownerAssignment?.ensemble_name ?? null
+		})
 	}
 
 	if (rollups.size === 0) return entries
@@ -257,23 +373,67 @@ function applyLlcOwnerRollup(
 		}
 	}
 
-	const subordinateIdsToRemove = new Set<string>()
+	const ownerSummary = new Map<
+		string,
+		{ memberCount: number; rolledTotal: number; memberNames: string[]; groupId: string | null; groupName: string | null }
+	>()
 
-	for (const [subordinateId, ownerId] of rollups.entries()) {
+	for (const [subordinateId, target] of rollups.entries()) {
+		const ownerId = target.ownerId
 		const subordinateEntry = entryByArtistId.get(subordinateId)
 		const ownerEntry = entryByArtistId.get(ownerId)
 		if (!subordinateEntry || !ownerEntry) continue
 
-		ownerEntry.total_pay += subordinateEntry.total_pay
-		ownerEntry.additional_pay += subordinateEntry.additional_pay
-		ownerEntry.notes = `${ownerEntry.notes} | Includes ${subordinateEntry.artist_name} paid through LLC owner`
-		subordinateIdsToRemove.add(subordinateId)
+		const movedTotal = subordinateEntry.total_pay
+		const movedAdditional = subordinateEntry.additional_pay
+		const ownerName = ownerEntry.payee_name || ownerEntry.artist_name || 'Bandleader'
+
+		ownerEntry.total_pay += movedTotal
+		ownerEntry.additional_pay += movedAdditional
+		ownerEntry.payee_name = ownerName
+
+		subordinateEntry.total_pay = 0
+		subordinateEntry.additional_pay = 0
+		subordinateEntry.rolled_into_bandleader = true
+		subordinateEntry.rollup_owner_artist_id = ownerId
+		subordinateEntry.rollup_owner_name = ownerName
+		subordinateEntry.rollup_group_id = target.groupId
+		subordinateEntry.rollup_group_name = target.groupName
+		subordinateEntry.notes = appendNote(
+			subordinateEntry.notes,
+			`Payout rolled into bandleader (${ownerName}).`
+		)
+
+		ownerEntry.notes = appendNote(
+			ownerEntry.notes,
+			`Includes ${subordinateEntry.artist_name || 'member'} (${target.groupName || 'group'}) payout rollup.`
+		)
+
+		const summary = ownerSummary.get(ownerId) || {
+			memberCount: 0,
+			rolledTotal: 0,
+			memberNames: [],
+			groupId: target.groupId,
+			groupName: target.groupName
+		}
+		summary.memberCount += 1
+		summary.rolledTotal += movedTotal
+		summary.memberNames.push(subordinateEntry.artist_name || 'Unknown Artist')
+		if (!summary.groupId && target.groupId) summary.groupId = target.groupId
+		if (!summary.groupName && target.groupName) summary.groupName = target.groupName
+		ownerSummary.set(ownerId, summary)
 	}
 
-	return entries.filter((entry) => {
-		if (!entry.artist_id) return true
-		return !subordinateIdsToRemove.has(entry.artist_id)
-	})
+	for (const [ownerId, summary] of ownerSummary.entries()) {
+		const ownerEntry = entryByArtistId.get(ownerId)
+		if (!ownerEntry) continue
+		ownerEntry.rollup_member_count = summary.memberCount
+		ownerEntry.rollup_member_total = Number(summary.rolledTotal.toFixed(2))
+		ownerEntry.rollup_group_id = summary.groupId
+		ownerEntry.rollup_group_name = summary.groupName
+	}
+
+	return entries
 }
 
 async function resolveProductionManagerPayrollInfo(event: EventWithAssignments): Promise<ProductionManagerPayrollInfo | null> {
@@ -334,14 +494,65 @@ async function getActiveRateCard(): Promise<{ id: number; name: string } | null>
 }
 
 /**
- * Get rate rule for a specific program type
+ * Get rate rule for a specific program/program type
  */
-async function getRateRule(rateCardId: number, programType: string): Promise<RateRule | null> {
+async function getRateRule(rateCardId: number, programType: string, programId?: number | null): Promise<RateRule | null> {
+	// Primary path: use the generic rule for the selected program type.
+	// This aligns with the new program_type-driven assignment workflow.
+	const { data: genericByType, error: genericError } = await supabase
+		.from('phwb_rate_rules')
+		.select('*')
+		.eq('rate_card_id', rateCardId)
+		.eq('program_type', programType)
+		.is('program_id', null)
+		.order('updated_at', { ascending: false })
+		.limit(1)
+
+	if (!genericError && genericByType && genericByType.length > 0) {
+		return genericByType[0]
+	}
+
+	// Backward-compatible path: if no generic rule exists, allow a
+	// program-specific rule with the same type.
+	if (typeof programId === 'number') {
+		const { data: specific, error: specificError } = await supabase
+			.from('phwb_rate_rules')
+			.select('*')
+			.eq('rate_card_id', rateCardId)
+			.eq('program_id', programId)
+			.eq('program_type', programType)
+			.order('updated_at', { ascending: false })
+			.limit(1)
+
+		if (!specificError && specific && specific.length > 0) {
+			return specific[0]
+		}
+	}
+
+	// Additional backward-compatible fallback: if there is no generic rule and
+	// no exact program-specific match, use any rule for this program_type.
+	// This preserves legacy cards where a single type rule was created as
+	// program-specific instead of generic.
+	const { data: anyByType, error: anyByTypeError } = await supabase
+		.from('phwb_rate_rules')
+		.select('*')
+		.eq('rate_card_id', rateCardId)
+		.eq('program_type', programType)
+		.order('program_id', { ascending: true, nullsFirst: true })
+		.order('updated_at', { ascending: false })
+		.limit(1)
+
+	if (!anyByTypeError && anyByType && anyByType.length > 0) {
+		return anyByType[0]
+	}
+
 	const { data, error } = await supabase
 		.from('phwb_rate_rules')
 		.select('*')
 		.eq('rate_card_id', rateCardId)
 		.eq('program_type', programType)
+		.is('program_id', null)
+		.order('updated_at', { ascending: false })
 		.limit(1)
 	
 	if (error) {
@@ -480,6 +691,9 @@ function calculateArtistPay(
  * First assignment in the list is considered the leader unless role is specified
  */
 function isLeaderAssignment(assignment: ArtistAssignment, allAssignments: ArtistAssignment[]): boolean {
+	if (assignment.is_bandleader) {
+		return true
+	}
 	if (assignment.role === 'leader' || assignment.role === 'bandleader') {
 		return true
 	}
@@ -606,6 +820,7 @@ export async function generatePayrollForDateRange(
 			try {
 				const assignments = event.artists?.assignments || []
 				const artistProfiles = await getArtistCompProfiles(assignments.map((a) => a.artist_id))
+				const ensembleMemberships = await getEnsembleMembershipsForArtists(assignments.map((a) => a.artist_id))
 				const musicianCount = assignments.length || event.number_of_musicians || 1
 				const programType = event.programs?.program_type || 'other'
 				const facilityId = typeof event.location_id === 'number'
@@ -613,7 +828,7 @@ export async function generatePayrollForDateRange(
 					: null
 				
 				// Get rate rule for this program type
-				const rateRule = await getRateRule(rateCard.id, programType)
+				const rateRule = await getRateRule(rateCard.id, programType, event.program)
 				if (!rateRule) {
 					result.errors.push(`No rate rule found for program type "${programType}" in event "${event.title}"`)
 					continue
@@ -642,10 +857,15 @@ export async function generatePayrollForDateRange(
 						bandleaderFee
 					)
 					
-					// Use assignment rate if specified, otherwise use calculated rate
-					const effectiveRate = assignment.hourly_rate && assignment.hourly_rate > 0
-						? assignment.hourly_rate
-						: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
+					// For hourly rules, preserve explicit assignment hourly_rate overrides.
+					// For tiered/flat rules, always reflect the rate card rule.
+					const effectiveRate = rateRule.rate_type === 'hourly'
+						? ((assignment.hourly_rate && assignment.hourly_rate > 0)
+							? assignment.hourly_rate
+							: (rateRule.hourly_rate || 0))
+						: (rateRule.rate_type === 'tiered'
+							? (rateRule.first_hour_rate || 0)
+							: (rateRule.flat_rate || 0))
 					const rateDetails = getRateDetailsForRule(rateRule)
 					
 					const artistProfile = artistProfiles.get(assignment.artist_id)
@@ -655,6 +875,8 @@ export async function generatePayrollForDateRange(
 						artist_id: assignment.artist_id,
 						artist_name: assignment.artist_name || 'Unknown Artist',
 						payee_name: assignment.artist_name || 'Unknown Artist',
+						ensemble_id: assignment.ensemble_id ?? null,
+						ensemble_name: assignment.ensemble_name ?? null,
 						venue_id: event.venue,
 						facility_id: facilityId,
 						program_id: event.program,
@@ -734,7 +956,12 @@ export async function generatePayrollForDateRange(
 					}
 				}
 
-				const rolledUpEventEntries = applyLlcOwnerRollup(eventEntries, assignments, artistProfiles)
+				const rolledUpEventEntries = applyLlcOwnerRollup(
+					eventEntries,
+					assignments,
+					artistProfiles,
+					ensembleMemberships
+				)
 				result.entries.push(...rolledUpEventEntries)
 				result.totalAmount += rolledUpEventEntries.reduce((sum, entry) => sum + entry.total_pay, 0)
 				
@@ -925,6 +1152,7 @@ export async function generatePayrollForEvent(
 		} as EventWithAssignments
 		const assignments = typedEvent.artists?.assignments || []
 		const artistProfiles = await getArtistCompProfiles(assignments.map((a) => a.artist_id))
+		const ensembleMemberships = await getEnsembleMembershipsForArtists(assignments.map((a) => a.artist_id))
 		const musicianCount = assignments.length || typedEvent.number_of_musicians || 1
 		const programType = typedEvent.programs?.program_type || 'other'
 		const locationFacilityMap = await buildLocationFacilityMap(
@@ -935,7 +1163,7 @@ export async function generatePayrollForEvent(
 			: null
 
 		// Get rate rule for this program type
-		const rateRule = await getRateRule(rateCard.id, programType)
+		const rateRule = await getRateRule(rateCard.id, programType, typedEvent.program)
 		if (!rateRule) {
 			result.errors.push(`No rate rule found for program type "${programType}"`)
 			return result
@@ -962,10 +1190,15 @@ export async function generatePayrollForEvent(
 				bandleaderFee
 			)
 
-			// Use assignment rate if specified, otherwise use calculated rate
-			const effectiveRate = assignment.hourly_rate && assignment.hourly_rate > 0
-				? assignment.hourly_rate
-				: (rateRule.rate_type === 'hourly' ? rateRule.hourly_rate : rateRule.first_hour_rate) || 0
+			// For hourly rules, preserve explicit assignment hourly_rate overrides.
+			// For tiered/flat rules, always reflect the rate card rule.
+			const effectiveRate = rateRule.rate_type === 'hourly'
+				? ((assignment.hourly_rate && assignment.hourly_rate > 0)
+					? assignment.hourly_rate
+					: (rateRule.hourly_rate || 0))
+				: (rateRule.rate_type === 'tiered'
+					? (rateRule.first_hour_rate || 0)
+					: (rateRule.flat_rate || 0))
 			const rateDetails = getRateDetailsForRule(rateRule)
 
 			const artistProfile = artistProfiles.get(assignment.artist_id)
@@ -975,6 +1208,8 @@ export async function generatePayrollForEvent(
 				artist_id: assignment.artist_id,
 				artist_name: assignment.artist_name || 'Unknown Artist',
 				payee_name: assignment.artist_name || 'Unknown Artist',
+				ensemble_id: assignment.ensemble_id ?? null,
+				ensemble_name: assignment.ensemble_name ?? null,
 				venue_id: typedEvent.venue,
 				facility_id: facilityId,
 				program_id: typedEvent.program,
@@ -1003,7 +1238,7 @@ export async function generatePayrollForEvent(
 			result.totalAmount += calculation.totalPay
 		}
 
-		result.entries = applyLlcOwnerRollup(result.entries, assignments, artistProfiles)
+		result.entries = applyLlcOwnerRollup(result.entries, assignments, artistProfiles, ensembleMemberships)
 		result.totalAmount = result.entries.reduce((sum, entry) => sum + entry.total_pay, 0)
 
 		// Process production manager payroll:
@@ -1161,6 +1396,16 @@ export interface PayrollReconcilePreviewResult {
 	errors: string[]
 }
 
+function getRollupPreviewNote(entry: GeneratedPayrollEntry): string | undefined {
+	if (entry.rolled_into_bandleader && entry.rollup_owner_name) {
+		return `Rolled into bandleader payout (${entry.rollup_owner_name}).`
+	}
+	if ((entry.rollup_member_count || 0) > 0) {
+		return `Includes ${entry.rollup_member_count} rolled member${entry.rollup_member_count === 1 ? '' : 's'} ($${(entry.rollup_member_total || 0).toFixed(2)}).`
+	}
+	return undefined
+}
+
 export async function previewCompletedEventPayrollChanges(
 	eventId: number,
 	options: { userId?: string; eventOverride?: Record<string, any> } = {}
@@ -1234,7 +1479,8 @@ export async function previewCompletedEventPayrollChanges(
 				action: existingRow.status === PaymentStatus.PAID ? 'adjustment' : 'update',
 				current_total: existingTotal,
 				new_total: expectedTotal,
-				delta
+				delta,
+				note: getRollupPreviewNote(expected)
 			})
 		}
 
@@ -1246,7 +1492,8 @@ export async function previewCompletedEventPayrollChanges(
 				action: 'create',
 				current_total: 0,
 				new_total: Number(expected.total_pay || 0),
-				delta: Number(expected.total_pay || 0)
+				delta: Number(expected.total_pay || 0),
+				note: getRollupPreviewNote(expected)
 			})
 		}
 

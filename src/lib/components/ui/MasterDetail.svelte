@@ -39,6 +39,8 @@
 		storageKey?: string
 		// Responsive behavior
 		responsive?: boolean
+		// Optional row layout: title on first line, meta on second line
+		stackMetaOnSecondRow?: boolean
 		// Mobile settings
 		showMasterOnMobile?: boolean
 		// Force show children even when no item is selected (for create forms, etc.)
@@ -68,6 +70,7 @@
 		detailEmptyMessage = 'Choose an item from the list to view details',
 		storageKey,
 		responsive = true,
+		stackMetaOnSecondRow = false,
 		showMasterOnMobile = true,
 		forceShowChildren = false,
 		selectionMode = false,
@@ -181,6 +184,20 @@
 			}
 		}
 	}
+
+function getDetail(item: any): string {
+	return getItemDetail ? getItemDetail(item) : ''
+}
+
+function getStatusBadgeClass(detail: string): string {
+	const statusLower = detail.toLowerCase()
+	if (statusLower === 'planned') return 'bg-warning/20 text-warning border-warning/30'
+	if (statusLower === 'confirmed') return 'bg-success/20 text-success border-success/30'
+	if (statusLower === 'in_progress') return 'bg-info/20 text-info border-info/30'
+	if (statusLower === 'completed') return 'bg-base-300/50 text-base-content/60 border-base-300'
+	if (statusLower === 'cancelled') return 'bg-error/20 text-error border-error/30'
+	return 'bg-base-200 text-base-content/50'
+}
 </script>
 
 <svelte:window onkeydown={handleKeyboardNavigation} />
@@ -320,30 +337,40 @@
 											/>
 										</div>
 									{/if}
-									<div class="flex items-start justify-between gap-2 flex-1 min-w-0">
-										<div class="font-medium text-sm truncate flex-1 min-w-0">
-											{getItemTitle(item)}
+									{#if stackMetaOnSecondRow}
+										<div class="flex-1 min-w-0">
+											<div class="font-medium text-sm leading-tight whitespace-normal break-words">
+												{getItemTitle(item)}
+											</div>
+											<div class="mt-1 flex items-center gap-2 min-w-0">
+												{#if getDetail(item)}
+													<div class="badge badge-sm flex-none text-[10px] font-normal opacity-80 {getStatusBadgeClass(getDetail(item))}">
+														{getDetail(item)}
+													</div>
+												{/if}
+												{#if getItemSubtitle}
+													<div class="text-xs truncate min-w-0" class:opacity-70={selectedItem?.id !== item.id} class:opacity-90={selectedItem?.id === item.id}>
+														{getItemSubtitle(item)}
+													</div>
+												{/if}
+											</div>
 										</div>
-										{#if getItemDetail}
-											{@const detail = getItemDetail(item)}
-											{#if detail}
-												{@const statusLower = detail.toLowerCase()}
-												{@const badgeClass = statusLower === 'planned' ? 'bg-warning/20 text-warning border-warning/30' :
-													statusLower === 'confirmed' ? 'bg-success/20 text-success border-success/30' :
-													statusLower === 'in_progress' ? 'bg-info/20 text-info border-info/30' :
-													statusLower === 'completed' ? 'bg-base-300/50 text-base-content/60 border-base-300' :
-													statusLower === 'cancelled' ? 'bg-error/20 text-error border-error/30' :
-													'bg-base-200 text-base-content/50'}
-												<div class="badge badge-sm flex-none text-[10px] font-normal opacity-80 {badgeClass}">
-													{detail}
+									{:else}
+										<div class="flex items-start justify-between gap-2 flex-1 min-w-0">
+											<div class="font-medium text-sm truncate flex-1 min-w-0">
+												{getItemTitle(item)}
+											</div>
+											{#if getDetail(item)}
+												<div class="badge badge-sm flex-none text-[10px] font-normal opacity-80 {getStatusBadgeClass(getDetail(item))}">
+													{getDetail(item)}
 												</div>
 											{/if}
-										{/if}
-									</div>
-									{#if getItemSubtitle}
-										<div class="text-xs mt-1 truncate" class:opacity-70={selectedItem?.id !== item.id} class:opacity-90={selectedItem?.id === item.id}>
-											{getItemSubtitle(item)}
 										</div>
+										{#if getItemSubtitle}
+											<div class="text-xs mt-1 truncate" class:opacity-70={selectedItem?.id !== item.id} class:opacity-90={selectedItem?.id === item.id}>
+												{getItemSubtitle(item)}
+											</div>
+										{/if}
 									{/if}
 								</div>
 							{/each}
