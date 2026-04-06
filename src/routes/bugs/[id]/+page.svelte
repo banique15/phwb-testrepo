@@ -202,8 +202,164 @@
 	let devFixLoading = $state(false)
 	let devFixError = $state<string | null>(null)
 	let devFixWorkflowId = $state<string | null>(null)
-	let agentLogs = $state<Array<{ id: number; step: string; message: string; level: string; created_at?: string }>>([])
+	let agentLogs = $state<Array<{ id: number; step: string; message: string; level: string; created_at?: string; workflow_id?: string | null }>>([])
 	let clearLogsLoading = $state(false)
+	let stagingFeedbackLoading = $state(false)
+	let stagingFeedbackError = $state<string | null>(null)
+	let stagingFeedbackNote = $state('')
+	let migrationPreviewLoading = $state(false)
+	let migrationPreviewError = $state<string | null>(null)
+	let migrationPreview = $state<{
+		bug_id: number
+		workflow_id?: string | null
+		db_changes_detected: boolean
+		requires_db_confirmation: boolean
+		branch_name?: string | null
+		migration_files: string[]
+		summaries: Array<{
+			file: string
+			summary?: { operations?: string[]; touched_tables?: string[]; risk_tags?: string[] }
+			error?: string | null
+		}>
+		warnings?: string[]
+	} | null>(null)
+	let migrationApplyLoading = $state(false)
+	let migrationApplyError = $state<string | null>(null)
+	let migrationApplyResult = $state<{
+		success: boolean
+		applied: Array<{ file: string }>
+		failed: Array<{ file: string; error?: string }>
+		warnings?: string[]
+	} | null>(null)
+	let previewFetchedKey = $state<string | null>(null)
+	let applyConfirmModal = $state<HTMLDialogElement | null>(null)
+
+	type WorkflowState =
+		| 'code_complete_db_pending'
+		| 'staging_ready'
+		| 'staging_ready_db_pending'
+		| 'staging_validated'
+		| 'staging_rejected'
+		| 'ready_for_pr'
+		| 'fully_complete'
+	const workflowStateMeta: Record<WorkflowState, { label: string; badgeClass: string }> = {
+		code_complete_db_pending: { label: 'Code complete - DB pending', badgeClass: 'badge-warning' },
+		staging_ready: { label: 'Staging ready', badgeClass: 'badge-info' },
+		staging_ready_db_pending: { label: 'Staging ready - DB pending', badgeClass: 'badge-warning' },
+		staging_validated: { label: 'Staging validated', badgeClass: 'badge-success' },
+		staging_rejected: { label: 'Staging rejected', badgeClass: 'badge-error' },
+		ready_for_pr: { label: 'Ready for PR', badgeClass: 'badge-accent' },
+		fully_complete: { label: 'Fully complete', badgeClass: 'badge-success' }
+	}
+	const stagingChecklistItems = [
+		{ id: 'load', label: 'Page loads and the target flow is accessible.' },
+		{ id: 'behavior', label: 'Requested behavior works as expected on staging.' },
+		{ id: 'regression', label: 'No obvious regressions in nearby workflow.' },
+		{ id: 'data', label: 'Data/save behavior looks correct after refresh.' }
+	] as const
+	let stagingChecklistState = $state<Record<string, boolean>>(
+		Object.fromEntries(stagingChecklistItems.map((item) => [item.id, false]))
+	)
+
+	function extractWorkflowState(message: string | undefined): WorkflowState | null {
+		if (!message) return null
+		const m = message.match(/`([^`]+)`/)
+		if (!m?.[1]) return null
+		const state = m[1] as WorkflowState
+		return state in workflowStateMeta ? state : null
+	}
+
+	function extractFirstUrl(message: string | undefined): string | null {
+		if (!message) return null
+		const m = message.match(/https?:\/\/[^\s)>"']+/)
+		return m?.[0] ?? null
+	}
+	function latestLogMessage(step: string, predicate?: (message: string) => boolean): string | null {
+		for (let i = agentLogs.length - 1; i >= 0; i--) {
+			const row = agentLogs[i]
+			if (row?.step !== step) continue
+			const msg = row?.message ?? ''
+			if (!predicate || predicate(msg)) return msg
+		}
+		return null
+	}
+
+	const workflowStateLogs = $derived(agentLogs.filter((log) => log.step === 'workflow_state'))
+	const currentWorkflowState = $derived.by<WorkflowState | null>(() => {
+		for (let i = workflowStateLogs.length - 1; i >= 0; i--) {
+			const parsed = extractWorkflowState(workflowStateLogs[i]?.message)
+			if (parsed) return parsed
+		}
+		return null
+	})
+	const currentWorkflowStateMessage = $derived.by<string | null>(() => {
+		for (let i = workflowStateLogs.length - 1; i >= 0; i--) {
+			const msg = workflowStateLogs[i]?.message
+			if (extractWorkflowState(msg)) return msg ?? null
+		}
+		return null
+	})
+	const currentStagingUrl = $derived.by<string | null>(() => {
+		for (let i = workflowStateLogs.length - 1; i >= 0; i--) {
+			const url = extractFirstUrl(workflowStateLogs[i]?.message)
+			if (url) return url
+		}
+		return null
+	})
+	const currentWorkflowId = $derived.by<string | null>(() => {
+		for (let i = agentLogs.length - 1; i >= 0; i--) {
+			const wid = agentLogs[i]?.workflow_id
+			if (wid) return wid
+		}
+		return devFixWorkflowId
+	})
+	const canMarkStagingValidated = $derived(
+		currentWorkflowState === 'staging_ready' || currentWorkflowState === 'staging_ready_db_pending'
+	)
+	const checklistComplete = $derived(stagingChecklistItems.every((item) => stagingChecklistState[item.id]))
+	const isDbPendingState = $derived(
+		currentWorkflowState === 'code_complete_db_pending' || currentWorkflowState === 'staging_ready_db_pending'
+	)
+	const latestContractMessage = $derived.by<string | null>(() =>
+		latestLogMessage('analyze_and_code', (m) => m.includes('Implementation contract:'))
+	)
+	const evidenceImpactedLayers = $derived.by<string[]>(() => {
+		const msg = latestContractMessage
+		if (!msg) return []
+		const m = msg.match(/layers=([^|]+)(?:\||$)/)
+		if (!m?.[1]) return []
+		return m[1]
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean)
+	})
+	const evidenceVerifyMode = $derived.by<string | null>(() => {
+		const msg = latestLogMessage('verify_fix', (m) => m.includes('Verify mode:'))
+		if (!msg) return null
+		const m = msg.match(/Verify mode:\s*`([^`]+)`/)
+		return m?.[1] ?? null
+	})
+	const evidenceMigrationStatus = $derived.by<string>(() => {
+		if (currentWorkflowState === 'code_complete_db_pending' || currentWorkflowState === 'staging_ready_db_pending') {
+			return 'pending_apply'
+		}
+		if (migrationApplyResult) {
+			return migrationApplyResult.success ? 'applied_success' : 'apply_failed'
+		}
+		const dbApplyMsg = latestLogMessage('db_apply')
+		if (dbApplyMsg?.includes('✅ DB apply completed')) return 'applied_success'
+		if (dbApplyMsg?.includes('❌ DB apply completed with failures')) return 'apply_failed'
+		if (migrationPreview?.db_changes_detected) return 'detected_not_applied'
+		return 'not_required_or_unknown'
+	})
+	const evidenceStagingValidation = $derived.by<string>(() => {
+		if (currentWorkflowState === 'staging_validated') return 'validated'
+		if (currentWorkflowState === 'staging_rejected') return 'rejected'
+		if (currentWorkflowState === 'staging_ready' || currentWorkflowState === 'staging_ready_db_pending') {
+			return 'awaiting_validation'
+		}
+		return 'n/a'
+	})
 
 	// Poll phwb_dev_logs for this bug so Agent activity shows live logs
 	$effect(() => {
@@ -217,12 +373,13 @@
 				if (!res.ok || cancelled) return
 				const data = await res.json()
 				if (!cancelled && Array.isArray(data)) {
-					agentLogs = data.map((row: { id: number; step: string; message: string; level: string; created_at?: string }) => ({
+					agentLogs = data.map((row: { id: number; step: string; message: string; level: string; created_at?: string; workflow_id?: string | null }) => ({
 						id: row.id,
 						step: row.step ?? '',
 						message: row.message ?? '',
 						level: row.level ?? 'info',
-						created_at: row.created_at
+						created_at: row.created_at,
+						workflow_id: row.workflow_id ?? null
 					}))
 				}
 			} catch {
@@ -250,6 +407,131 @@
 			clearLogsLoading = false
 		}
 	}
+
+	async function submitStagingFeedback(state: 'staging_validated' | 'staging_rejected') {
+		const bid = bug?.id
+		if (bid == null || !canMarkStagingValidated) return
+		if (state === 'staging_validated' && !checklistComplete) {
+			stagingFeedbackError = 'Complete all validation checklist items before approving staging.'
+			return
+		}
+		stagingFeedbackLoading = true
+		stagingFeedbackError = null
+		const trimmedNote = stagingFeedbackNote.trim()
+		try {
+			const res = await fetch(`/api/bugs/${bid}/dev-logs`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					state,
+					workflow_id: currentWorkflowId,
+					detail:
+						trimmedNote ||
+						(state === 'staging_validated'
+							? 'Staging preview was validated from bug detail UI.'
+							: 'Staging preview was rejected from bug detail UI; further fixes are required.')
+				})
+			})
+			if (!res.ok) {
+				const payload = await res.json().catch(() => ({}))
+				stagingFeedbackError = payload?.message || payload?.error || payload?.detail || `Request failed (${res.status})`
+			} else {
+				// Reset transient inputs after successful submission.
+				stagingFeedbackNote = ''
+				stagingChecklistState = Object.fromEntries(stagingChecklistItems.map((item) => [item.id, false]))
+			}
+		} catch (e) {
+			stagingFeedbackError = e instanceof Error ? e.message : 'Failed to submit staging feedback'
+		} finally {
+			stagingFeedbackLoading = false
+		}
+	}
+
+	async function fetchMigrationPreview(manual = false) {
+		const bid = bug?.id
+		if (bid == null || !VOICE_AGENT_URL) return
+		if (!manual) {
+			const key = `${bid}:${currentWorkflowId ?? ''}`
+			if (previewFetchedKey === key) return
+			previewFetchedKey = key
+		}
+		migrationPreviewLoading = true
+		migrationPreviewError = null
+		try {
+			const base = VOICE_AGENT_URL.replace(/\/$/, '')
+			const res = await fetch(`${base}/api/dev/fix/migrations/preview`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					bug_id: bid,
+					workflow_id: currentWorkflowId ?? undefined
+				})
+			})
+			const payload = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				migrationPreviewError = payload?.detail || payload?.error || `Preview request failed (${res.status})`
+				return
+			}
+			migrationPreview = payload
+		} catch (e) {
+			migrationPreviewError = e instanceof Error ? e.message : 'Failed to load migration preview'
+		} finally {
+			migrationPreviewLoading = false
+		}
+	}
+
+	function openApplyDbModal() {
+		migrationApplyError = null
+		applyConfirmModal?.showModal()
+	}
+
+	async function applyDbChanges() {
+		const bid = bug?.id
+		if (bid == null || !VOICE_AGENT_URL) return
+		migrationApplyLoading = true
+		migrationApplyError = null
+		migrationApplyResult = null
+		try {
+			const base = VOICE_AGENT_URL.replace(/\/$/, '')
+			const res = await fetch(`${base}/api/dev/fix/migrations/apply`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					bug_id: bid,
+					workflow_id: currentWorkflowId ?? undefined,
+					branch_name: migrationPreview?.branch_name ?? undefined,
+					confirm: true,
+					confirm_destructive: true,
+					dry_run: false
+				})
+			})
+			const payload = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				migrationApplyError = payload?.detail || payload?.error || `Apply request failed (${res.status})`
+				return
+			}
+			migrationApplyResult = {
+				success: Boolean(payload?.success),
+				applied: Array.isArray(payload?.applied) ? payload.applied : [],
+				failed: Array.isArray(payload?.failed) ? payload.failed : [],
+				warnings: Array.isArray(payload?.warnings) ? payload.warnings : []
+			}
+			if (migrationApplyResult.success) {
+				applyConfirmModal?.close()
+			}
+			await fetchMigrationPreview(true)
+		} catch (e) {
+			migrationApplyError = e instanceof Error ? e.message : 'Failed to apply migrations'
+		} finally {
+			migrationApplyLoading = false
+		}
+	}
+
+	$effect(() => {
+		if (isDbPendingState && VOICE_AGENT_URL) {
+			void fetchMigrationPreview(false)
+		}
+	})
 
 	async function initiateDevFix() {
 		if (!bug || !VOICE_AGENT_URL) return
@@ -559,6 +841,175 @@
 							{#if devFixWorkflowId}
 								<p class="text-xs text-success">Workflow started: <span class="font-mono truncate block">{devFixWorkflowId}</span></p>
 							{/if}
+							{#if currentWorkflowState}
+								<div class="rounded-lg border border-base-300 bg-base-200/40 p-2 text-xs">
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-base-content/70">Current state</span>
+										<span class={`badge badge-sm ${workflowStateMeta[currentWorkflowState].badgeClass}`}>
+											{workflowStateMeta[currentWorkflowState].label}
+										</span>
+									</div>
+									{#if currentWorkflowStateMessage}
+										<p class="mt-1 text-base-content/70 whitespace-pre-wrap">{currentWorkflowStateMessage}</p>
+									{/if}
+									{#if currentStagingUrl}
+										<a class="btn btn-outline btn-xs mt-1 w-full" href={currentStagingUrl} target="_blank" rel="noreferrer">
+											Open staging preview
+										</a>
+									{/if}
+									{#if canMarkStagingValidated}
+										<div class="mt-2 rounded border border-base-300 bg-base-100/60 p-2">
+											<p class="font-medium text-base-content/70 mb-1">Validation checklist</p>
+											<div class="space-y-1">
+												{#each stagingChecklistItems as item}
+													<label class="flex items-start gap-2 cursor-pointer">
+														<input
+															type="checkbox"
+															class="checkbox checkbox-xs mt-0.5"
+															checked={stagingChecklistState[item.id]}
+															onchange={(e) => {
+																stagingChecklistState = {
+																	...stagingChecklistState,
+																	[item.id]: e.currentTarget.checked
+																}
+															}}
+														/>
+														<span class="text-[11px] leading-tight">{item.label}</span>
+													</label>
+												{/each}
+											</div>
+											<textarea
+												class="textarea textarea-bordered textarea-xs w-full mt-2"
+												placeholder="Optional validation notes"
+												rows="2"
+												bind:value={stagingFeedbackNote}
+											></textarea>
+											<div class="grid grid-cols-2 gap-2 mt-2">
+												<button
+													type="button"
+													class="btn btn-success btn-xs"
+													onclick={() => submitStagingFeedback('staging_validated')}
+													disabled={stagingFeedbackLoading || !checklistComplete}
+												>
+													Approve
+												</button>
+												<button
+													type="button"
+													class="btn btn-error btn-outline btn-xs"
+													onclick={() => submitStagingFeedback('staging_rejected')}
+													disabled={stagingFeedbackLoading}
+												>
+													Reject
+												</button>
+											</div>
+											{#if stagingFeedbackLoading}
+												<p class="text-xs text-base-content/60 mt-1">Submitting feedback…</p>
+											{/if}
+										</div>
+									{/if}
+									{#if stagingFeedbackError}
+										<p class="text-error mt-1 whitespace-pre-wrap">{stagingFeedbackError}</p>
+									{/if}
+								</div>
+							{/if}
+							<div class="rounded-lg border border-base-300 bg-base-200/30 p-2 text-xs">
+								<p class="font-medium text-base-content/70 mb-1">Evidence</p>
+								<div class="space-y-1">
+									<div>
+										<span class="text-base-content/60">Impacted layers:</span>
+										{#if evidenceImpactedLayers.length > 0}
+											<div class="mt-1 flex flex-wrap gap-1">
+												{#each evidenceImpactedLayers as layer}
+													<span class="badge badge-ghost badge-xs">{layer}</span>
+												{/each}
+											</div>
+										{:else}
+											<span class="ml-1 text-base-content/70">—</span>
+										{/if}
+									</div>
+									<div>
+										<span class="text-base-content/60">Verify mode:</span>
+										<span class="ml-1">{evidenceVerifyMode ?? '—'}</span>
+									</div>
+									<div>
+										<span class="text-base-content/60">Migration status:</span>
+										<span class="ml-1">{evidenceMigrationStatus}</span>
+									</div>
+									<div>
+										<span class="text-base-content/60">Staging validation:</span>
+										<span class="ml-1">{evidenceStagingValidation}</span>
+									</div>
+									{#if currentStagingUrl}
+										<div>
+											<span class="text-base-content/60">Staging URL:</span>
+											<a class="link link-primary ml-1 break-all" href={currentStagingUrl} target="_blank" rel="noreferrer">
+												{currentStagingUrl}
+											</a>
+										</div>
+									{/if}
+								</div>
+							</div>
+							{#if isDbPendingState}
+								<div class="rounded-lg border border-warning/30 bg-warning/10 p-2 text-xs">
+									<div class="flex items-center justify-between gap-2">
+										<p class="font-medium text-warning-content">DB changes detected</p>
+										<button
+											type="button"
+											class="btn btn-ghost btn-xs"
+											onclick={() => fetchMigrationPreview(true)}
+											disabled={migrationPreviewLoading}
+										>
+											{#if migrationPreviewLoading}Refreshing…{:else}Refresh{/if}
+										</button>
+									</div>
+									{#if migrationPreviewError}
+										<p class="text-error mt-1 whitespace-pre-wrap">{migrationPreviewError}</p>
+									{/if}
+									{#if migrationPreview?.db_changes_detected}
+										{#if migrationPreview.migration_files?.length}
+											<p class="mt-1 text-base-content/80">Migrations: {migrationPreview.migration_files.join(', ')}</p>
+										{/if}
+										{#if migrationPreview.summaries?.length}
+											<div class="mt-1 space-y-1">
+												{#each migrationPreview.summaries as s}
+													<div class="rounded border border-base-300 bg-base-100/60 p-1.5">
+														<p class="font-medium break-all">{s.file}</p>
+														{#if s.summary}
+															<p class="text-base-content/70">
+																Ops: {(s.summary.operations || []).join(', ') || '—'} | Tables: {(s.summary.touched_tables || []).join(', ') || '—'}
+															</p>
+															<p class="text-base-content/70">Risk: {(s.summary.risk_tags || []).join(', ') || 'none'}</p>
+														{/if}
+														{#if s.error}
+															<p class="text-error">{s.error}</p>
+														{/if}
+													</div>
+												{/each}
+											</div>
+										{/if}
+										<div class="mt-2">
+											<button
+												type="button"
+												class="btn btn-warning btn-xs w-full"
+												onclick={openApplyDbModal}
+												disabled={migrationApplyLoading}
+											>
+												Apply DB changes
+											</button>
+										</div>
+									{:else if migrationPreview && !migrationPreview.db_changes_detected}
+										<p class="mt-1 text-base-content/70">No pending migration files found for this workflow.</p>
+									{/if}
+									{#if migrationApplyError}
+										<p class="text-error mt-1 whitespace-pre-wrap">{migrationApplyError}</p>
+									{/if}
+									{#if migrationApplyResult}
+										<p class={`mt-1 ${migrationApplyResult.success ? 'text-success' : 'text-error'}`}>
+											Apply result: {migrationApplyResult.success ? 'success' : 'failed'} (applied: {migrationApplyResult.applied.length}, failed: {migrationApplyResult.failed.length})
+										</p>
+									{/if}
+								</div>
+							{/if}
 						</div>
 						<!-- Live logs: placeholder for phwb_dev_logs integration -->
 						<div class="mt-3 flex flex-col border border-base-300 rounded-lg overflow-hidden">
@@ -595,6 +1046,36 @@
 				</div>
 			</div>
 		</div>
+		<dialog class="modal" bind:this={applyConfirmModal}>
+			<div class="modal-box">
+				<h3 class="font-bold text-lg">Apply DB changes</h3>
+				<p class="py-2 text-sm">
+					This will execute pending migration SQL for this bug/workflow through the backend apply endpoint.
+					Proceed only if you are ready to update the target database environment.
+				</p>
+				{#if migrationPreview?.migration_files?.length}
+					<p class="text-xs text-base-content/70 break-all">
+						Files: {migrationPreview.migration_files.join(', ')}
+					</p>
+				{/if}
+				<div class="modal-action">
+					<form method="dialog">
+						<button class="btn btn-ghost btn-sm" disabled={migrationApplyLoading}>Cancel</button>
+					</form>
+					<button
+						type="button"
+						class="btn btn-warning btn-sm"
+						onclick={applyDbChanges}
+						disabled={migrationApplyLoading}
+					>
+						{#if migrationApplyLoading}Applying…{:else}Confirm apply{/if}
+					</button>
+				</div>
+			</div>
+			<form method="dialog" class="modal-backdrop">
+				<button aria-label="Close">close</button>
+			</form>
+		</dialog>
 		{/if}
 	</div>
 </ErrorBoundary>

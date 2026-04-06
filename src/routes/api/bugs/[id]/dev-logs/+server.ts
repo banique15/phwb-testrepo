@@ -56,3 +56,55 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 	return json({ ok: true })
 }
+
+export const POST: RequestHandler = async ({ params, locals, request }) => {
+	if (!locals.session) {
+		throw error(401, 'Authentication required')
+	}
+	const bugId = parseInt(params.id, 10)
+	if (isNaN(bugId)) {
+		throw error(400, 'Invalid bug ID')
+	}
+	const supabase = locals.supabaseAdmin || locals.supabase
+	if (!supabase) {
+		throw error(500, 'Database connection not available')
+	}
+
+	const body = await request.json().catch(() => ({} as Record<string, unknown>))
+	const state = String(body?.state ?? '').trim()
+	const workflowId = body?.workflow_id == null ? null : String(body.workflow_id)
+	const detail = String(body?.detail ?? '').trim()
+
+	// Intentionally narrow for safety: this endpoint currently supports staging feedback states only.
+	if (state !== 'staging_validated' && state !== 'staging_rejected') {
+		throw error(400, 'Unsupported workflow state')
+	}
+
+	const isValidated = state === 'staging_validated'
+	const stateLabel = isValidated ? 'staging_validated' : 'staging_rejected'
+	const defaultDetail = isValidated
+		? 'Staging validation confirmed by reviewer.'
+		: 'Staging validation rejected by reviewer. Further iteration is required.'
+	const msg = `🔖 Workflow state → \`${stateLabel}\`. ${detail || defaultDetail}`
+
+	const { error: logError } = await supabase.from('phwb_dev_logs').insert({
+		bug_id: bugId,
+		step: 'workflow_state',
+		message: msg,
+		level: isValidated ? 'success' : 'warning',
+		workflow_id: workflowId
+	})
+	if (logError) {
+		throw error(500, String(logError.message))
+	}
+
+	// Mirror workflow state in comments so non-technical reviewers can track progression.
+	await supabase.from('phwb_bug_comments').insert({
+		bug_id: bugId,
+		user_id: null,
+		content: msg,
+		is_internal: false
+	})
+
+	return json({ ok: true, state: stateLabel, message: msg })
+}

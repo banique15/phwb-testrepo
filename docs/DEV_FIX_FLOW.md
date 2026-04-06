@@ -181,3 +181,39 @@ This deletes bugs whose title starts with `[Script Test]` or `[Dev Fix Test]`, a
 - **Instruction:** Pull “steps to reproduce” / “acceptance criteria” from the bug into a dedicated section for the agent.
 - **Verification:** Log the exact `bun run check` output to `phwb_dev_logs` on failure so the UI shows why verify failed.
 - **Branch re-runs:** If the same bug is re-run, handle “branch already exists” (e.g. new timestamp or delete remote branch first).
+
+---
+
+## 11. QA policy (staging-first)
+
+This flow now uses a two-layer QA policy:
+
+1. **Fast gate (edited-file focused verify):**
+   - Keep `verify_fix` fast and stable by default with `DEV_AGENT_VERIFY_MODE=edited_only` (or `hybrid`/`strict` when needed).
+   - This gate is for fast signal on changes made by the current run.
+
+2. **Outcome gate (final QA on affected flow):**
+   - QA validates behavior on the staging preview URL for the affected user flow.
+   - Validation is outcome-based (what the ticket asked for), not only file-based.
+   - Use the bug detail Dev Agent section checklist and approve/reject controls to record staging validation.
+
+For DB-affecting tickets:
+
+- `code_complete_db_pending` / `staging_ready_db_pending` are **not QA-passable** states.
+- Migration preview/apply status must be confirmed before considering the fix fully complete.
+
+---
+
+## 12. Test strategy updates (F3)
+
+Keep existing smoke coverage and add focused regression checks for staging-first behavior:
+
+- **Smoke checks stay in place** for fast confidence on core dev-fix routes and trigger actions.
+- **Cross-layer ticket checks** validate that bug detail surfaces evidence from logs (impacted layers, verify mode, migration status, staging link/validation).
+- **DB-changing refresh checks** validate that DB-pending state and migration preview details remain visible after refresh/reload.
+
+Suggested command:
+
+```bash
+npm run test:e2e -- tests/e2e/dev-fix-simulation.spec.ts
+```

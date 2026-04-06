@@ -33,6 +33,7 @@ docs/
 | [Architecture Optimization Analysis](planning/architecture-optimization-analysis.md) | Planning | Complete | Dev Team | 2024-12-24 | P1 |
 | [Events Improvements](planning/events-improvements.md) | Planning | Complete | Dev Team | 2024-12-24 | P2 |
 | [Implementation Tasks](planning/implementation-tasks.md) | Planning | Complete | Dev Team | 2024-12-24 | P1 |
+| [Dev Fix Final Plan Implementation Checklist](planning/dev-fix-final-plan-implementation-checklist.md) | Planning | In Progress | Dev Team | 2026-04-01 | P0 |
 | [Optimization Roadmap](planning/optimization-roadmap.md) | Planning | Complete | Dev Team | 2024-12-24 | P1 |
 | [Obsidian Vault Transformation](planning/obsidian-vault-transformation.md) | Planning | Draft | Dev Team | 2025-01-24 | P1 |
 | [CLAUDE.md](../CLAUDE.md) | Architecture | Complete | Dev Team | 2024-12-24 | P0 |
