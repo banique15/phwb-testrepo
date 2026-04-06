@@ -32,6 +32,8 @@ export const eventSchema = z.object({
 	// Production Manager payroll fields (kept for payroll card/backend; UI for these removed from create/edit event)
 	pm_hours: z.number().min(0, 'PM hours must be non-negative').optional().nullable(),
 	pm_rate: z.number().min(0, 'PM rate must be non-negative').optional().nullable(),
+	// Setlist review flag
+	requires_setlist_review: z.boolean().default(false).optional(),
 })
 
 export const createEventSchema = eventSchema.omit({

@@ -39,6 +39,7 @@
 	let numberOfMusicians = $state<number | null>(null)
 	let productionManagerArtistId = $state<string | null>(null)
 	let productionManagerId = $state<string | null>(null)
+	let requiresSetlistReview = $state(false)
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -181,6 +182,7 @@
 				...(locationId && { location_id: locationId }),
 				...(programId && { program: programId }),
 				...(notes && { notes }),
+				requires_setlist_review: requiresSetlistReview,
 				...(numberOfAttendees !== null && { number_of_attendees: numberOfAttendees }),
 				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
@@ -441,17 +443,33 @@
 
 			<!-- Production Manager (artist with is_production_manager) -->
 			<div class="border-t border-base-300 pt-4 mt-4">
-				<h4 class="font-medium text-sm mb-3">Production Manager</h4>
-				<ProductionManagerSelector
-					value={productionManagerId}
-					placeholder="Select a production manager (optional)"
-					disabled={submitting}
-					onchange={(selectedProductionManagerId, productionManager) => {
-						productionManagerId = selectedProductionManagerId
-						productionManagerArtistId = productionManager?.artist_id ?? null
-					}}
-				/>
+			<h4 class="font-medium text-sm mb-3">Production Manager</h4>
+			<ProductionManagerSelector
+			value={productionManagerId}
+			placeholder="Select a production manager (optional)"
+			disabled={submitting}
+			onchange={(selectedProductionManagerId, productionManager) => {
+			productionManagerId = selectedProductionManagerId
+			productionManagerArtistId = productionManager?.artist_id ?? null
+			}}
+			/>
 			</div>
+
+		<!-- Requires Setlist Review toggle -->
+		<div class="form-control border-t border-base-300 pt-4 mt-4">
+			<label class="label cursor-pointer justify-start gap-3">
+				<input
+					type="checkbox"
+					class="toggle toggle-warning"
+					bind:checked={requiresSetlistReview}
+					disabled={submitting}
+				/>
+				<span class="label-text font-medium">Requires Setlist Review</span>
+			</label>
+			<label class="label pt-0">
+				<span class="label-text-alt text-base-content/60">Flag this event as requiring a setlist review before approval.</span>
+			</label>
+		</div>
 
 				<div class="form-control">
 					<label class="label">
