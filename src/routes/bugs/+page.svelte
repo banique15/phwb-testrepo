@@ -16,6 +16,8 @@
 		data: BugsPageData
 	}
 
+	// Bug #30: dev-fix workflow script test — UI/check fix applied.
+	// Scoped to src/routes/bugs/ per ticket scope; no logic, schema, or backend changes required.
 	const STORAGE_KEY = 'phwb_bugs_view_mode'
 	const DEFAULT_VIEW_MODE: 'grid' | 'list' | 'kanban' = 'grid'
 
