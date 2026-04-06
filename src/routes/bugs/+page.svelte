@@ -448,9 +448,9 @@
 			</div>
 			<div class="flex items-center gap-3">
 				<!-- View Toggle -->
-				<div class="btn-group">
+				<div class="join">
 					<button
-						class="btn btn-sm {viewMode === 'grid' ? 'btn-active' : 'btn-outline'}"
+						class="btn btn-sm join-item {viewMode === 'grid' ? 'btn-active' : 'btn-outline'}"
 						onclick={() => {
 							viewMode = 'grid'
 							saveViewMode('grid')
@@ -460,7 +460,7 @@
 						<Grid3x3 class="w-4 h-4" />
 					</button>
 					<button
-						class="btn btn-sm {viewMode === 'list' ? 'btn-active' : 'btn-outline'}"
+						class="btn btn-sm join-item {viewMode === 'list' ? 'btn-active' : 'btn-outline'}"
 						onclick={() => {
 							viewMode = 'list'
 							saveViewMode('list')
@@ -470,7 +470,7 @@
 						<List class="w-4 h-4" />
 					</button>
 					<button
-						class="btn btn-sm {viewMode === 'kanban' ? 'btn-active' : 'btn-outline'}"
+						class="btn btn-sm join-item {viewMode === 'kanban' ? 'btn-active' : 'btn-outline'}"
 						onclick={() => {
 							viewMode = 'kanban'
 							saveViewMode('kanban')
