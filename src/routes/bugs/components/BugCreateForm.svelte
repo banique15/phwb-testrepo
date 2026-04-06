@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createBug, bugsStore } from '$lib/stores/bugs'
 	import { createBugSchema, type CreateBug } from '$lib/schemas/bug'
-	import { X } from 'lucide-svelte'
+	import { X, Loader2 } from 'lucide-svelte'
 	import { supabase } from '$lib/supabase'
 	import { invalidateAll } from '$app/navigation'
 
@@ -253,8 +253,13 @@
 					<button type="button" class="btn btn-ghost" onclick={handleClose} disabled={submitting}>
 						Cancel
 					</button>
-					<button type="submit" class="btn btn-primary" disabled={submitting}>
-						{submitting ? 'Creating...' : 'Create Issue'}
+					<button type="submit" class="btn btn-primary gap-2" disabled={submitting}>
+						{#if submitting}
+							<Loader2 class="w-4 h-4 animate-spin" />
+							Creating...
+						{:else}
+							Create Issue
+						{/if}
 					</button>
 				</div>
 			</form>
