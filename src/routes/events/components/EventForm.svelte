@@ -37,6 +37,7 @@
 		end_time: event?.end_time || '',
 		status: typeof event?.status === 'string' ? event.status : 'planned',
 		notes: typeof event?.notes === 'string' ? event.notes : '',
+		setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 		location_id: event?.location_id || undefined,
 		program: event?.program || undefined,
 		schedule: event?.schedule || null,
@@ -346,6 +347,9 @@
 					}
 				})
 				
+				// Explicitly include setlist_review_notes even when empty/null to allow clearing
+				updateData.setlist_review_notes = dataToSave.setlist_review_notes || null
+				
 				console.log('EventForm: Sending update data:', updateData)
 				await eventsStore.enhanced.update(event.id!, updateData)
 			} else {
@@ -369,6 +373,7 @@
 			end_time: event?.end_time || '',
 			status: typeof event?.status === 'string' ? event.status : 'planned',
 			notes: typeof event?.notes === 'string' ? event.notes : '',
+			setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 			location_id: event?.location_id || undefined,
 			program: event?.program || undefined,
 			schedule: event?.schedule || null,
@@ -807,6 +812,20 @@
 							<span class="label-text-alt text-error">{errors.notes}</span>
 						</label>
 					{/if}
+				</div>
+
+				<!-- Setlist Review Notes -->
+				<div class="form-control">
+					<label class="label" for="setlist_review_notes">
+						<span class="label-text">Setlist review notes</span>
+					</label>
+					<textarea
+						id="setlist_review_notes"
+						bind:value={formData.setlist_review_notes}
+						class="textarea textarea-bordered"
+						placeholder="Enter setlist review notes..."
+						rows="4"
+					></textarea>
 				</div>
 			</div>
 		{:else if activeTab === 'schedule'}
