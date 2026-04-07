@@ -320,6 +320,18 @@
 	const isDbPendingState = $derived(
 		currentWorkflowState === 'code_complete_db_pending' || currentWorkflowState === 'staging_ready_db_pending'
 	)
+	const contractIndicatesDb = $derived.by<boolean>(() => {
+		const msg = latestContractMessage ?? ''
+		return msg.includes('migration_required=yes') || evidenceImpactedLayers.includes('DB')
+	})
+	const verifyDetectedDbChanges = $derived.by<boolean>(() => {
+		const msg = latestLogMessage('verify_fix', (m) => m.includes('DB change metadata:'))
+		if (!msg) return false
+		return msg.includes('db_changes_detected=true')
+	})
+	const showDbConfirmationPanel = $derived(
+		isDbPendingState || contractIndicatesDb || verifyDetectedDbChanges || Boolean(migrationPreview?.db_changes_detected)
+	)
 	const latestContractMessage = $derived.by<string | null>(() =>
 		latestLogMessage('analyze_and_code', (m) => m.includes('Implementation contract:'))
 	)
@@ -528,7 +540,7 @@
 	}
 
 	$effect(() => {
-		if (isDbPendingState && VOICE_AGENT_URL) {
+		if (showDbConfirmationPanel && VOICE_AGENT_URL) {
 			void fetchMigrationPreview(false)
 		}
 	})
@@ -949,10 +961,16 @@
 									{/if}
 								</div>
 							</div>
-							{#if isDbPendingState}
+							{#if showDbConfirmationPanel}
 								<div class="rounded-lg border border-warning/30 bg-warning/10 p-2 text-xs">
 									<div class="flex items-center justify-between gap-2">
-										<p class="font-medium text-warning-content">DB changes detected</p>
+										<p class="font-medium text-warning-content">
+											{#if isDbPendingState || verifyDetectedDbChanges || migrationPreview?.db_changes_detected}
+												DB changes detected
+											{:else}
+												Potential DB changes detected
+											{/if}
+										</p>
 										<button
 											type="button"
 											class="btn btn-ghost btn-xs"
@@ -999,6 +1017,15 @@
 										</div>
 									{:else if migrationPreview && !migrationPreview.db_changes_detected}
 										<p class="mt-1 text-base-content/70">No pending migration files found for this workflow.</p>
+										{#if contractIndicatesDb}
+											<p class="mt-1 text-warning-content/80">
+												Contract indicates DB work; if this is unexpected, refresh after verify/create-PR steps or review agent output.
+											</p>
+										{/if}
+									{:else if contractIndicatesDb}
+										<p class="mt-1 text-base-content/70">
+											DB-related implementation is expected. Waiting for migration detection metadata.
+										</p>
 									{/if}
 									{#if migrationApplyError}
 										<p class="text-error mt-1 whitespace-pre-wrap">{migrationApplyError}</p>
