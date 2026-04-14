@@ -51,7 +51,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
 		production_manager_artist_id: event?.production_manager_artist_id || null,
-		production_manager_id: event?.production_manager_id || null
+		production_manager_id: event?.production_manager_id || null,
+		setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : ''
 	})
 
 	// Update form data when event changes
@@ -73,7 +74,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
 				production_manager_artist_id: event.production_manager_artist_id || null,
-				production_manager_id: event.production_manager_id || null
+				production_manager_id: event.production_manager_id || null,
+				setlist_review_notes: typeof event.setlist_review_notes === 'string' ? event.setlist_review_notes : ''
 			}
 		}
 	})
@@ -167,7 +169,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
 				production_manager_artist_id: event.production_manager_artist_id || null,
-				production_manager_id: event.production_manager_id || null
+				production_manager_id: event.production_manager_id || null,
+				setlist_review_notes: typeof event.setlist_review_notes === 'string' ? event.setlist_review_notes : ''
 			}
 		}
 		errors = {}
@@ -435,6 +438,11 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				}
 				if (formData.number_of_musicians !== event.number_of_musicians) {
 					updateData.number_of_musicians = formData.number_of_musicians
+				}
+				const currentSetlistNotes = event.setlist_review_notes ?? null
+				const newSetlistNotes = formData.setlist_review_notes || null
+				if (newSetlistNotes !== currentSetlistNotes) {
+					updateData.setlist_review_notes = newSetlistNotes
 				}
 			}
 
@@ -930,6 +938,18 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 								rows="8"
 							></textarea>
 						</div>
+
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">Setlist review notes</span>
+							</label>
+							<textarea
+								bind:value={formData.setlist_review_notes}
+								class="textarea textarea-bordered"
+								placeholder="Enter setlist review notes..."
+								rows="4"
+							></textarea>
+						</div>
 					</div>
 					<div class="flex justify-end gap-2 pt-4">
 						<button
@@ -986,6 +1006,18 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 								maxLength={2000}
 								rows={8}
 								onSave={(value) => onUpdateField('notes', value)}
+							/>
+						</div>
+
+						<div>
+							<InlineEditableField
+								value={event.setlist_review_notes ?? null}
+								field="setlist_review_notes"
+								type="textarea"
+								placeholder="Enter setlist review notes..."
+								rows={4}
+								label="Setlist review notes"
+								onSave={(value) => onUpdateField('setlist_review_notes', value || null)}
 							/>
 						</div>
 					</div>

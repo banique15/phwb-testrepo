@@ -35,6 +35,7 @@
 	let programId = $state<number | null>(initialProgramId ?? null)
 	let artistAssignments = $state<ArtistAssignment[]>([])
 	let notes = $state('')
+	let setlistReviewNotes = $state('')
 	let numberOfAttendees = $state<number | null>(null)
 	let numberOfMusicians = $state<number | null>(null)
 	let productionManagerArtistId = $state<string | null>(null)
@@ -181,6 +182,7 @@
 				...(locationId && { location_id: locationId }),
 				...(programId && { program: programId }),
 				...(notes && { notes }),
+				...(setlistReviewNotes && { setlist_review_notes: setlistReviewNotes }),
 				...(numberOfAttendees !== null && { number_of_attendees: numberOfAttendees }),
 				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
@@ -202,6 +204,7 @@
 			endTime = ''
 			status = 'planned'
 			artistAssignments = []
+			setlistReviewNotes = ''
 			// Keep: date, startTime, locationId, selectedLocation, programId
 			
 			onSuccess?.(createdEvent)
@@ -462,6 +465,20 @@
 						placeholder="Add any additional notes about this event..."
 						class="textarea textarea-bordered textarea-sm w-full"
 						rows="4"
+						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+					></textarea>
+				</div>
+
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Setlist review notes</span>
+					</label>
+					<textarea
+						bind:value={setlistReviewNotes}
+						placeholder="Enter setlist review notes..."
+						class="textarea textarea-bordered textarea-sm w-full"
+						rows="3"
 						disabled={submitting}
 						onfocus={() => onFieldFocus?.()}
 					></textarea>
