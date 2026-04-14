@@ -2,9 +2,13 @@ import type { PageServerLoad } from './$types'
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const devUsers: Array<{ id: string; email: string; full_name: string }> = []
+	const showDevLogin =
+		process.env.NODE_ENV === 'development' ||
+		(process.env.DEV_TEST_LOGIN_ENABLED || '').toLowerCase() === '1' ||
+		(process.env.DEV_TEST_LOGIN_ENABLED || '').toLowerCase() === 'true'
 
-	// Only fetch auth users in development for quick-login buttons
-	if (process.env.NODE_ENV === 'development' && locals.supabaseAdmin) {
+	// Fetch auth users for quick-login buttons when dev login is enabled.
+	if (showDevLogin && locals.supabaseAdmin) {
 		try {
 			const { data, error } = await locals.supabaseAdmin.auth.admin.listUsers({
 				perPage: 50
@@ -37,5 +41,5 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
-	return { devUsers }
+	return { devUsers, showDevLogin }
 }

@@ -3,45 +3,30 @@
 	import { page } from '$app/stores'
 
 	interface Props {
-		data: { devUsers: Array<{ id: string; email: string; full_name: string }> }
+		data: {
+			devUsers: Array<{ id: string; email: string; full_name: string }>
+			showDevLogin?: boolean
+		}
 	}
 	let { data }: Props = $props()
 
 	let loading = $state(false)
-	let emailLoading = $state(false)
-	let email = $state('')
-	let emailSent = $state(false)
 	let error = $state($page.url.searchParams.get('error') || '')
 
 	async function handleGoogleSignIn() {
 		loading = true
 		error = ''
-		emailSent = false
 		try {
 			await authStore.signInWithGoogle()
 		} catch (err: any) {
 			const msg = err?.message || 'Sign in failed'
 			if (msg.toLowerCase().includes('unsupported provider')) {
 				error =
-					'Google sign-in is not enabled in this environment. Use email magic-link sign-in below, or enable Google provider in Supabase Auth settings.'
+					'Google sign-in is not enabled in this environment. Use Dev Login below (if enabled), or enable Google provider in Supabase Auth settings.'
 			} else {
 				error = msg
 			}
 			loading = false
-		}
-	}
-
-	async function handleEmailSignIn() {
-		emailLoading = true
-		error = ''
-		emailSent = false
-		try {
-			await authStore.signInWithEmail(email)
-			emailSent = true
-		} catch (err: any) {
-			error = err?.message || 'Email sign-in failed'
-		} finally {
-			emailLoading = false
 		}
 	}
 </script>
@@ -78,39 +63,11 @@
 				Sign in with Google
 			</button>
 
-			<div class="divider text-xs">OR continue with email</div>
-			<div class="w-full space-y-2">
-				<input
-					type="email"
-					placeholder="you@singforhope.org"
-					class="input input-bordered w-full"
-					bind:value={email}
-					disabled={emailLoading}
-				/>
-				<button
-					type="button"
-					class="btn btn-outline w-full"
-					onclick={handleEmailSignIn}
-					disabled={emailLoading || !email.trim()}
-				>
-					{#if emailLoading}
-						<span class="loading loading-spinner loading-sm"></span>
-					{/if}
-					Send magic link
-				</button>
-			</div>
-
-			{#if emailSent}
-				<div class="alert alert-success w-full mt-2">
-					<span>Magic link sent. Check your email and open the link to sign in.</span>
-				</div>
-			{/if}
-
 			<p class="text-xs text-base-content/50 mt-4">
 				Access restricted to authorized Sing for Hope staff
 			</p>
 
-			{#if import.meta.env.DEV && data.devUsers?.length > 0}
+			{#if data.showDevLogin && data.devUsers?.length > 0}
 				<div class="divider text-xs">OR sign in as (dev)</div>
 				<div class="w-full flex flex-col gap-2 max-h-64 overflow-y-auto">
 					{#each data.devUsers as user (user.id)}
@@ -124,6 +81,10 @@
 							</span>
 						</a>
 					{/each}
+				</div>
+			{:else if data.showDevLogin}
+				<div class="alert alert-info w-full mt-2">
+					<span>Dev login is enabled, but no users were found in auth.</span>
 				</div>
 			{/if}
 		</div>

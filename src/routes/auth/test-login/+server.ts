@@ -1,12 +1,16 @@
 import { redirect } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 
-// Only allow in development
+// Allow in development by default; optionally enable in preview/staging via env flag.
 const isDev = process.env.NODE_ENV === 'development'
+const allowNonDev = (process.env.DEV_TEST_LOGIN_ENABLED || '').toLowerCase() === '1' || (process.env.DEV_TEST_LOGIN_ENABLED || '').toLowerCase() === 'true'
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
-	if (!isDev) {
-		throw redirect(303, '/login?error=Test login only available in development')
+	if (!isDev && !allowNonDev) {
+		throw redirect(
+			303,
+			'/login?error=Test login is disabled. Set DEV_TEST_LOGIN_ENABLED=1 to allow it in preview/staging.'
+		)
 	}
 
 	const email = url.searchParams.get('email')?.trim()
