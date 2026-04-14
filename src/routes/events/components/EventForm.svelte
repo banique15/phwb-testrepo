@@ -46,7 +46,8 @@
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
 		production_manager_artist_id: event?.production_manager_artist_id || null,
-		production_manager_id: event?.production_manager_id || null
+		production_manager_id: event?.production_manager_id || null,
+		setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : ''
 	})
 	
 	let loading = $state(false)
@@ -378,7 +379,8 @@
 			number_of_attendees: event?.number_of_attendees || undefined,
 			number_of_musicians: event?.number_of_musicians || undefined,
 			production_manager_artist_id: event?.production_manager_artist_id || null,
-			production_manager_id: event?.production_manager_id || null
+			production_manager_id: event?.production_manager_id || null,
+			setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : ''
 		}
 		errors = {}
 		submitError = ''
@@ -805,6 +807,25 @@
 					{#if errors.notes}
 						<label class="label">
 							<span class="label-text-alt text-error">{errors.notes}</span>
+						</label>
+					{/if}
+				</div>
+
+				<!-- Setlist Review Notes -->
+				<div class="form-control">
+					<label class="label" for="setlist_review_notes">
+						<span class="label-text">Setlist review notes</span>
+					</label>
+					<textarea
+						id="setlist_review_notes"
+						bind:value={formData.setlist_review_notes}
+						class="textarea textarea-bordered {errors.setlist_review_notes ? 'textarea-error' : ''}"
+						placeholder="Add setlist review notes..."
+						rows="3"
+					></textarea>
+					{#if errors.setlist_review_notes}
+						<label class="label">
+							<span class="label-text-alt text-error">{errors.setlist_review_notes}</span>
 						</label>
 					{/if}
 				</div>

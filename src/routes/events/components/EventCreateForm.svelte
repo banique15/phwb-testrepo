@@ -39,6 +39,7 @@
 	let numberOfMusicians = $state<number | null>(null)
 	let productionManagerArtistId = $state<string | null>(null)
 	let productionManagerId = $state<string | null>(null)
+	let setlistReviewNotes = $state('')
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -185,6 +186,7 @@
 				...(numberOfMusicians !== null && { number_of_musicians: numberOfMusicians }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
+				...(setlistReviewNotes && { setlist_review_notes: setlistReviewNotes }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
 				})
@@ -462,6 +464,20 @@
 						placeholder="Add any additional notes about this event..."
 						class="textarea textarea-bordered textarea-sm w-full"
 						rows="4"
+						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+					></textarea>
+				</div>
+
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Setlist review notes</span>
+					</label>
+					<textarea
+						bind:value={setlistReviewNotes}
+						placeholder="Add setlist review notes..."
+						class="textarea textarea-bordered textarea-sm w-full"
+						rows="3"
 						disabled={submitting}
 						onfocus={() => onFieldFocus?.()}
 					></textarea>
