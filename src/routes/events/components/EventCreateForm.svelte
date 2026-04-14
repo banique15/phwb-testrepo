@@ -39,6 +39,7 @@
 	let numberOfMusicians = $state<number | null>(null)
 	let productionManagerArtistId = $state<string | null>(null)
 	let productionManagerId = $state<string | null>(null)
+	let setlistReviewNotes = $state('')
 
 	// Data state
 	let programs = $state<Program[]>([])
@@ -187,7 +188,8 @@
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
 				...(artistAssignments.length > 0 && {
 					artists: { assignments: artistAssignments }
-				})
+				}),
+				...(setlistReviewNotes.trim() && { setlist_review_notes: setlistReviewNotes.trim() })
 			}
 
 			const createdEvent = await eventsStore.create(eventData)
@@ -202,6 +204,7 @@
 			endTime = ''
 			status = 'planned'
 			artistAssignments = []
+			setlistReviewNotes = ''
 			// Keep: date, startTime, locationId, selectedLocation, programId
 			
 			onSuccess?.(createdEvent)
@@ -462,6 +465,20 @@
 						placeholder="Add any additional notes about this event..."
 						class="textarea textarea-bordered textarea-sm w-full"
 						rows="4"
+						disabled={submitting}
+						onfocus={() => onFieldFocus?.()}
+					></textarea>
+				</div>
+
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Setlist review notes</span>
+					</label>
+					<textarea
+						bind:value={setlistReviewNotes}
+						placeholder="Add setlist review notes (optional)..."
+						class="textarea textarea-bordered textarea-sm w-full"
+						rows="3"
 						disabled={submitting}
 						onfocus={() => onFieldFocus?.()}
 					></textarea>

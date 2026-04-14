@@ -51,7 +51,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
 		production_manager_artist_id: event?.production_manager_artist_id || null,
-		production_manager_id: event?.production_manager_id || null
+		production_manager_id: event?.production_manager_id || null,
+		setlist_review_notes: (event as any)?.setlist_review_notes ?? ''
 	})
 
 	// Update form data when event changes
@@ -73,7 +74,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
 				production_manager_artist_id: event.production_manager_artist_id || null,
-				production_manager_id: event.production_manager_id || null
+				production_manager_id: event.production_manager_id || null,
+				setlist_review_notes: (event as any)?.setlist_review_notes ?? ''
 			}
 		}
 	})
@@ -167,7 +169,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
 				production_manager_artist_id: event.production_manager_artist_id || null,
-				production_manager_id: event.production_manager_id || null
+				production_manager_id: event.production_manager_id || null,
+				setlist_review_notes: (event as any)?.setlist_review_notes ?? ''
 			}
 		}
 		errors = {}
@@ -435,6 +438,11 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				}
 				if (formData.number_of_musicians !== event.number_of_musicians) {
 					updateData.number_of_musicians = formData.number_of_musicians
+				}
+				const existingSetlistNotes = (event as any)?.setlist_review_notes ?? null
+				const newSetlistNotes = formData.setlist_review_notes?.trim() || null
+				if (newSetlistNotes !== existingSetlistNotes) {
+					;(updateData as any).setlist_review_notes = newSetlistNotes
 				}
 			}
 
@@ -889,6 +897,16 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 			<div class="space-y-4">
 				<div class="flex items-center justify-between border-b pb-2">
 					<h3 class="text-lg font-semibold">Notes</h3>
+					{#if !editingTab}
+						<button
+							type="button"
+							class="btn btn-sm btn-outline"
+							onclick={() => startEdit('notes')}
+						>
+							<Edit class="w-4 h-4 mr-1" />
+							Edit
+						</button>
+					{/if}
 				</div>
 				{#if editingTab === 'notes'}
 					<div class="space-y-4">
@@ -928,6 +946,18 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 								class="textarea textarea-bordered"
 								placeholder="Enter event notes"
 								rows="8"
+							></textarea>
+						</div>
+
+						<div class="form-control">
+							<label class="label">
+								<span class="label-text">Setlist review notes</span>
+							</label>
+							<textarea
+								bind:value={formData.setlist_review_notes}
+								class="textarea textarea-bordered"
+								placeholder="Enter setlist review notes (optional)"
+								rows="4"
 							></textarea>
 						</div>
 					</div>
@@ -978,17 +1008,26 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 						</div>
 						
 						<div>
-							<InlineEditableField
-								value={event.notes}
-								field="notes"
-								type="textarea"
-								placeholder="Enter event notes"
-								maxLength={2000}
-								rows={8}
-								onSave={(value) => onUpdateField('notes', value)}
-							/>
+						 <InlineEditableField
+						  value={event.notes}
+						  field="notes"
+						  type="textarea"
+						  placeholder="Enter event notes"
+						  maxLength={2000}
+						  rows={8}
+						  onSave={(value) => onUpdateField('notes', value)}
+						 />
 						</div>
-					</div>
+
+						<div>
+						 <p class="text-sm font-medium opacity-70 mb-1">Setlist review notes</p>
+						 {#if (event as any)?.setlist_review_notes}
+						 <p class="text-base whitespace-pre-wrap">{(event as any).setlist_review_notes}</p>
+						 {:else}
+						 <p class="text-base opacity-50">Not specified</p>
+						 {/if}
+						 </div>
+						</div>
 				{/if}
 			</div>
 		{:else if activeTab === 'history'}
