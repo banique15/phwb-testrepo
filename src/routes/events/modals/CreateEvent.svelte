@@ -36,6 +36,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 	let productionManagerArtistId = $state<string | null>(null)
 	let productionManagerId = $state<string | null>(null)
 	let numberOfAttendees = $state<number | undefined>(undefined)
+	let setlistReviewNotes = $state('')
 
 	// UI state
 	let submitting = $state(false)
@@ -141,6 +142,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 				status: 'draft',
 				...(locationId && { location_id: locationId }),
 				notes: '',
+				...(setlistReviewNotes.trim() && { setlist_review_notes: setlistReviewNotes.trim() }),
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
@@ -218,6 +220,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 				status,
 				location_id: locationId,
 				notes: '',
+				...(setlistReviewNotes.trim() && { setlist_review_notes: setlistReviewNotes.trim() }),
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
@@ -255,6 +258,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 		productionManagerArtistId = null
 		productionManagerId = null
 		numberOfAttendees = undefined
+		setlistReviewNotes = ''
 		error = null
 	}
 
@@ -462,6 +466,19 @@ import { enhancedLookup } from '$lib/stores/lookup'
 							productionManagerArtistId = productionManager?.artist_id ?? null
 						}}
 					/>
+				</div>
+				<!-- Setlist Review Notes -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Setlist review notes</span>
+					</label>
+					<textarea
+						bind:value={setlistReviewNotes}
+						class="textarea textarea-bordered"
+						placeholder="Enter setlist review notes (optional)"
+						rows="3"
+						disabled={submitting}
+					></textarea>
 				</div>
 			</div>
 
