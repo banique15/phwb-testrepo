@@ -93,3 +93,6 @@ openssl rand -base64 64
 Set these values in PHWB environment variables (`.env` locally and deployment provider in prod).
 
 Never commit real secrets to git.
+
+
+<!-- Dev fix repo test – bug #33 -->
