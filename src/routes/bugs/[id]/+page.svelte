@@ -232,6 +232,7 @@
 		warnings?: string[]
 	} | null>(null)
 	let previewFetchedKey = $state<string | null>(null)
+	let autoApplyPromptedKey = $state<string | null>(null)
 	let applyConfirmModal = $state<HTMLDialogElement | null>(null)
 
 	type WorkflowState =
@@ -371,6 +372,14 @@
 			return 'awaiting_validation'
 		}
 		return 'n/a'
+	})
+	const shouldOfferAutoApply = $derived.by<boolean>(() => {
+		if (!showDbConfirmationPanel) return false
+		if (!migrationPreview?.db_changes_detected) return false
+		if (migrationApplyLoading) return false
+		if (migrationApplyResult?.success) return false
+		const status = evidenceMigrationStatus
+		return status === 'pending_apply' || status === 'detected_not_applied' || status === 'apply_failed'
 	})
 
 	// Poll phwb_dev_logs for this bug so Agent activity shows live logs
@@ -543,6 +552,19 @@
 		if (showDbConfirmationPanel && VOICE_AGENT_URL) {
 			void fetchMigrationPreview(false)
 		}
+	})
+	$effect(() => {
+		if (!shouldOfferAutoApply) return
+		const bid = bug?.id
+		if (bid == null) return
+		const workflowKey = currentWorkflowId ?? 'no-workflow'
+		const migrationKey = (migrationPreview?.migration_files || []).join(',')
+		const key = `${bid}:${workflowKey}:${migrationKey}`
+		if (autoApplyPromptedKey === key) return
+		if (!applyConfirmModal) return
+		migrationApplyError = null
+		applyConfirmModal.showModal()
+		autoApplyPromptedKey = key
 	})
 
 	async function initiateDevFix() {
@@ -1077,8 +1099,8 @@
 			<div class="modal-box">
 				<h3 class="font-bold text-lg">Apply DB changes</h3>
 				<p class="py-2 text-sm">
-					This will execute pending migration SQL for this bug/workflow through the backend apply endpoint.
-					Proceed only if you are ready to update the target database environment.
+					DB migration changes were detected for this workflow. Confirm to apply them now automatically.
+					Choose “Not now” to keep manual apply available in the Dev Agent section.
 				</p>
 				{#if migrationPreview?.migration_files?.length}
 					<p class="text-xs text-base-content/70 break-all">
@@ -1087,7 +1109,7 @@
 				{/if}
 				<div class="modal-action">
 					<form method="dialog">
-						<button class="btn btn-ghost btn-sm" disabled={migrationApplyLoading}>Cancel</button>
+						<button class="btn btn-ghost btn-sm" disabled={migrationApplyLoading}>Not now</button>
 					</form>
 					<button
 						type="button"
