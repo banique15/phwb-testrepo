@@ -20,6 +20,21 @@ export const authStore = {
     return data
   },
 
+  async signInWithEmail(email: string) {
+    const trimmed = (email || '').trim()
+    if (!trimmed) throw new Error('Email is required')
+
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+    })
+
+    if (error) throw error
+    return data
+  },
+
   async signOut() {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
