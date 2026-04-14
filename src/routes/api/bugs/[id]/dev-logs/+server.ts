@@ -1,5 +1,14 @@
 import { json, error } from '@sveltejs/kit'
+import { env } from '$env/dynamic/public'
 import type { RequestHandler } from './$types'
+
+function normalizeVoiceAgentUrl(raw: string | undefined): string {
+	const s = (raw ?? '').trim()
+	if (!s) return ''
+	if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '')
+	const host = s.startsWith(':') ? `localhost${s}` : s.includes(':') ? s : `localhost:${s}`
+	return `http://${host.replace(/^\/+/, '')}`
+}
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	if (!locals.session) {
@@ -105,6 +114,28 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 		content: msg,
 		is_internal: false
 	})
+
+	if (isValidated) {
+		const voiceAgentUrl = normalizeVoiceAgentUrl(env.PUBLIC_VOICE_AGENT_URL)
+		if (voiceAgentUrl) {
+			const res = await fetch(`${voiceAgentUrl}/api/dev/fix/staging/validated`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					bug_id: bugId,
+					workflow_id: workflowId || undefined
+				})
+			}).catch(() => null)
+			if (!res || !res.ok) {
+				const payload = (await res?.json().catch(() => ({} as Record<string, unknown>))) ?? {}
+				const detail =
+					typeof payload?.detail === 'string'
+						? payload.detail
+						: `Promotion request failed (${res?.status ?? 'no response'})`
+				throw error(502, detail)
+			}
+		}
+	}
 
 	return json({ ok: true, state: stateLabel, message: msg })
 }
