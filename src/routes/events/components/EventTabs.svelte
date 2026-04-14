@@ -42,6 +42,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		end_time: event?.end_time || '',
 		status: typeof event?.status === 'string' ? event.status : 'planned',
 		notes: typeof event?.notes === 'string' ? event.notes : '',
+		setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 		location_id: event?.location_id || undefined,
 		program: event?.program || undefined,
 		schedule: event?.schedule || null,
@@ -64,6 +65,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				end_time: event.end_time || '',
 				status: typeof event.status === 'string' ? event.status : 'planned',
 				notes: typeof event.notes === 'string' ? event.notes : '',
+				setlist_review_notes: typeof event.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 				location_id: event.location_id || undefined,
 				program: event.program || undefined,
 				schedule: event.schedule || null,
@@ -158,6 +160,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				end_time: event.end_time || '',
 				status: typeof event.status === 'string' ? event.status : 'planned',
 				notes: typeof event.notes === 'string' ? event.notes : '',
+				setlist_review_notes: typeof event.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 				location_id: event.location_id || undefined,
 				program: event.program || undefined,
 				schedule: event.schedule || null,
@@ -427,16 +430,22 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 					}
 				}
 			} else if (editingTab === 'notes') {
-				if (formData.notes !== event.notes) {
-					updateData.notes = formData.notes
-				}
-				if (formData.number_of_attendees !== event.number_of_attendees) {
-					updateData.number_of_attendees = formData.number_of_attendees
-				}
-				if (formData.number_of_musicians !== event.number_of_musicians) {
-					updateData.number_of_musicians = formData.number_of_musicians
-				}
+			if (formData.notes !== event.notes) {
+			updateData.notes = formData.notes
 			}
+			if (formData.number_of_attendees !== event.number_of_attendees) {
+			updateData.number_of_attendees = formData.number_of_attendees
+			}
+			if (formData.number_of_musicians !== event.number_of_musicians) {
+			updateData.number_of_musicians = formData.number_of_musicians
+			}
+			 // Always include setlist_review_notes (may be set to empty string -> null)
+			 const newSetlistNotes = formData.setlist_review_notes || null
+			 const oldSetlistNotes = (event as any).setlist_review_notes || null
+			 if (newSetlistNotes !== oldSetlistNotes) {
+			 updateData.setlist_review_notes = newSetlistNotes
+			 }
+		}
 
 			// Only update if there are changes
 			if (Object.keys(updateData).length > 0) {
@@ -920,75 +929,100 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 						</div>
 						
 						<div class="form-control">
-							<label class="label">
-								<span class="label-text">Notes</span>
-							</label>
-							<textarea
-								bind:value={formData.notes}
-								class="textarea textarea-bordered"
-								placeholder="Enter event notes"
-								rows="8"
-							></textarea>
+						<label class="label">
+						<span class="label-text">Notes</span>
+						</label>
+						<textarea
+						bind:value={formData.notes}
+						class="textarea textarea-bordered"
+						placeholder="Enter event notes"
+						rows="8"
+						></textarea>
 						</div>
-					</div>
-					<div class="flex justify-end gap-2 pt-4">
+
+						 <div class="form-control">
+						 <label class="label">
+						 <span class="label-text">Setlist review notes</span>
+						</label>
+						<textarea
+						 bind:value={formData.setlist_review_notes}
+						  class="textarea textarea-bordered"
+						 placeholder="Notes from setlist review..."
+						  rows="4"
+						 ></textarea>
+						</div>
+						</div>
+						<div class="flex justify-end gap-2 pt-4">
 						<button
-							type="button"
-							class="btn btn-outline"
-							onclick={cancelEdit}
-							disabled={loading}
+						 type="button"
+						class="btn btn-outline"
+						onclick={cancelEdit}
+						disabled={loading}
 						>
-							Cancel
-						</button>
-						<button
-							type="button"
-							class="btn btn-primary"
-							onclick={saveEdit}
-							disabled={loading}
+						 Cancel
+						 </button>
+						  <button
+						  type="button"
+						 class="btn btn-primary"
+						onclick={saveEdit}
+						disabled={loading}
 						>
-							{#if loading}
-								<span class="loading loading-spinner loading-sm"></span>
-							{/if}
-							Save Changes
+						{#if loading}
+						<span class="loading loading-spinner loading-sm"></span>
+						{/if}
+						Save Changes
 						</button>
+						</div>
+						{:else}
+						<div class="space-y-4">
+						<div>
+						<InlineEditableField
+						value={event.number_of_attendees}
+						field="number_of_attendees"
+						type="number"
+						placeholder="0"
+						label="Number of Attendees"
+						onSave={(value) => onUpdateField('number_of_attendees', value ? parseInt(value) : null)}
+						 formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
+						 />
+						</div>
+						<div>
+						<InlineEditableField
+						value={event.number_of_musicians}
+						field="number_of_musicians"
+						type="number"
+						placeholder="0"
+						label="Number of Artists/Musicians"
+						onSave={(value) => onUpdateField('number_of_musicians', value ? parseInt(value) : null)}
+						formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
+						/>
+						</div>
+						 
+					<div>
+						<InlineEditableField
+							value={event.notes}
+							field="notes"
+							type="textarea"
+							placeholder="Enter event notes"
+							maxLength={2000}
+							rows={8}
+							onSave={(value) => onUpdateField('notes', value)}
+						/>
 					</div>
-				{:else}
-					<div class="space-y-4">
-						<div>
-							<InlineEditableField
-								value={event.number_of_attendees}
-								field="number_of_attendees"
-								type="number"
-								placeholder="0"
-								label="Number of Attendees"
-								onSave={(value) => onUpdateField('number_of_attendees', value ? parseInt(value) : null)}
-								formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
-							/>
-						</div>
-						<div>
-							<InlineEditableField
-								value={event.number_of_musicians}
-								field="number_of_musicians"
-								type="number"
-								placeholder="0"
-								label="Number of Artists/Musicians"
-								onSave={(value) => onUpdateField('number_of_musicians', value ? parseInt(value) : null)}
-								formatDisplay={(val) => val !== null && val !== undefined ? String(val) : 'Not specified'}
-							/>
-						</div>
-						
-						<div>
-							<InlineEditableField
-								value={event.notes}
-								field="notes"
-								type="textarea"
-								placeholder="Enter event notes"
-								maxLength={2000}
-								rows={8}
-								onSave={(value) => onUpdateField('notes', value)}
-							/>
-						</div>
+
+					<div>
+						<InlineEditableField
+							value={event.setlist_review_notes}
+							field="setlist_review_notes"
+							type="textarea"
+							placeholder="Notes from setlist review..."
+							maxLength={5000}
+							rows={4}
+							label="Setlist review notes"
+							onSave={(value) => onUpdateField('setlist_review_notes', value || null)}
+						/>
 					</div>
+				</div>
 				{/if}
 			</div>
 		{:else if activeTab === 'history'}
