@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
+	import { browser } from '$app/environment'
 	import { page } from '$app/stores'
 	import { env } from '$env/dynamic/public'
 	import { ArrowLeft, Edit, Check, X, User, Calendar, Clock, Tag, AlertCircle, Wrench, Loader2 } from 'lucide-svelte'
 	import { bugsStore } from '$lib/stores/bugs'
 	import type { BugDetailPageData } from './+page.server'
 	import type { Bug as BugType } from '$lib/schemas/bug'
+	import type { BugComment } from '$lib/schemas/bug-comment'
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import { formatDistanceToNow } from 'date-fns'
 	import BugDetailTabs from './components/BugDetailTabs.svelte'
@@ -48,6 +50,9 @@
 		return (b != null && typeof b === 'object' && 'id' in b && 'title' in b) ? (b as BugType) : null
 	}
 	let bug = $state<BugType | null>(initialBug())
+	let commentsData = $state<Array<BugComment & { profiles?: { full_name: string | null; avatar_url: string | null } | null }>>(
+		Array.isArray(data?.comments) ? data.comments : []
+	)
 
 	const validTabs = ['description', 'comments', 'attachments', 'activity', 'time', 'replication', 'testing'] as const
 	type TabId = typeof validTabs[number]
@@ -87,6 +92,14 @@
 			if (!editingTitle) titleValue = newBug.title
 			if (!editingDescription) descriptionValue = newBug.description || ''
 			if (!editingCategory) categoryValue = newBug.category || ''
+		}
+	})
+	$effect(() => {
+		const incomingComments = data?.comments
+		if (!Array.isArray(incomingComments)) return
+		const currentLen = commentsData.length
+		if (incomingComments.length !== currentLen) {
+			commentsData = incomingComments
 		}
 	})
 
@@ -233,7 +246,12 @@
 	} | null>(null)
 	let previewFetchedKey = $state<string | null>(null)
 	let autoApplyPromptedKey = $state<string | null>(null)
+	let autoClarificationPromptedKey = $state<string | null>(null)
 	let applyConfirmModal = $state<HTMLDialogElement | null>(null)
+	let clarificationModal = $state<HTMLDialogElement | null>(null)
+	let dismissedClarificationKeys = $state<Record<string, true>>({})
+	let dismissedDbPromptKeys = $state<Record<string, true>>({})
+	let sessionPromptStateLoaded = $state(false)
 	let clarificationSubmitting = $state(false)
 	let clarificationSubmitError = $state<string | null>(null)
 	let clarificationSubmitSuccess = $state<string | null>(null)
@@ -242,6 +260,7 @@
 	let clarificationImageUploadLoading = $state(false)
 	let clarificationImageUploadError = $state<string | null>(null)
 	let clarificationImageUploadedName = $state<string | null>(null)
+	let clarificationImageUploadedAttachmentId = $state<number | null>(null)
 	let clarificationReferenceAttachmentId = $state<number | null>(null)
 
 	type WorkflowState =
@@ -392,6 +411,18 @@
 		const status = evidenceMigrationStatus
 		return status === 'pending_apply' || status === 'detected_not_applied' || status === 'apply_failed'
 	})
+	const clarificationWorkflowKey = $derived.by<string>(() => {
+		const bid = bug?.id ?? 'no-bug'
+		const wid = currentWorkflowId ?? 'no-workflow'
+		return `${bid}:${wid}`
+	})
+	const currentDbAutoPromptKey = $derived.by<string | null>(() => {
+		const bid = bug?.id
+		if (bid == null) return null
+		const workflowKey = currentWorkflowId ?? 'no-workflow'
+		const migrationKey = (migrationPreview?.migration_files || []).join(',')
+		return `${bid}:${workflowKey}:${migrationKey}`
+	})
 	type ClarificationQuestion = {
 		id: string
 		prompt: string
@@ -498,6 +529,29 @@
 			clearInterval(interval)
 		}
 	})
+	$effect(() => {
+		const bid = bug?.id
+		if (bid == null) return
+		let cancelled = false
+		async function fetchComments() {
+			if (cancelled) return
+			try {
+				const res = await fetch(`/api/bugs/${bid}/comments`)
+				if (!res.ok || cancelled) return
+				const payload = await res.json()
+				if (cancelled || !Array.isArray(payload)) return
+				commentsData = payload
+			} catch {
+				// ignore
+			}
+		}
+		fetchComments()
+		const interval = setInterval(fetchComments, 3000)
+		return () => {
+			cancelled = true
+			clearInterval(interval)
+		}
+	})
 
 	async function clearAgentLogs() {
 		const bid = bug?.id
@@ -589,6 +643,32 @@
 		migrationApplyError = null
 		applyConfirmModal?.showModal()
 	}
+	function dismissDbAutoPrompt(key?: string | null) {
+		if (!key) return
+		dismissedDbPromptKeys = { ...dismissedDbPromptKeys, [key]: true }
+		if (!browser) return
+		try {
+			window.sessionStorage.setItem('phwb-devagent-dismissed-db-autoapply', JSON.stringify(dismissedDbPromptKeys))
+		} catch {
+			// ignore storage write errors
+		}
+	}
+	function dismissClarificationPrompt() {
+		const key = clarificationWorkflowKey
+		if (!key) return
+		dismissedClarificationKeys = { ...dismissedClarificationKeys, [key]: true }
+		clarificationModal?.close()
+		if (!browser) return
+		try {
+			window.sessionStorage.setItem('phwb-devagent-dismissed-clarification', JSON.stringify(dismissedClarificationKeys))
+		} catch {
+			// ignore storage write errors
+		}
+	}
+	function openClarificationModal() {
+		clarificationSubmitError = null
+		clarificationModal?.showModal()
+	}
 
 	async function applyDbChanges() {
 		const bid = bug?.id
@@ -622,6 +702,7 @@
 				warnings: Array.isArray(payload?.warnings) ? payload.warnings : []
 			}
 			if (migrationApplyResult.success) {
+				dismissDbAutoPrompt(currentDbAutoPromptKey)
 				applyConfirmModal?.close()
 			}
 			await fetchMigrationPreview(true)
@@ -633,17 +714,37 @@
 	}
 
 	$effect(() => {
+		if (!browser || sessionPromptStateLoaded) return
+		try {
+			const rawClar = window.sessionStorage.getItem('phwb-devagent-dismissed-clarification')
+			if (rawClar) {
+				const parsed = JSON.parse(rawClar) as Record<string, true>
+				if (parsed && typeof parsed === 'object') dismissedClarificationKeys = parsed
+			}
+		} catch {
+			// ignore storage parse errors
+		}
+		try {
+			const rawDb = window.sessionStorage.getItem('phwb-devagent-dismissed-db-autoapply')
+			if (rawDb) {
+				const parsed = JSON.parse(rawDb) as Record<string, true>
+				if (parsed && typeof parsed === 'object') dismissedDbPromptKeys = parsed
+			}
+		} catch {
+			// ignore storage parse errors
+		}
+		sessionPromptStateLoaded = true
+	})
+	$effect(() => {
 		if (showDbConfirmationPanel && VOICE_AGENT_URL) {
 			void fetchMigrationPreview(false)
 		}
 	})
 	$effect(() => {
 		if (!shouldOfferAutoApply) return
-		const bid = bug?.id
-		if (bid == null) return
-		const workflowKey = currentWorkflowId ?? 'no-workflow'
-		const migrationKey = (migrationPreview?.migration_files || []).join(',')
-		const key = `${bid}:${workflowKey}:${migrationKey}`
+		const key = currentDbAutoPromptKey
+		if (!key) return
+		if (dismissedDbPromptKeys[key]) return
 		if (autoApplyPromptedKey === key) return
 		if (!applyConfirmModal) return
 		migrationApplyError = null
@@ -654,14 +755,27 @@
 	$effect(() => {
 		const state = currentWorkflowState
 		if (state !== 'awaiting_clarification') {
+			clarificationModal?.close()
 			clarificationSelections = {}
 			clarificationImageFile = null
 			clarificationImageUploadError = null
 			clarificationImageUploadedName = null
+			clarificationImageUploadedAttachmentId = null
 			clarificationReferenceAttachmentId = null
 			clarificationSubmitError = null
 			clarificationSubmitSuccess = null
 		}
+	})
+	$effect(() => {
+		if (currentWorkflowState !== 'awaiting_clarification') return
+		const key = clarificationWorkflowKey
+		if (!key) return
+		if (dismissedClarificationKeys[key]) return
+		if (autoClarificationPromptedKey === key) return
+		if (!clarificationModal) return
+		clarificationSubmitError = null
+		clarificationModal.showModal()
+		autoClarificationPromptedKey = key
 	})
 	$effect(() => {
 		if (!selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference')) {
@@ -724,6 +838,8 @@
 				return
 			}
 			clarificationImageUploadedName = payload?.file_name || clarificationImageFile.name
+			clarificationImageUploadedAttachmentId =
+				typeof payload?.attachment_id === 'number' ? payload.attachment_id : null
 		} catch (e) {
 			clarificationImageUploadError = e instanceof Error ? e.message : 'Image upload failed'
 		} finally {
@@ -768,6 +884,13 @@
 		clarificationSubmitting = true
 		clarificationSubmitError = null
 		clarificationSubmitSuccess = null
+		const imageReferenceMode = selectedImageReferenceMode || null
+		let referenceAttachmentId: number | null = null
+		if (selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference')) {
+			referenceAttachmentId = clarificationReferenceAttachmentId
+		} else if (selectedImageReferenceMode.startsWith('Upload a new image reference')) {
+			referenceAttachmentId = clarificationImageUploadedAttachmentId
+		}
 		try {
 			const base = VOICE_AGENT_URL.replace(/\/$/, '')
 			const res = await fetch(`${base}/api/dev/fix/clarification/submit`, {
@@ -776,7 +899,9 @@
 				body: JSON.stringify({
 					bug_id: bid,
 					workflow_id: wid,
-					answers
+					answers,
+					image_reference_mode: imageReferenceMode,
+					reference_attachment_id: referenceAttachmentId
 				})
 			})
 			const payload = await res.json().catch(() => ({}))
@@ -789,7 +914,9 @@
 			clarificationImageFile = null
 			clarificationImageUploadError = null
 			clarificationImageUploadedName = null
+			clarificationImageUploadedAttachmentId = null
 			clarificationReferenceAttachmentId = null
+			clarificationModal?.close()
 			clarificationSubmitSuccess = 'Clarification submitted. Workflow resumed.'
 		} catch (e) {
 			clarificationSubmitError = e instanceof Error ? e.message : 'Failed to submit clarification'
@@ -885,7 +1012,7 @@
 						invalidateAll: false
 					})
 				}}
-					comments={data.comments}
+					comments={commentsData}
 					attachments={data.attachments}
 					labels={data.labels}
 					relations={data.relations}
@@ -1088,127 +1215,12 @@
 									{/if}
 									{#if currentWorkflowState === 'awaiting_clarification'}
 										<div class="mt-2 rounded border border-warning/30 bg-warning/10 p-2">
-											<p class="font-medium text-warning-content mb-1">Clarification required</p>
-											{#if clarificationQuestions.length > 0}
-												{@const activeQuestion = clarificationQuestions[clarificationCurrentQuestionIndex]}
-												<div class="rounded border border-base-300 bg-base-100/70 p-2">
-													<p class="text-[11px] text-base-content/70 mb-1">
-														Question {clarificationCurrentQuestionIndex + 1} of {clarificationQuestions.length}
-													</p>
-													<p class="text-xs font-medium mb-2">{activeQuestion.prompt}</p>
-													<div class="grid gap-1">
-														{#each activeQuestion.options as opt}
-															<button
-																type="button"
-																class={`btn btn-xs justify-start text-left ${clarificationSelections[activeQuestion.id] === opt ? 'btn-warning' : 'btn-outline'}`}
-																onclick={() => {
-																	clarificationSelections = {
-																		...clarificationSelections,
-																		[activeQuestion.id]: opt
-																	}
-																	clarificationSubmitError = null
-																}}
-															>
-																{opt}
-															</button>
-														{/each}
-													</div>
-												</div>
-												{#if selectedImageReferenceMode}
-													<div class="mt-2 rounded border border-base-300 bg-base-100/70 p-2 text-[11px]">
-														<p class="text-base-content/70 mb-1">Image reference check</p>
-														{#if hasBugAttachments}
-															<p class="text-success mb-1">
-																{data.attachments.length} attachment(s) available on this bug.
-															</p>
-															{#if selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference')}
-																<p class="text-base-content/70">
-																	Using attached files as reference:
-																	<span class="font-mono">{bugAttachmentNames.slice(0, 3).join(', ')}</span>
-																</p>
-																<div class="mt-2 rounded border border-base-300 bg-base-200/40 p-2">
-																	<p class="text-base-content/70 mb-1">Choose one attachment reference</p>
-																	<div class="grid gap-1 max-h-24 overflow-y-auto">
-																		{#each attachmentReferenceOptions as att}
-																			<label class="flex items-center gap-2 cursor-pointer">
-																				<input
-																					type="radio"
-																					class="radio radio-xs"
-																					name="clarification-reference-attachment"
-																					checked={clarificationReferenceAttachmentId === att.id}
-																					onchange={() => {
-																						clarificationReferenceAttachmentId = att.id
-																					}}
-																				/>
-																				<span class="truncate">
-																					{att.file_name}
-																					{#if att.mime_type.startsWith('image/')}
-																						<span class="text-success">(image)</span>
-																					{/if}
-																				</span>
-																			</label>
-																		{/each}
-																	</div>
-																	<p class="text-[11px] text-base-content/60 mt-1">
-																		If none selected, the planner uses the first attached files by default.
-																	</p>
-																</div>
-															{/if}
-														{:else}
-															<p class="text-warning mb-1">No bug attachments found yet.</p>
-														{/if}
-													</div>
-												{/if}
-												{#if shouldShowImageUploadHelper}
-													<div class="mt-2 rounded border border-base-300 bg-base-100/70 p-2">
-														<p class="text-[11px] text-base-content/70 mb-1">
-															Upload image/mock reference (optional)
-														</p>
-														<input
-															type="file"
-															accept="image/*"
-															class="file-input file-input-bordered file-input-xs w-full"
-															onchange={(e) => {
-																const file = e.currentTarget.files?.[0] ?? null
-																clarificationImageFile = file
-																clarificationImageUploadedName = null
-																clarificationImageUploadError = null
-															}}
-														/>
-														<button
-															type="button"
-															class="btn btn-outline btn-xs mt-2 w-full"
-															disabled={!clarificationImageFile || clarificationImageUploadLoading}
-															onclick={uploadClarificationImage}
-														>
-															{#if clarificationImageUploadLoading}Uploading…{:else}Upload image{/if}
-														</button>
-														<p class="text-[11px] text-base-content/60 mt-1">
-															You can continue clarification without uploading an image.
-														</p>
-														{#if clarificationImageUploadedName}
-															<p class="text-success text-[11px] mt-1">Uploaded: {clarificationImageUploadedName}</p>
-														{/if}
-														{#if clarificationImageUploadError}
-															<p class="text-error text-[11px] mt-1 whitespace-pre-wrap">{clarificationImageUploadError}</p>
-														{/if}
-													</div>
-												{/if}
-											{/if}
-											<button
-												type="button"
-												class="btn btn-warning btn-xs w-full mt-2"
-												onclick={submitClarificationAnswers}
-												disabled={clarificationSubmitting || !clarificationAllAnswered}
-											>
-												{#if clarificationSubmitting}Submitting…{:else}Submit clarification{/if}
+											<p class="text-[11px] text-warning-content mb-2">
+												Clarification is required before coding continues.
+											</p>
+											<button type="button" class="btn btn-warning btn-xs w-full" onclick={openClarificationModal}>
+												Open clarification modal
 											</button>
-											{#if clarificationSubmitError}
-												<p class="text-error mt-1 whitespace-pre-wrap">{clarificationSubmitError}</p>
-											{/if}
-											{#if clarificationSubmitSuccess}
-												<p class="text-success mt-1">{clarificationSubmitSuccess}</p>
-											{/if}
 										</div>
 									{/if}
 									{#if canMarkStagingValidated}
@@ -1415,6 +1427,148 @@
 				</div>
 			</div>
 		</div>
+		<dialog class="modal" bind:this={clarificationModal}>
+			<div class="modal-box max-w-2xl">
+				<div class="flex items-center justify-between gap-2">
+					<h3 class="font-bold text-lg">Clarification required</h3>
+					<button type="button" class="btn btn-ghost btn-xs" onclick={dismissClarificationPrompt}>
+						Not now
+					</button>
+				</div>
+				<p class="py-2 text-sm text-base-content/80">
+					Answer these clarification prompts so the dev agent can continue coding with precise context.
+				</p>
+				{#if clarificationQuestions.length > 0}
+					{@const activeQuestion = clarificationQuestions[clarificationCurrentQuestionIndex]}
+					<div class="rounded border border-base-300 bg-base-100/70 p-2">
+						<p class="text-[11px] text-base-content/70 mb-1">
+							Question {clarificationCurrentQuestionIndex + 1} of {clarificationQuestions.length}
+						</p>
+						<p class="text-xs font-medium mb-2">{activeQuestion.prompt}</p>
+						<div class="grid gap-1">
+							{#each activeQuestion.options as opt}
+								<button
+									type="button"
+									class={`btn btn-xs justify-start text-left ${clarificationSelections[activeQuestion.id] === opt ? 'btn-warning' : 'btn-outline'}`}
+									onclick={() => {
+										clarificationSelections = {
+											...clarificationSelections,
+											[activeQuestion.id]: opt
+										}
+										clarificationSubmitError = null
+									}}
+								>
+									{opt}
+								</button>
+							{/each}
+						</div>
+					</div>
+					{#if selectedImageReferenceMode}
+						<div class="mt-2 rounded border border-base-300 bg-base-100/70 p-2 text-[11px]">
+							<p class="text-base-content/70 mb-1">Image reference check</p>
+							{#if hasBugAttachments}
+								<p class="text-success mb-1">
+									{data.attachments.length} attachment(s) available on this bug.
+								</p>
+								{#if selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference')}
+									<p class="text-base-content/70">
+										Using attached files as reference:
+										<span class="font-mono">{bugAttachmentNames.slice(0, 3).join(', ')}</span>
+									</p>
+									<div class="mt-2 rounded border border-base-300 bg-base-200/40 p-2">
+										<p class="text-base-content/70 mb-1">Choose one attachment reference</p>
+										<div class="grid gap-1 max-h-24 overflow-y-auto">
+											{#each attachmentReferenceOptions as att}
+												<label class="flex items-center gap-2 cursor-pointer">
+													<input
+														type="radio"
+														class="radio radio-xs"
+														name="clarification-reference-attachment"
+														checked={clarificationReferenceAttachmentId === att.id}
+														onchange={() => {
+															clarificationReferenceAttachmentId = att.id
+														}}
+													/>
+													<span class="truncate">
+														{att.file_name}
+														{#if att.mime_type.startsWith('image/')}
+															<span class="text-success">(image)</span>
+														{/if}
+													</span>
+												</label>
+											{/each}
+										</div>
+										<p class="text-[11px] text-base-content/60 mt-1">
+											If none selected, the planner uses the first attached files by default.
+										</p>
+									</div>
+								{/if}
+							{:else}
+								<p class="text-warning mb-1">No bug attachments found yet.</p>
+							{/if}
+						</div>
+					{/if}
+					{#if shouldShowImageUploadHelper}
+						<div class="mt-2 rounded border border-base-300 bg-base-100/70 p-2">
+							<p class="text-[11px] text-base-content/70 mb-1">
+								Upload image/mock reference (optional)
+							</p>
+							<input
+								type="file"
+								accept="image/*"
+								class="file-input file-input-bordered file-input-xs w-full"
+								onchange={(e) => {
+									const file = e.currentTarget.files?.[0] ?? null
+									clarificationImageFile = file
+									clarificationImageUploadedName = null
+									clarificationImageUploadedAttachmentId = null
+									clarificationImageUploadError = null
+								}}
+							/>
+							<button
+								type="button"
+								class="btn btn-outline btn-xs mt-2 w-full"
+								disabled={!clarificationImageFile || clarificationImageUploadLoading}
+								onclick={uploadClarificationImage}
+							>
+								{#if clarificationImageUploadLoading}Uploading…{:else}Upload image{/if}
+							</button>
+							<p class="text-[11px] text-base-content/60 mt-1">
+								You can continue clarification without uploading an image.
+							</p>
+							{#if clarificationImageUploadedName}
+								<p class="text-success text-[11px] mt-1">Uploaded: {clarificationImageUploadedName}</p>
+							{/if}
+							{#if clarificationImageUploadError}
+								<p class="text-error text-[11px] mt-1 whitespace-pre-wrap">{clarificationImageUploadError}</p>
+							{/if}
+						</div>
+					{/if}
+				{/if}
+				<div class="modal-action mt-2">
+					<form method="dialog">
+						<button class="btn btn-ghost btn-sm" onclick={dismissClarificationPrompt}>Not now</button>
+					</form>
+					<button
+						type="button"
+						class="btn btn-warning btn-sm"
+						onclick={submitClarificationAnswers}
+						disabled={clarificationSubmitting || !clarificationAllAnswered}
+					>
+						{#if clarificationSubmitting}Submitting…{:else}Submit clarification{/if}
+					</button>
+				</div>
+				{#if clarificationSubmitError}
+					<p class="text-error mt-1 whitespace-pre-wrap text-xs">{clarificationSubmitError}</p>
+				{/if}
+				{#if clarificationSubmitSuccess}
+					<p class="text-success mt-1 text-xs">{clarificationSubmitSuccess}</p>
+				{/if}
+			</div>
+			<form method="dialog" class="modal-backdrop">
+				<button aria-label="Close" onclick={dismissClarificationPrompt}>close</button>
+			</form>
+		</dialog>
 		<dialog class="modal" bind:this={applyConfirmModal}>
 			<div class="modal-box">
 				<h3 class="font-bold text-lg">Apply DB changes</h3>
@@ -1429,7 +1583,13 @@
 				{/if}
 				<div class="modal-action">
 					<form method="dialog">
-						<button class="btn btn-ghost btn-sm" disabled={migrationApplyLoading}>Not now</button>
+						<button
+							class="btn btn-ghost btn-sm"
+							disabled={migrationApplyLoading}
+							onclick={() => dismissDbAutoPrompt(currentDbAutoPromptKey)}
+						>
+							Not now
+						</button>
 					</form>
 					<button
 						type="button"
@@ -1442,7 +1602,7 @@
 				</div>
 			</div>
 			<form method="dialog" class="modal-backdrop">
-				<button aria-label="Close">close</button>
+				<button aria-label="Close" onclick={() => dismissDbAutoPrompt(currentDbAutoPromptKey)}>close</button>
 			</form>
 		</dialog>
 		{/if}
