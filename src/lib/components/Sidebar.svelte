@@ -33,8 +33,19 @@ const navItems = [
 	];
 
 	const settingsItems = [
-		{ name: "Notifications", href: "/settings/notifications", disabled: false }
+		{ name: "Notifications", href: "/settings/notifications", disabled: false },
+		{ name: "Rate Cards", href: "/settings/rate-cards", disabled: false }
 	];
+
+	// Whether the settings sub-menu is expanded
+	let settingsOpen = $state(false);
+
+	// Auto-open settings sub-menu when on a settings page
+	$effect(() => {
+		if ($page.url.pathname.startsWith('/settings')) {
+			settingsOpen = true;
+		}
+	});
 
 	let isMobile = $state(false);
 	let isDrawerOpen = $state(false);
@@ -356,31 +367,55 @@ const navItems = [
 					</li>
 				{/each}
 
-				<li class="pt-2 mt-2 border-t border-base-300/60">
-					<span class="px-4 py-2 text-xs uppercase tracking-wide text-base-content/60">
-						Settings
-					</span>
-					<ul class="mt-1 space-y-1">
-						{#each settingsItems as item}
-							<li class="w-full">
-								<a
-									href={item.href}
-									data-sveltekit-preload-data="hover"
-									data-sveltekit-preload-code="eager"
-									class="flex items-center gap-3 py-2 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
-									class:bg-primary={isActive(item.href)}
-									class:text-primary-content={isActive(item.href)}
-									class:shadow-sm={isActive(item.href)}
-									class:hover:bg-base-300={!isActive(item.href)}
-									class:text-base-content={!isActive(item.href)}
-									onclick={handleNavClick}
-									aria-current={isActive(item.href) ? "page" : undefined}
-								>
-									<span>{item.name}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
+				<!-- Settings: two-level collapsible menu -->
+				<li class="pt-2 mt-2 border-t border-base-300/60 w-full">
+					<!-- Level 1: Settings toggle button -->
+					<button
+						type="button"
+						class="flex items-center gap-3 py-3 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+						class:bg-primary={isActive('/settings') && !settingsOpen}
+						class:text-primary-content={isActive('/settings') && !settingsOpen}
+						class:hover:bg-base-300={true}
+						class:text-base-content={true}
+						onclick={() => { settingsOpen = !settingsOpen; }}
+						aria-expanded={settingsOpen}
+					>
+						<span class="flex-1 text-left">Settings</span>
+						<svg
+							class="w-4 h-4 transition-transform duration-200 opacity-60"
+							class:rotate-180={settingsOpen}
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+						</svg>
+					</button>
+
+					<!-- Level 2: Settings sub-items (shown when settingsOpen) -->
+					{#if settingsOpen}
+						<ul class="mt-1 ml-3 space-y-1 border-l border-base-300/60 pl-2">
+							{#each settingsItems as item}
+								<li class="w-full">
+									<a
+										href={item.href}
+										data-sveltekit-preload-data="hover"
+										data-sveltekit-preload-code="eager"
+										class="flex items-center gap-3 py-2 px-3 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+										class:bg-primary={isActive(item.href)}
+										class:text-primary-content={isActive(item.href)}
+										class:shadow-sm={isActive(item.href)}
+										class:hover:bg-base-300={!isActive(item.href)}
+										class:text-base-content={!isActive(item.href)}
+										onclick={handleNavClick}
+										aria-current={isActive(item.href) ? "page" : undefined}
+									>
+										<span>{item.name}</span>
+									</a>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</li>
 			</ul>
 		</nav>
