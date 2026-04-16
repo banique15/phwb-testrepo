@@ -16,7 +16,7 @@
 		subscribeToNotificationChanges,
 		unsubscribeFromNotificationChanges
 	} from "$lib/stores/notifications";
-	import { Bell } from "lucide-svelte";
+	import { Bell, Settings, ChevronDown } from "lucide-svelte";
 	import { formatDistanceToNow } from "date-fns";
 
 const navItems = [
@@ -33,8 +33,29 @@ const navItems = [
 	];
 
 	const settingsItems = [
-		{ name: "Notifications", href: "/settings/notifications", disabled: false }
+		{ name: "Notifications", href: "/settings/notifications", disabled: false },
+		{ name: "Rate Cards", href: "/settings/rate-cards", disabled: false }
 	];
+
+	// Two-level sidebar: track whether the Settings section is expanded
+	let isSettingsOpen = $state(false);
+
+	// Derived: auto-expand if any settings sub-route is active
+	const isSettingsActive = $derived(
+		$page.url.pathname.startsWith('/settings')
+	);
+
+	// Keep open whenever we are under /settings
+	$effect(() => {
+		if (isSettingsActive) {
+			isSettingsOpen = true;
+		}
+	});
+
+	function toggleSettings(event: MouseEvent) {
+		event.preventDefault();
+		isSettingsOpen = !isSettingsOpen;
+	}
 
 	let isMobile = $state(false);
 	let isDrawerOpen = $state(false);
@@ -356,31 +377,54 @@ const navItems = [
 					</li>
 				{/each}
 
-				<li class="pt-2 mt-2 border-t border-base-300/60">
-					<span class="px-4 py-2 text-xs uppercase tracking-wide text-base-content/60">
-						Settings
-					</span>
-					<ul class="mt-1 space-y-1">
-						{#each settingsItems as item}
-							<li class="w-full">
-								<a
-									href={item.href}
-									data-sveltekit-preload-data="hover"
-									data-sveltekit-preload-code="eager"
-									class="flex items-center gap-3 py-2 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
-									class:bg-primary={isActive(item.href)}
-									class:text-primary-content={isActive(item.href)}
-									class:shadow-sm={isActive(item.href)}
-									class:hover:bg-base-300={!isActive(item.href)}
-									class:text-base-content={!isActive(item.href)}
-									onclick={handleNavClick}
-									aria-current={isActive(item.href) ? "page" : undefined}
-								>
-									<span>{item.name}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
+				<li class="pt-2 mt-2 border-t border-base-300/60 w-full">
+					<!-- Settings toggle button (level-1 entry) -->
+					<button
+						type="button"
+						class="flex items-center gap-3 py-3 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+						class:bg-primary={isSettingsActive && !isSettingsOpen}
+						class:text-primary-content={isSettingsActive && !isSettingsOpen}
+						class:shadow-sm={isSettingsActive && !isSettingsOpen}
+						class:hover:bg-base-300={true}
+						class:text-base-content={true}
+						onclick={toggleSettings}
+						aria-expanded={isSettingsOpen}
+						aria-controls="settings-submenu"
+					>
+						<Settings class="w-4 h-4 shrink-0" />
+						<span class="flex-1 text-left">Settings</span>
+						<ChevronDown
+							class="w-4 h-4 shrink-0 transition-transform duration-200"
+							style={isSettingsOpen ? 'transform: rotate(180deg)' : ''}
+						/>
+					</button>
+
+					<!-- Level-2 sub-menu -->
+					{#if isSettingsOpen}
+						<ul id="settings-submenu" class="mt-1 space-y-1 pl-2">
+							{#each settingsItems as item}
+								<li class="w-full">
+									<a
+										href={item.href}
+										data-sveltekit-preload-data="hover"
+										data-sveltekit-preload-code="eager"
+										class="flex items-center gap-3 py-2 px-3 transition-all duration-200 w-full rounded-lg text-sm"
+										class:bg-primary={isActive(item.href)}
+										class:text-primary-content={isActive(item.href)}
+										class:font-semibold={isActive(item.href)}
+										class:shadow-sm={isActive(item.href)}
+										class:hover:bg-base-300={!isActive(item.href)}
+										class:text-base-content={!isActive(item.href)}
+										onclick={handleNavClick}
+										aria-current={isActive(item.href) ? 'page' : undefined}
+									>
+										<span class="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></span>
+										<span>{item.name}</span>
+									</a>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</li>
 			</ul>
 		</nav>
