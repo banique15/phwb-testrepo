@@ -14,6 +14,7 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 	import PayrollGenerationModal from '$lib/components/payroll/PayrollGenerationModal.svelte'
 	import RateCardManager from './RateCardManager.svelte'
 	import WeeklyBatchView from './WeeklyBatchView.svelte'
+	import TestModal from './TestModal.svelte'
 	import { payrollStore } from '$lib/stores/payroll'
 	import { supabase } from '$lib/supabase'
 	import { PaymentStatus } from '$lib/schemas/payroll'
@@ -212,6 +213,9 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 	// Entries export modal state
 	let showExportEntriesModal = $state(false)
 
+	// Test modal state
+	let showTestModal = $state(false)
+
 	function setActiveTab(tabId: string) {
 		activeTab = tabId
 		if (typeof window !== 'undefined') {
@@ -338,24 +342,32 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 				<!-- Actions Bar -->
 				<div class="flex justify-between items-center">
 					<div class="flex items-center gap-2">
-						<button
-							class="btn btn-outline btn-sm"
-							onclick={() => goto('/payroll/import')}
-							title="Import payroll data from CSV"
-						>
-							<Upload class="w-4 h-4 mr-1" />
-							Import CSV
-						</button>
+					<button
+					class="btn btn-outline btn-sm"
+					onclick={() => goto('/payroll/import')}
+					title="Import payroll data from CSV"
+					>
+					<Upload class="w-4 h-4 mr-1" />
+					Import CSV
+					</button>
 
-						<button
-							class="btn btn-outline btn-sm"
-							onclick={() => showExportEntriesModal = true}
-							title="Export payroll entries as CSV"
-						>
-							<Download class="w-4 h-4 mr-1" />
-							Export CSV
-						</button>
-					</div>
+					<button
+					class="btn btn-outline btn-sm"
+					onclick={() => showExportEntriesModal = true}
+					title="Export payroll entries as CSV"
+					>
+					<Download class="w-4 h-4 mr-1" />
+					Export CSV
+					</button>
+
+					<button
+						class="btn btn-primary btn-sm"
+						onclick={() => showTestModal = true}
+						title="Test button"
+					>
+						TEST
+					</button>
+				</div>
 					
 					<!-- Metrics Filter -->
 					<PayrollMetricsFilterButton
@@ -506,4 +518,9 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 	bind:isOpen={showGenerationModal}
 	on:generated={onPayrollGenerated}
 	on:close={onCloseGeneration}
+/>
+
+<TestModal
+	open={showTestModal}
+	on:close={() => (showTestModal = false)}
 />
