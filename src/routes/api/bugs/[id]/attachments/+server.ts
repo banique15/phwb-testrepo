@@ -1,6 +1,40 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 
+const ATTACHMENT_BUCKET = 'bug-attachments'
+
+async function ensureAttachmentBucket(supabase: any): Promise<{ ok: true } | { ok: false; message: string }> {
+	const { data: bucket, error: bucketError } = await supabase.storage.getBucket(ATTACHMENT_BUCKET)
+	if (!bucketError && bucket) return { ok: true }
+
+	const raw = (bucketError?.message || '').toLowerCase()
+	const isMissing = raw.includes('not found') || raw.includes('does not exist') || raw.includes('bucket')
+	if (!isMissing) {
+		return {
+			ok: false,
+			message: bucketError?.message || 'Failed to verify attachment storage bucket.'
+		}
+	}
+
+	const { error: createError } = await supabase.storage.createBucket(ATTACHMENT_BUCKET, {
+		public: true,
+		fileSizeLimit: 20 * 1024 * 1024
+	})
+	if (createError) {
+		const createMsg = createError?.message || 'Unknown bucket creation error'
+		const alreadyExists = /already exists|duplicate/i.test(createMsg)
+		if (!alreadyExists) {
+			return {
+				ok: false,
+				message:
+					`Storage bucket "${ATTACHMENT_BUCKET}" is missing and could not be auto-created. ` +
+					`Please create it in Supabase Storage. Details: ${createMsg}`
+			}
+		}
+	}
+	return { ok: true }
+}
+
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.session) {
 		return json({ error: 'Unauthorized' }, { status: 401 })
@@ -29,7 +63,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
 		const storagePath = `${bugId}/${safeContext}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeFileName}`
 
-		const { error: uploadError } = await supabase.storage.from('bug-attachments').upload(storagePath, file, {
+		const bucketCheck = await ensureAttachmentBucket(supabase)
+		if (!bucketCheck.ok) {
+			return json({ error: bucketCheck.message }, { status: 500 })
+		}
+
+		const { error: uploadError } = await supabase.storage.from(ATTACHMENT_BUCKET).upload(storagePath, file, {
 			contentType: file.type || `application/${ext}`,
 			upsert: false
 		})
@@ -51,8 +90,18 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			.single()
 
 		if (insertError) {
-			await supabase.storage.from('bug-attachments').remove([storagePath])
-			return json({ error: insertError.message || 'Failed to save attachment.' }, { status: 500 })
+			await supabase.storage.from(ATTACHMENT_BUCKET).remove([storagePath])
+			const msg = insertError.message || 'Failed to save attachment.'
+			if (/null value in column \"id\"|violates not-null constraint/i.test(msg)) {
+				return json(
+					{
+						error:
+							'Attachment schema is missing an auto-generated id default. Apply migration `024_fix_bug_attachments_id_default.sql` and retry.'
+					},
+					{ status: 500 }
+				)
+			}
+			return json({ error: msg }, { status: 500 })
 		}
 
 		return json(

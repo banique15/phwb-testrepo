@@ -33,36 +33,17 @@
 
 		uploading = true
 		try {
-			const fileExt = file.name.split('.').pop()
-			const fileName = `${bugId}/${Date.now()}.${fileExt}`
-			const filePath = fileName // Don't include bucket name in path
-
-			// Upload to Supabase Storage
-			const { error: uploadError } = await supabase.storage
-				.from('bug-attachments')
-				.upload(filePath, file)
-
-			if (uploadError) throw uploadError
-
-			// Get public URL
-			const { data: { publicUrl } } = supabase.storage
-				.from('bug-attachments')
-				.getPublicUrl(filePath)
-
-			// Create attachment record
-			const { error: insertError } = await supabase
-				.from('phwb_bug_attachments')
-				.insert({
-					bug_id: bugId,
-					user_id: currentUser.id,
-					uploaded_by: currentUser.id,
-					file_name: file.name,
-					file_path: filePath,
-					file_size: file.size,
-					mime_type: file.type
-				})
-
-			if (insertError) throw insertError
+			const form = new FormData()
+			form.append('file', file)
+			form.append('context', 'attachments')
+			const res = await fetch(`/api/bugs/${bugId}/attachments`, {
+				method: 'POST',
+				body: form
+			})
+			const payload = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				throw new Error(payload?.error || `Upload failed (${res.status})`)
+			}
 
 			await invalidateAll()
 			target.value = ''
