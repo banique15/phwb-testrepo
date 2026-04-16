@@ -212,6 +212,9 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 	// Entries export modal state
 	let showExportEntriesModal = $state(false)
 
+	// Test modal state
+	let showTestModal = $state(false)
+
 	function setActiveTab(tabId: string) {
 		activeTab = tabId
 		if (typeof window !== 'undefined') {
@@ -348,14 +351,22 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 						</button>
 
 						<button
-							class="btn btn-outline btn-sm"
-							onclick={() => showExportEntriesModal = true}
-							title="Export payroll entries as CSV"
+						class="btn btn-outline btn-sm"
+						onclick={() => showExportEntriesModal = true}
+						title="Export payroll entries as CSV"
 						>
-							<Download class="w-4 h-4 mr-1" />
-							Export CSV
+						<Download class="w-4 h-4 mr-1" />
+						Export CSV
 						</button>
-					</div>
+
+					<button
+						class="btn btn-outline btn-sm"
+						onclick={() => showTestModal = true}
+						title="Test button"
+					>
+						TEST
+					</button>
+				</div>
 					
 					<!-- Metrics Filter -->
 					<PayrollMetricsFilterButton
@@ -507,3 +518,19 @@ import { ClipboardList, CheckCircle, Search, BarChart, CreditCard, Wallet, Downl
 	on:generated={onPayrollGenerated}
 	on:close={onCloseGeneration}
 />
+
+<!-- Test Modal -->
+{#if showTestModal}
+	<dialog class="modal modal-open">
+		<div class="modal-box">
+			<h3 class="font-bold text-lg">Test Complete</h3>
+			<p class="py-4">TEST COMPLETE</p>
+			<div class="modal-action">
+				<button class="btn" onclick={() => showTestModal = false}>Close</button>
+			</div>
+		</div>
+		<form method="dialog" class="modal-backdrop">
+			<button onclick={() => showTestModal = false}>close</button>
+		</form>
+	</dialog>
+{/if}
