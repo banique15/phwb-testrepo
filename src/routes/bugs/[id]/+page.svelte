@@ -234,8 +234,18 @@
 	let previewFetchedKey = $state<string | null>(null)
 	let autoApplyPromptedKey = $state<string | null>(null)
 	let applyConfirmModal = $state<HTMLDialogElement | null>(null)
+	let clarificationSubmitting = $state(false)
+	let clarificationSubmitError = $state<string | null>(null)
+	let clarificationSubmitSuccess = $state<string | null>(null)
+	let clarificationSelections = $state<Record<string, string>>({})
+	let clarificationImageFile = $state<File | null>(null)
+	let clarificationImageUploadLoading = $state(false)
+	let clarificationImageUploadError = $state<string | null>(null)
+	let clarificationImageUploadedName = $state<string | null>(null)
+	let clarificationReferenceAttachmentId = $state<number | null>(null)
 
 	type WorkflowState =
+		| 'awaiting_clarification'
 		| 'code_complete_db_pending'
 		| 'staging_ready'
 		| 'staging_ready_db_pending'
@@ -244,6 +254,7 @@
 		| 'ready_for_pr'
 		| 'fully_complete'
 	const workflowStateMeta: Record<WorkflowState, { label: string; badgeClass: string }> = {
+		awaiting_clarification: { label: 'Awaiting clarification', badgeClass: 'badge-warning' },
 		code_complete_db_pending: { label: 'Code complete - DB pending', badgeClass: 'badge-warning' },
 		staging_ready: { label: 'Staging ready', badgeClass: 'badge-info' },
 		staging_ready_db_pending: { label: 'Staging ready - DB pending', badgeClass: 'badge-warning' },
@@ -380,6 +391,79 @@
 		if (migrationApplyResult?.success) return false
 		const status = evidenceMigrationStatus
 		return status === 'pending_apply' || status === 'detected_not_applied' || status === 'apply_failed'
+	})
+	type ClarificationQuestion = {
+		id: string
+		prompt: string
+		options: string[]
+	}
+	type ClarificationFormPayload = {
+		questions: ClarificationQuestion[]
+		required_answers?: number
+	}
+	function parseClarificationFormPayload(message: string | null): ClarificationFormPayload | null {
+		if (!message) return null
+		const marker = 'CLARIFICATION_FORM_JSON:'
+		const idx = message.indexOf(marker)
+		if (idx < 0) return null
+		const raw = message.slice(idx + marker.length).trim()
+		try {
+			const parsed = JSON.parse(raw)
+			if (!Array.isArray(parsed?.questions)) return null
+			return {
+				questions: parsed.questions
+					.filter((q: unknown) => {
+						const candidate = q as { id?: unknown; prompt?: unknown; options?: unknown }
+						return typeof candidate.id === 'string' && typeof candidate.prompt === 'string' && Array.isArray(candidate.options)
+					})
+					.map((q: { id: string; prompt: string; options: string[] }) => ({
+						id: q.id,
+						prompt: q.prompt,
+						options: q.options.slice(0, 3).map((opt) => String(opt))
+					})),
+				required_answers:
+					typeof parsed?.required_answers === 'number' && parsed.required_answers > 0
+						? parsed.required_answers
+						: undefined
+			}
+		} catch {
+			return null
+		}
+	}
+	const clarificationForm = $derived.by<ClarificationFormPayload | null>(() => {
+		const msg = latestLogMessage('clarify_ticket', (m) => m.includes('CLARIFICATION_FORM_JSON:'))
+		return parseClarificationFormPayload(msg)
+	})
+	const clarificationQuestions = $derived.by<ClarificationQuestion[]>(() => clarificationForm?.questions || [])
+	const clarificationRequiredAnswers = $derived.by<number>(() => clarificationForm?.required_answers ?? clarificationQuestions.length)
+	const hasBugAttachments = $derived((data.attachments?.length ?? 0) > 0)
+	const bugAttachmentNames = $derived((data.attachments || []).map((a) => a.file_name).filter(Boolean))
+	const attachmentReferenceOptions = $derived(
+		(data.attachments || []).map((a) => ({
+			id: Number(a.id),
+			file_name: a.file_name || `attachment-${a.id}`,
+			mime_type: a.mime_type || ''
+		}))
+	)
+	const selectedImageReferenceMode = $derived(clarificationSelections['image_reference'] ?? '')
+	const shouldShowImageUploadHelper = $derived.by<boolean>(() => {
+		if (selectedImageReferenceMode.startsWith('Upload a new image reference')) return true
+		if (selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference') && !hasBugAttachments) {
+			return true
+		}
+		return false
+	})
+	const clarificationAllAnswered = $derived.by<boolean>(() => {
+		const questions = clarificationQuestions
+		if (questions.length === 0) return false
+		return questions.every((q) => Boolean(clarificationSelections[q.id]))
+	})
+	const clarificationCurrentQuestionIndex = $derived.by<number>(() => {
+		const questions = clarificationQuestions
+		for (let i = 0; i < questions.length; i++) {
+			if (!clarificationSelections[questions[i].id]) return i
+		}
+		return Math.max(questions.length - 1, 0)
 	})
 
 	// Poll phwb_dev_logs for this bug so Agent activity shows live logs
@@ -567,6 +651,24 @@
 		autoApplyPromptedKey = key
 	})
 
+	$effect(() => {
+		const state = currentWorkflowState
+		if (state !== 'awaiting_clarification') {
+			clarificationSelections = {}
+			clarificationImageFile = null
+			clarificationImageUploadError = null
+			clarificationImageUploadedName = null
+			clarificationReferenceAttachmentId = null
+			clarificationSubmitError = null
+			clarificationSubmitSuccess = null
+		}
+	})
+	$effect(() => {
+		if (!selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference')) {
+			clarificationReferenceAttachmentId = null
+		}
+	})
+
 	async function initiateDevFix() {
 		if (!bug || !VOICE_AGENT_URL) return
 		devFixLoading = true
@@ -600,6 +702,99 @@
 				: msg
 		} finally {
 			devFixLoading = false
+		}
+	}
+
+	async function uploadClarificationImage() {
+		const bid = bug?.id
+		if (bid == null || !clarificationImageFile) return
+		clarificationImageUploadLoading = true
+		clarificationImageUploadError = null
+		try {
+			const form = new FormData()
+			form.append('file', clarificationImageFile)
+			form.append('context', 'clarification')
+			const res = await fetch(`/api/bugs/${bid}/attachments`, {
+				method: 'POST',
+				body: form
+			})
+			const payload = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				clarificationImageUploadError = payload?.error || `Upload failed (${res.status})`
+				return
+			}
+			clarificationImageUploadedName = payload?.file_name || clarificationImageFile.name
+		} catch (e) {
+			clarificationImageUploadError = e instanceof Error ? e.message : 'Image upload failed'
+		} finally {
+			clarificationImageUploadLoading = false
+		}
+	}
+
+	async function submitClarificationAnswers() {
+		const bid = bug?.id
+		const wid = currentWorkflowId
+		if (bid == null || !wid || !VOICE_AGENT_URL) return
+		if (!clarificationAllAnswered) {
+			clarificationSubmitError = 'Select one option for each clarification question before submitting.'
+			return
+		}
+		const answers = clarificationQuestions
+			.map((q) => {
+				const selected = clarificationSelections[q.id]
+				return selected ? `${q.prompt}: ${selected}` : ''
+			})
+			.filter(Boolean)
+		if (selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference') && hasBugAttachments) {
+			const selectedFiles = attachmentReferenceOptions
+				.filter((a) => clarificationReferenceAttachmentId === a.id)
+				.map((a) => a.file_name)
+			const files = (selectedFiles.length > 0 ? selectedFiles : bugAttachmentNames.slice(0, 5)).join(', ')
+			if (files) {
+				answers.push(`Confirmed bug attachments as image reference: ${files}`)
+			}
+		}
+		if (clarificationImageUploadedName) {
+			answers.push(`Image reference uploaded: ${clarificationImageUploadedName}`)
+		} else if (selectedImageReferenceMode.startsWith('Upload a new image reference')) {
+			answers.push('Image reference note: no upload was provided; proceed without image reference.')
+		} else if (selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference') && !hasBugAttachments) {
+			answers.push('Image reference note: no existing attachments found; proceed without image reference.')
+		}
+		if (answers.length < clarificationRequiredAnswers) {
+			clarificationSubmitError = 'Clarification is incomplete. Please complete all required selections.'
+			return
+		}
+		clarificationSubmitting = true
+		clarificationSubmitError = null
+		clarificationSubmitSuccess = null
+		try {
+			const base = VOICE_AGENT_URL.replace(/\/$/, '')
+			const res = await fetch(`${base}/api/dev/fix/clarification/submit`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					bug_id: bid,
+					workflow_id: wid,
+					answers
+				})
+			})
+			const payload = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				clarificationSubmitError =
+					payload?.detail || payload?.error || payload?.message || `Request failed (${res.status})`
+				return
+			}
+			clarificationSelections = {}
+			clarificationImageFile = null
+			clarificationImageUploadError = null
+			clarificationImageUploadedName = null
+			clarificationReferenceAttachmentId = null
+			clarificationSubmitSuccess = 'Clarification submitted. Workflow resumed.'
+		} catch (e) {
+			clarificationSubmitError = e instanceof Error ? e.message : 'Failed to submit clarification'
+		} finally {
+			clarificationSubmitting = false
 		}
 	}
 </script>
@@ -890,6 +1085,131 @@
 										<a class="btn btn-outline btn-xs mt-1 w-full" href={currentStagingUrl} target="_blank" rel="noreferrer">
 											Open staging preview
 										</a>
+									{/if}
+									{#if currentWorkflowState === 'awaiting_clarification'}
+										<div class="mt-2 rounded border border-warning/30 bg-warning/10 p-2">
+											<p class="font-medium text-warning-content mb-1">Clarification required</p>
+											{#if clarificationQuestions.length > 0}
+												{@const activeQuestion = clarificationQuestions[clarificationCurrentQuestionIndex]}
+												<div class="rounded border border-base-300 bg-base-100/70 p-2">
+													<p class="text-[11px] text-base-content/70 mb-1">
+														Question {clarificationCurrentQuestionIndex + 1} of {clarificationQuestions.length}
+													</p>
+													<p class="text-xs font-medium mb-2">{activeQuestion.prompt}</p>
+													<div class="grid gap-1">
+														{#each activeQuestion.options as opt}
+															<button
+																type="button"
+																class={`btn btn-xs justify-start text-left ${clarificationSelections[activeQuestion.id] === opt ? 'btn-warning' : 'btn-outline'}`}
+																onclick={() => {
+																	clarificationSelections = {
+																		...clarificationSelections,
+																		[activeQuestion.id]: opt
+																	}
+																	clarificationSubmitError = null
+																}}
+															>
+																{opt}
+															</button>
+														{/each}
+													</div>
+												</div>
+												{#if selectedImageReferenceMode}
+													<div class="mt-2 rounded border border-base-300 bg-base-100/70 p-2 text-[11px]">
+														<p class="text-base-content/70 mb-1">Image reference check</p>
+														{#if hasBugAttachments}
+															<p class="text-success mb-1">
+																{data.attachments.length} attachment(s) available on this bug.
+															</p>
+															{#if selectedImageReferenceMode.startsWith('Use existing bug attachments as the reference')}
+																<p class="text-base-content/70">
+																	Using attached files as reference:
+																	<span class="font-mono">{bugAttachmentNames.slice(0, 3).join(', ')}</span>
+																</p>
+																<div class="mt-2 rounded border border-base-300 bg-base-200/40 p-2">
+																	<p class="text-base-content/70 mb-1">Choose one attachment reference</p>
+																	<div class="grid gap-1 max-h-24 overflow-y-auto">
+																		{#each attachmentReferenceOptions as att}
+																			<label class="flex items-center gap-2 cursor-pointer">
+																				<input
+																					type="radio"
+																					class="radio radio-xs"
+																					name="clarification-reference-attachment"
+																					checked={clarificationReferenceAttachmentId === att.id}
+																					onchange={() => {
+																						clarificationReferenceAttachmentId = att.id
+																					}}
+																				/>
+																				<span class="truncate">
+																					{att.file_name}
+																					{#if att.mime_type.startsWith('image/')}
+																						<span class="text-success">(image)</span>
+																					{/if}
+																				</span>
+																			</label>
+																		{/each}
+																	</div>
+																	<p class="text-[11px] text-base-content/60 mt-1">
+																		If none selected, the planner uses the first attached files by default.
+																	</p>
+																</div>
+															{/if}
+														{:else}
+															<p class="text-warning mb-1">No bug attachments found yet.</p>
+														{/if}
+													</div>
+												{/if}
+												{#if shouldShowImageUploadHelper}
+													<div class="mt-2 rounded border border-base-300 bg-base-100/70 p-2">
+														<p class="text-[11px] text-base-content/70 mb-1">
+															Upload image/mock reference (optional)
+														</p>
+														<input
+															type="file"
+															accept="image/*"
+															class="file-input file-input-bordered file-input-xs w-full"
+															onchange={(e) => {
+																const file = e.currentTarget.files?.[0] ?? null
+																clarificationImageFile = file
+																clarificationImageUploadedName = null
+																clarificationImageUploadError = null
+															}}
+														/>
+														<button
+															type="button"
+															class="btn btn-outline btn-xs mt-2 w-full"
+															disabled={!clarificationImageFile || clarificationImageUploadLoading}
+															onclick={uploadClarificationImage}
+														>
+															{#if clarificationImageUploadLoading}Uploading…{:else}Upload image{/if}
+														</button>
+														<p class="text-[11px] text-base-content/60 mt-1">
+															You can continue clarification without uploading an image.
+														</p>
+														{#if clarificationImageUploadedName}
+															<p class="text-success text-[11px] mt-1">Uploaded: {clarificationImageUploadedName}</p>
+														{/if}
+														{#if clarificationImageUploadError}
+															<p class="text-error text-[11px] mt-1 whitespace-pre-wrap">{clarificationImageUploadError}</p>
+														{/if}
+													</div>
+												{/if}
+											{/if}
+											<button
+												type="button"
+												class="btn btn-warning btn-xs w-full mt-2"
+												onclick={submitClarificationAnswers}
+												disabled={clarificationSubmitting || !clarificationAllAnswered}
+											>
+												{#if clarificationSubmitting}Submitting…{:else}Submit clarification{/if}
+											</button>
+											{#if clarificationSubmitError}
+												<p class="text-error mt-1 whitespace-pre-wrap">{clarificationSubmitError}</p>
+											{/if}
+											{#if clarificationSubmitSuccess}
+												<p class="text-success mt-1">{clarificationSubmitSuccess}</p>
+											{/if}
+										</div>
 									{/if}
 									{#if canMarkStagingValidated}
 										<div class="mt-2 rounded border border-base-300 bg-base-100/60 p-2">
