@@ -32,9 +32,9 @@ const navItems = [
 		{ name: "Payroll", href: "/payroll", disabled: false },
 	];
 
-	const settingsItems = [
-		{ name: "Notifications", href: "/settings/notifications", disabled: false }
-	];
+	// Settings is now a top-level nav item that opens a second-level sidebar
+	// when on /settings/** routes (handled by src/routes/settings/+layout.svelte)
+	const isOnSettingsPage = $derived($page.url.pathname.startsWith('/settings'));
 
 	let isMobile = $state(false);
 	let isDrawerOpen = $state(false);
@@ -356,31 +356,27 @@ const navItems = [
 					</li>
 				{/each}
 
-				<li class="pt-2 mt-2 border-t border-base-300/60">
-					<span class="px-4 py-2 text-xs uppercase tracking-wide text-base-content/60">
-						Settings
-					</span>
-					<ul class="mt-1 space-y-1">
-						{#each settingsItems as item}
-							<li class="w-full">
-								<a
-									href={item.href}
-									data-sveltekit-preload-data="hover"
-									data-sveltekit-preload-code="eager"
-									class="flex items-center gap-3 py-2 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
-									class:bg-primary={isActive(item.href)}
-									class:text-primary-content={isActive(item.href)}
-									class:shadow-sm={isActive(item.href)}
-									class:hover:bg-base-300={!isActive(item.href)}
-									class:text-base-content={!isActive(item.href)}
-									onclick={handleNavClick}
-									aria-current={isActive(item.href) ? "page" : undefined}
-								>
-									<span>{item.name}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
+				<li class="pt-2 mt-2 border-t border-base-300/60 w-full">
+					<a
+						href="/settings/notifications"
+						data-sveltekit-preload-data="hover"
+						data-sveltekit-preload-code="eager"
+						class="flex items-center gap-3 py-3 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+						class:bg-primary={isOnSettingsPage}
+						class:text-primary-content={isOnSettingsPage}
+						class:shadow-sm={isOnSettingsPage}
+						class:hover:bg-base-300={!isOnSettingsPage}
+						class:text-base-content={!isOnSettingsPage}
+						onclick={handleNavClick}
+						aria-current={isOnSettingsPage ? 'page' : undefined}
+					>
+						<span>Settings</span>
+						{#if isOnSettingsPage}
+							<svg class="w-3 h-3 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+							</svg>
+						{/if}
+					</a>
 				</li>
 			</ul>
 		</nav>
