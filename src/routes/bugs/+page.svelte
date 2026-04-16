@@ -435,7 +435,7 @@
 
 <ErrorBoundary>
 	<div class="h-full flex flex-col p-6">
-		<!-- Header -->
+		<!-- Header: Issues list page – fix #31 (dev-fix workflow script test) -->
 		<div class="flex items-center justify-between mb-6">
 			<div>
 				<h1 class="text-3xl font-bold flex items-center gap-2">
