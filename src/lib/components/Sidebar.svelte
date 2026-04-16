@@ -33,9 +33,11 @@ const navItems = [
 	];
 
 	const settingsItems = [
-		{ name: "Notifications", href: "/settings/notifications", disabled: false }
+		{ name: "Notifications", href: "/settings/notifications", disabled: false },
+		{ name: "Rate Cards", href: "/settings/rate-cards", disabled: false }
 	];
 
+	let settingsOpen = $state(false);
 	let isMobile = $state(false);
 	let isDrawerOpen = $state(false);
 	let touchStartX = 0;
@@ -148,6 +150,17 @@ const navItems = [
 		} catch (err) {
 			console.error("Failed to mark all notifications as read", err);
 		}
+	}
+
+	// Auto-open the settings section when navigating to a settings sub-route
+	$effect(() => {
+		if ($page.url.pathname.startsWith('/settings')) {
+			settingsOpen = true;
+		}
+	});
+
+	function toggleSettings() {
+		settingsOpen = !settingsOpen;
 	}
 
 	function isActive(href: string): boolean {
@@ -356,31 +369,56 @@ const navItems = [
 					</li>
 				{/each}
 
-				<li class="pt-2 mt-2 border-t border-base-300/60">
-					<span class="px-4 py-2 text-xs uppercase tracking-wide text-base-content/60">
-						Settings
-					</span>
-					<ul class="mt-1 space-y-1">
-						{#each settingsItems as item}
-							<li class="w-full">
-								<a
-									href={item.href}
-									data-sveltekit-preload-data="hover"
-									data-sveltekit-preload-code="eager"
-									class="flex items-center gap-3 py-2 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
-									class:bg-primary={isActive(item.href)}
-									class:text-primary-content={isActive(item.href)}
-									class:shadow-sm={isActive(item.href)}
-									class:hover:bg-base-300={!isActive(item.href)}
-									class:text-base-content={!isActive(item.href)}
-									onclick={handleNavClick}
-									aria-current={isActive(item.href) ? "page" : undefined}
-								>
-									<span>{item.name}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
+				<li class="pt-2 mt-2 border-t border-base-300/60 w-full">
+					<!-- Settings parent toggle -->
+					<button
+						type="button"
+						class="flex items-center justify-between gap-3 py-3 px-4 transition-all duration-200 w-full rounded-lg text-sm font-medium"
+						class:bg-primary={$page.url.pathname.startsWith('/settings') && !settingsOpen}
+						class:text-primary-content={$page.url.pathname.startsWith('/settings') && !settingsOpen}
+						class:hover:bg-base-300={true}
+						class:text-base-content={true}
+						onclick={toggleSettings}
+						aria-expanded={settingsOpen}
+					>
+						<span>Settings</span>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="w-4 h-4 transition-transform duration-200"
+							class:rotate-180={settingsOpen}
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+						</svg>
+					</button>
+					<!-- Settings sub-items (second level) -->
+					{#if settingsOpen}
+						<ul class="mt-1 space-y-1 pl-3">
+							{#each settingsItems as item}
+								<li class="w-full">
+									<a
+										href={item.href}
+										data-sveltekit-preload-data="hover"
+										data-sveltekit-preload-code="eager"
+										class="flex items-center gap-2 py-2 px-3 transition-all duration-200 w-full rounded-lg text-sm font-medium border-l-2"
+										class:border-primary={isActive(item.href)}
+										class:bg-primary={isActive(item.href)}
+										class:text-primary-content={isActive(item.href)}
+										class:shadow-sm={isActive(item.href)}
+										class:border-base-300={!isActive(item.href)}
+										class:hover:bg-base-300={!isActive(item.href)}
+										class:text-base-content={!isActive(item.href)}
+										onclick={handleNavClick}
+										aria-current={isActive(item.href) ? "page" : undefined}
+									>
+										<span>{item.name}</span>
+									</a>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</li>
 			</ul>
 		</nav>
