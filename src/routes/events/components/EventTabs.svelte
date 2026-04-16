@@ -51,7 +51,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		number_of_attendees: event?.number_of_attendees || undefined,
 		number_of_musicians: event?.number_of_musicians || undefined,
 		production_manager_artist_id: event?.production_manager_artist_id || null,
-		production_manager_id: event?.production_manager_id || null
+		production_manager_id: event?.production_manager_id || null,
+		requires_setlist_review: event?.requires_setlist_review ?? false
 	})
 
 	// Update form data when event changes
@@ -73,7 +74,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
 				production_manager_artist_id: event.production_manager_artist_id || null,
-				production_manager_id: event.production_manager_id || null
+				production_manager_id: event.production_manager_id || null,
+				requires_setlist_review: event.requires_setlist_review ?? false
 			}
 		}
 	})
@@ -167,7 +169,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				number_of_attendees: event.number_of_attendees || undefined,
 				number_of_musicians: event.number_of_musicians || undefined,
 				production_manager_artist_id: event.production_manager_artist_id || null,
-				production_manager_id: event.production_manager_id || null
+				production_manager_id: event.production_manager_id || null,
+				requires_setlist_review: event.requires_setlist_review ?? false
 			}
 		}
 		errors = {}
@@ -1046,6 +1049,25 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 							{formatDate(event.created_at)}
 						</div>
 					</div>
+
+					<!-- Requires Setlist Review toggle -->
+					<div class="form-control">
+						<label class="label cursor-pointer justify-start gap-3">
+							<input
+								type="checkbox"
+								class="toggle toggle-warning"
+								checked={event.requires_setlist_review ?? false}
+								onchange={async (e) => {
+									await onUpdateField('requires_setlist_review', (e.target as HTMLInputElement).checked)
+								}}
+							/>
+							<span class="label-text font-medium">Requires Setlist Review</span>
+						</label>
+						<label class="label pt-0">
+							<span class="label-text-alt text-base-content/60">Flag this event as requiring a setlist review before approval.</span>
+						</label>
+					</div>
+
 					<div class="divider"></div>
 					<button
 						class="btn btn-outline btn-error"

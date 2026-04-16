@@ -36,6 +36,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 	let productionManagerArtistId = $state<string | null>(null)
 	let productionManagerId = $state<string | null>(null)
 	let numberOfAttendees = $state<number | undefined>(undefined)
+	let requiresSetlistReview = $state(false)
 
 	// UI state
 	let submitting = $state(false)
@@ -141,6 +142,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 				status: 'draft',
 				...(locationId && { location_id: locationId }),
 				notes: '',
+				requires_setlist_review: requiresSetlistReview,
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
@@ -218,6 +220,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 				status,
 				location_id: locationId,
 				notes: '',
+				requires_setlist_review: requiresSetlistReview,
 				...(numberOfAttendees !== undefined && { number_of_attendees: numberOfAttendees }),
 				...(productionManagerId && { production_manager_id: productionManagerId }),
 				...(productionManagerArtistId && { production_manager_artist_id: productionManagerArtistId }),
@@ -255,6 +258,7 @@ import { enhancedLookup } from '$lib/stores/lookup'
 		productionManagerArtistId = null
 		productionManagerId = null
 		numberOfAttendees = undefined
+		requiresSetlistReview = false
 		error = null
 	}
 
@@ -462,6 +466,22 @@ import { enhancedLookup } from '$lib/stores/lookup'
 							productionManagerArtistId = productionManager?.artist_id ?? null
 						}}
 					/>
+				</div>
+
+				<!-- Requires Setlist Review toggle -->
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-3">
+						<input
+							type="checkbox"
+							class="toggle toggle-warning"
+							bind:checked={requiresSetlistReview}
+							disabled={submitting}
+						/>
+						<span class="label-text font-medium">Requires Setlist Review</span>
+					</label>
+					<label class="label pt-0">
+						<span class="label-text-alt text-base-content/60">Flag this event as requiring a setlist review before approval.</span>
+					</label>
 				</div>
 			</div>
 

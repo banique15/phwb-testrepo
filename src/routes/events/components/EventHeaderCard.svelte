@@ -154,7 +154,7 @@
 						</div>
 					{/if}
 					</div>
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-2 flex-wrap">
 						<InlineEditableField
 							value={event.status}
 							field="status"
@@ -165,6 +165,14 @@
 							formatDisplay={(val) => val || 'Unknown Status'}
 							displayClass={getStatusBadgeClass(event.status)}
 						/>
+						{#if event.requires_setlist_review}
+							<span class="badge badge-warning gap-1" title="Setlist review required before approval">
+								<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+								</svg>
+								Setlist Review Required
+							</span>
+						{/if}
 					</div>
 				</div>
 
