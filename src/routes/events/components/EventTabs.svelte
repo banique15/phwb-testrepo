@@ -42,6 +42,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 		end_time: event?.end_time || '',
 		status: typeof event?.status === 'string' ? event.status : 'planned',
 		notes: typeof event?.notes === 'string' ? event.notes : '',
+		setlist_review_notes: typeof event?.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 		location_id: event?.location_id || undefined,
 		program: event?.program || undefined,
 		schedule: event?.schedule || null,
@@ -64,6 +65,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				end_time: event.end_time || '',
 				status: typeof event.status === 'string' ? event.status : 'planned',
 				notes: typeof event.notes === 'string' ? event.notes : '',
+				setlist_review_notes: typeof event.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 				location_id: event.location_id || undefined,
 				program: event.program || undefined,
 				schedule: event.schedule || null,
@@ -158,6 +160,7 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				end_time: event.end_time || '',
 				status: typeof event.status === 'string' ? event.status : 'planned',
 				notes: typeof event.notes === 'string' ? event.notes : '',
+				setlist_review_notes: typeof event.setlist_review_notes === 'string' ? event.setlist_review_notes : '',
 				location_id: event.location_id || undefined,
 				program: event.program || undefined,
 				schedule: event.schedule || null,
@@ -436,6 +439,8 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 				if (formData.number_of_musicians !== event.number_of_musicians) {
 					updateData.number_of_musicians = formData.number_of_musicians
 				}
+				// Always include setlist_review_notes to allow saving or clearing
+				updateData.setlist_review_notes = formData.setlist_review_notes || null
 			}
 
 			// Only update if there are changes
@@ -891,46 +896,58 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 					<h3 class="text-lg font-semibold">Notes</h3>
 				</div>
 				{#if editingTab === 'notes'}
-					<div class="space-y-4">
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">Number of Attendees</span>
-							</label>
-							<input
-								type="number"
-								bind:value={formData.number_of_attendees}
-								class="input input-bordered"
-								placeholder="Enter number of attendees"
-								min="0"
-								step="1"
-							/>
-						</div>
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">Number of Artists/Musicians</span>
-							</label>
-							<input
-								type="number"
-								bind:value={formData.number_of_musicians}
-								class="input input-bordered"
-								placeholder="Enter number of artists/musicians performing"
-								min="0"
-								step="1"
-							/>
-						</div>
-						
-						<div class="form-control">
-							<label class="label">
-								<span class="label-text">Notes</span>
-							</label>
-							<textarea
-								bind:value={formData.notes}
-								class="textarea textarea-bordered"
-								placeholder="Enter event notes"
-								rows="8"
-							></textarea>
-						</div>
+				<div class="space-y-4">
+				<div class="form-control">
+				<label class="label">
+				<span class="label-text">Number of Attendees</span>
+				</label>
+				<input
+				type="number"
+				bind:value={formData.number_of_attendees}
+				class="input input-bordered"
+				placeholder="Enter number of attendees"
+				min="0"
+				step="1"
+				/>
+				</div>
+				<div class="form-control">
+				<label class="label">
+				<span class="label-text">Number of Artists/Musicians</span>
+				</label>
+				<input
+				type="number"
+				bind:value={formData.number_of_musicians}
+				class="input input-bordered"
+				placeholder="Enter number of artists/musicians performing"
+				min="0"
+				step="1"
+				/>
+				</div>
+				
+				<div class="form-control">
+				<label class="label">
+				<span class="label-text">Notes</span>
+				</label>
+				<textarea
+				bind:value={formData.notes}
+				class="textarea textarea-bordered"
+				placeholder="Enter event notes"
+				rows="8"
+				></textarea>
+				</div>
+
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text">Setlist review notes</span>
+						</label>
+						<textarea
+							bind:value={formData.setlist_review_notes}
+							class="textarea textarea-bordered"
+							placeholder="Enter setlist review notes..."
+							rows="4"
+						></textarea>
 					</div>
+				</div>
 					<div class="flex justify-end gap-2 pt-4">
 						<button
 							type="button"
@@ -978,16 +995,25 @@ import { Calendar, ClipboardList, Theater, FileText, ScrollText, Settings, Dolla
 						</div>
 						
 						<div>
-							<InlineEditableField
-								value={event.notes}
-								field="notes"
-								type="textarea"
-								placeholder="Enter event notes"
-								maxLength={2000}
-								rows={8}
-								onSave={(value) => onUpdateField('notes', value)}
-							/>
+						<InlineEditableField
+						value={event.notes}
+						field="notes"
+						type="textarea"
+						placeholder="Enter event notes"
+						maxLength={2000}
+						rows={8}
+						onSave={(value) => onUpdateField('notes', value)}
+						/>
 						</div>
+
+						 <div>
+						<p class="text-sm font-medium opacity-70 mb-1">Setlist review notes</p>
+						{#if event.setlist_review_notes}
+							<p class="text-base whitespace-pre-wrap">{event.setlist_review_notes}</p>
+						{:else}
+							<p class="text-base opacity-50">No setlist review notes</p>
+						{/if}
+					</div>
 					</div>
 				{/if}
 			</div>
