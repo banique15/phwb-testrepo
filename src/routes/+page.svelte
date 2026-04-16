@@ -3,6 +3,7 @@
 	import ErrorBoundary from '$lib/components/ui/ErrorBoundary.svelte'
 	import Calendar from '$lib/components/ui/Calendar.svelte'
 	import type { DashboardPageData } from './+page.server'
+	import { toast } from '$lib/stores/toast'
 
 	interface Props {
 		data: DashboardPageData
@@ -152,12 +153,22 @@
 									<span>Add Venue</span>
 								</a>
 								<a href="/reports" data-sveltekit-preload-data="hover" class="btn btn-outline btn-sm gap-2 justify-start">
-									<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-										<path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
-									</svg>
-									<span>View Reports</span>
+								<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+								<path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+								</svg>
+								<span>View Reports</span>
 								</a>
-							</div>
+								 <button
+								type="button"
+								class="btn btn-info btn-sm gap-2 justify-start col-span-2"
+								onclick={() => toast.info('Test button clicked')}
+							>
+								<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>
+								</svg>
+								<span>Test Button</span>
+							</button>
+						</div>
 						</div>
 					</div>
 				</div>
